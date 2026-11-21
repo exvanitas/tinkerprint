@@ -4,8 +4,6 @@ Turn your git history and your coding-agent logs into an RPG character sheet.
 
 Stats on a radar, a class from your two strongest stats, a level, a few dated achievements, and a party: the agents that worked beside you. It runs on your machine and reads only what is already there. Nothing is uploaded.
 
-> Not released yet. The method is still being worked out in the open. The first version will be 0.1.0.
-
 ## Try it
 
 Python 3.11 or newer. No other packages.
