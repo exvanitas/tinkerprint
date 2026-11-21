@@ -144,7 +144,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ev li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px dashed var(--border); }
 .ev li span:first-child { overflow-wrap: anywhere; }
 .ev li span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.unlit { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted);
+.unlit { display: flex; flex-direction: column; justify-content: center; gap: 10px; font-size: 13px; color: var(--muted);
   border: 1px dashed var(--border-2); border-radius: 12px; padding: 10px 14px; }
 .unlit > span { display: inline-flex; gap: 8px; align-items: center; }
 .unlit .trinket { width: 34px; height: 34px; border-radius: 8px; filter: grayscale(1); opacity: .7; }
@@ -175,6 +175,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ach .d { font-size: 12px; color: var(--lantern-ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .ach .x { font-size: 13px; margin-top: 4px; }
 .ach .src { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .achs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ach { grid-template-columns: minmax(0, 1fr); text-align: center; padding: 14px 10px; }
+  .ach .ic { width: 68px; height: 68px; margin: 0 auto 8px; }
+  .ach .t { font-size: 16px; }
+}
 .ms { list-style: none; padding: 0; margin: 12px 0 0; }
 .ms li { display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
 .ms li span:first-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
@@ -562,10 +568,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     {chart}
     <details><summary>Stats as a table</summary><div class="scroll-x"><table><thead><tr><th>Stat</th><th class="num">Points</th><th class="num">Share</th></tr></thead><tbody>{table_rows}</tbody></table></div></details>
   </div>
-  <div>
-    <div class="stats">{"".join(cards)}</div>
-    {unlit_html}
-  </div>
+  <div class="stats">{"".join(cards)}{unlit_html}</div>
 </div>
 
 <h2>Party</h2>

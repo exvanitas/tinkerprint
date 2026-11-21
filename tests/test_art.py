@@ -377,6 +377,77 @@ class Built(unittest.TestCase):
         self.assertIn('class="px alt"', page)
         self.assertIn(f"the {cls['close']['name']} costume", page)
 
+    def test_hero_layers_the_figure_exactly_where_the_banner_draws_it(self):
+        """The hero draws the studio without its figure and layers the figure on top. Same pixels."""
+        for res in self.out.values():
+            sheet = res["sheet"]
+            look, _ = art.sheet_looks(sheet)
+            ranked = [("Logic", 40), ("Data", 30)]
+            whole = art.banner(PACK, look, ranked, ["claude", "codex"], "s")
+            stage = art.banner(PACK, look, ranked, ["claude", "codex"], "s", with_figure=False)
+            self.assertNotEqual(stage.px, whole.px)
+            fig = art.figure(PACK, look)
+            stage.paste(fig, *art.banner_figure_box(PACK, fig))
+            self.assertEqual(stage.px, whole.px)
+
+    def test_sheet_reads_in_order_hero_first(self):
+        for slug, res in self.out.items():
+            with open(res["paths"]["html"], encoding="utf-8") as f:
+                page = f.read()
+            hero = page.index('<section class="hero">')
+            # The scene, the figure layer and the nameplate sit together in the hero.
+            for part in ('class="banner"', 'class="portrait', 'class="seal"', "<h1>"):
+                self.assertLess(hero, page.index(part), (slug, part))
+                self.assertLess(page.index(part), page.index("<h2>The build</h2>"), (slug, part))
+            heads = ["The build", "Party", "Achievements", "Chronicle", "What changed", "Projects", "Method"]
+            at = [page.find(f"<h2>{h}</h2>") for h in heads if f"<h2>{h}</h2>" in page]
+            self.assertGreaterEqual(len(at), 6, slug)
+            self.assertEqual(at, sorted(at), slug)
+            # The phone crop stays inside the scene.
+            m = re.search(r'--zoom:([\d.]+)%;--crop:(-?[\d.]+)%', page)
+            zoom, crop = float(m.group(1)), float(m.group(2))
+            self.assertGreaterEqual(zoom, 100)
+            self.assertLessEqual(crop, 0)
+            self.assertGreaterEqual(crop + zoom, 100 - 1e-6, slug)
+
+    def test_each_lit_stat_gets_a_card_and_empty_stats_share_one_line(self):
+        for slug, res in self.out.items():
+            with open(res["paths"]["html"], encoding="utf-8") as f:
+                page = f.read()
+            stats = res["sheet"]["stats"]
+            lit = [s for s in stats if s["points"] > 0]
+            self.assertEqual(page.count('class="card stat"'), len(lit), slug)
+            dark = [s["key"] for s in stats if s["points"] <= 0]
+            if dark:
+                line = page[page.index('class="unlit"'):]
+                line = line[:line.index("</div>")]
+                for key in dark:
+                    self.assertIn(f"<b>{key}</b>", line, slug)
+            # Strongest first, each tinted with its stat's colors.
+            order = [m for m in re.findall(r'class="card stat".*?<h3>([^<]+)</h3>', page)]
+            self.assertEqual(order, [s["key"] for s in sorted(lit, key=lambda s: -s["share"])], slug)
+            for s in lit:
+                self.assertIn(f"--hue-1:{art.stat_ramp(PACK, s['key'])[1]}", page)
+
+    def test_card_familiars_follow_the_allowlisted_party(self):
+        card = copy.deepcopy(self.out["wren"]["sheet"]["card"])
+        three = render_card(card)
+        card["party"] = card["party"][:1]
+        one = render_card(card)
+        self.assertNotEqual(one, three)
+        card["party"] = []
+        none = render_card(card)
+        self.assertNotIn("PARTY", none)
+        # An unknown member gets the fallback familiar, and the party line stays the only party text.
+        card["party"] = ["Someone"]
+        odd = render_card(card)
+        texts = re.findall(r">([^<>]+)</text>", odd)
+        self.assertEqual([t for t in texts if "PARTY" in t], ["PARTY  Someone"])
+        self.assertEqual(len(texts), len(re.findall(r">([^<>]+)</text>", none)) + 1)
+        art_of = lambda svg: re.search(r'<g shape-rendering="crispEdges">(.*?)</g>', svg).group(1)
+        self.assertNotEqual(art_of(odd), art_of(none))
+        self.assertNotEqual(art_of(one), art_of(three))
+
     def test_page_sizes_stay_small(self):
         """Budgets: sheet.html under 104 KB, card.svg under 30 KB, the gallery under 240 KB."""
         for res in self.out.values():

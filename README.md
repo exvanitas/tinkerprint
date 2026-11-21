@@ -8,13 +8,13 @@ Stats on a radar, a class from your two strongest stats with a pixel portrait to
 
 A private sheet, one HTML file per profile. Here are the demo's two invented people, a developer on the builder set and a tinkerer on the tinkerer set:
 
-![Sheet for Tobi Marsh, an invented developer: workshop banner, pixel portrait, class, level and a radar of the builder set](docs/tobi.png)
+![Sheet for Tobi Marsh, an invented developer: a rabbit alchemist in a lantern-lit workshop with an owl and a cat, a nameplate with level seal, then the radar and stat cards](docs/tobi.png)
 
 ![Sheet for Wren Aldous, an invented tinkerer, in the dark theme](docs/wren.png)
 
 And a share card that carries only what you allow:
 
-![Share card for Tobi Marsh: pixel portrait, class, level, rounded shares, achievements and party](docs/card.png)
+![Share card for Tobi Marsh: pixel portrait with level seal, class, rounded shares, achievements, party familiars and a radar](docs/card.png)
 
 ## Try it
 

@@ -14,17 +14,21 @@ Layers are the cloak or pack, body, shoulder equipment, sleeve, head, and tool. 
 
 Looks follow class shape alone. The sheet and card both rank shares rounded to 5%, breaking ties in the set's order. The card portrait reads only `set`, `class`, `multiclass` and the rounded stats. It contributes only paths with `fill` and `d` attributes to the card.
 
+## On the sheet
+
+The hero is the workshop with the figure layered on its rug. `banner(..., with_figure=False)` draws the studio alone and `banner_figure_box` says where the figure goes, so a close call can swap the costume without redrawing the room. Each stat card is tinted with its stat's ramp from `stat_ramp`. The share card draws its bars and radar dots from the same ramps.
+
 ## Other pictures
 
 | Picture | Composition |
 |---|---|
 | Workshop | A 252 × 72 studio with a lantern over a pressed fern, a distant aqueduct or windmill, and a rug for the figure. Active trades stock the cabinet. Party members bring their familiars. |
-| Familiars | An owl, cat, jelly and fallback sprout slime. These also appear on the party cards. |
+| Familiars | An owl, cat, jelly and fallback sprout slime. These also appear on the party cards and, from the card's party names, along the foot of the share card. |
 | Achievement pins | Each rule and the milestone fallback get their own silhouette. |
 | Shelf miniatures | One object per stat, shared between the shelf and stat cards. |
 | Chronicle | Each quarter shows its class portrait. A kettle hangs over the fire in quiet stretches. Repeated portraits reuse SVG definitions. |
 
-The counter-mode SHA-256 stream places stock and companions from the same sheet seed on every build. PNGs use the standard library and fixed compression. The default `portrait.png` is an 8× integer enlargement, 384 × 384. The card and sheet hero use 3× pixels. The chronicle uses 2×. Inline SVG on the sheet and gallery carries lossless pixel art at its requested display resolution. The card and the chronicle’s reusable portrait definitions draw orthogonal paths. Each path joins same-color runs across rows, including stepped edges.
+The counter-mode SHA-256 stream places stock and companions from the same sheet seed on every build. PNGs use the standard library and fixed compression. The default `portrait.png` is an 8× integer enlargement, 384 × 384. The card portrait uses 4× pixels. The sheet's hero stretches the workshop across the page, and on a phone crops it to the figure and familiars. The chronicle uses 2×, familiars and pins 3×, stat trinkets 4×. Inline SVG on the sheet and gallery carries lossless pixel art at its requested display resolution. The card and the chronicle’s reusable portrait definitions draw orthogonal paths. Each path joins same-color runs across rows, including stepped edges.
 
 ## Replace the pack
 
@@ -52,4 +56,4 @@ The loader checks grid sizes, color values, keys, coordinates and part reference
 
 ## Size budgets
 
-The art tests keep both invented demo sheets below 104,000 bytes, cards below 16,000 bytes and portrait PNGs below 4,800 bytes. The gallery limit is 240,000 bytes. The built-in gallery measures 215,843 bytes.
+The art tests keep both invented demo sheets below 104,000 bytes, cards below 30,000 bytes and portrait PNGs below 4,800 bytes. The gallery limit is 240,000 bytes. The built-in gallery measures 215,843 bytes.
