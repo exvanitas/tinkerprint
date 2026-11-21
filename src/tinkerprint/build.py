@@ -19,7 +19,7 @@ from .score import compare, score_core
 from .datadir import _write, data_home, inside_repo_or_root, pretty
 from .timeutil import parse_day
 
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 
 def _digest(path: str) -> str | None:
@@ -36,9 +36,10 @@ def _digest(path: str) -> str | None:
 def _cached(files: list, reader, cache_path: str) -> list:
     """Read harness files through a cache keyed on content. The cache stays in the data folder.
 
-    An entry is reused without rereading when size, mtime, ctime and inode all match. Any write
-    or restore of a file changes its ctime, which no ordinary tool can set back. Otherwise the
-    file's SHA-256 must match the stored one, or the file is read again.
+    Each entry holds the SHA-256 and size of exactly the bytes the reader parsed. It is reused
+    when the file still has that size and either its stat (size, mtime, ctime, inode) is
+    unchanged or its SHA-256 matches. Any other file is parsed again, so bytes that arrived
+    after the reader stopped are never skipped.
     """
     try:
         with open(cache_path, encoding="utf-8") as f:
@@ -57,26 +58,21 @@ def _cached(files: list, reader, cache_path: str) -> list:
             continue
         stamp = [st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino]
         c = old.get(path) or {}
-        digest = c.get("sha256")
-        if c.get("stat") == stamp and digest:
+        same_size = c.get("size") == st.st_size and isinstance(c.get("sha256"), str)
+        if same_size and (c.get("stat") == stamp or _digest(path) == c["sha256"]):
             evs = [Event.from_dict(x) for x in c.get("events", [])]
+            entry = dict(c, stat=stamp)
         else:
-            now = _digest(path)
-            if now is None:
+            try:
+                with open(path, "rb") as f:
+                    hs = HashingStream(f)
+                    evs = reader(path, stream=hs)
+            except OSError:
                 continue
-            if now == digest:
-                evs = [Event.from_dict(x) for x in c.get("events", [])]
-            else:
-                # Hash the very bytes the reader parses, so the stored digest always matches its events.
-                try:
-                    with open(path, "rb") as f:
-                        hs = HashingStream(f)
-                        evs = reader(path, stream=hs)
-                        now = hs.digest()
-                except OSError:
-                    continue
-            digest = now
-        new[path] = {"stat": stamp, "sha256": digest, "events": [e.to_dict() for e in evs]}
+            # The stat counts as proof only when it describes exactly the parsed bytes.
+            entry = {"stat": stamp if hs.size == st.st_size else None, "sha256": hs.digest(), "size": hs.size,
+                     "events": [e.to_dict() for e in evs]}
+        new[path] = entry
         events.extend(evs)
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)

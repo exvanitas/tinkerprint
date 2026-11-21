@@ -1,10 +1,18 @@
 """Claude Code reader: session transcripts under ~/.claude/projects.
 
-Keeps session id, line times, the folder current at each line, model ids and the file paths of
-Edit, Write, MultiEdit and NotebookEdit calls whose result came back without an error. The edit
-counts at the result's time. Message text, tool inputs other than the path, and tool output are
-never kept.
-Subagent transcripts (<session>/subagents/*.jsonl) belong to their parent session.
+Schema. Records it accepts, field by field. Any other record or field is dropped.
+  line:        dict with type in {user, assistant, system, attachment}
+               sessionId: id      cwd: absolute path      timestamp: ISO string
+               message: dict
+  assistant:   message.model: model id
+               message.content: list of tool_use {id: id, name: Edit|Write|MultiEdit|NotebookEdit,
+                                                  input: {file_path | notebook_path: path}}
+  user:        message.content: list of tool_result {tool_use_id: id, is_error: absent or false}
+
+An edit counts when its result comes back with no error, at the result's time, in the session of
+the record that asked for it. A model belongs only to the assistant record that names it.
+Subagent transcripts (<session>/subagents/*.jsonl) fall back to their parent session.
+Message text, tool inputs other than the path, and tool output are never kept.
 """
 from __future__ import annotations
 
@@ -14,8 +22,9 @@ import os
 import re
 
 from ..events import Event
-from ..timeutil import iso, parse_ts
-from ._common import closing as _closing, get_dict, get_id, get_list, get_str, presence, resolve
+from ..timeutil import iso
+from ._common import abs_path, closing, get_dict, get_id, get_list, get_str, ident, model_id, path_text, presence
+from ._common import resolve, when
 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
@@ -30,14 +39,21 @@ def transcript_files(base: str) -> list:
     return sorted(files)
 
 
+def fallback_session(path: str) -> str:
+    """The parent session folder for a subagent transcript, else the file name."""
+    parts = os.path.normpath(path).split(os.sep)
+    if len(parts) >= 3 and parts[-2] == "subagents" and ident(parts[-3]):
+        return parts[-3]
+    return ident(os.path.splitext(parts[-1])[0]) or "session"
+
+
 def read_file(path: str, stream=None) -> list:
     """stream: an iterable of the file's byte lines, when the caller hashes what is parsed."""
-    stem = os.path.splitext(os.path.basename(path))[0]
-    session = ""
+    fallback = fallback_session(path)
     cwd = ""
-    slots: dict = {}
-    pending: dict = {}   # tool_use id -> (path, model)
-    edits: dict = {}     # tool_use id -> (ts, path, model)
+    slots: dict = {}     # (slot, model, folder) -> ts, per session
+    pending: dict = {}   # tool_use id -> (session, path, model)
+    edits: dict = {}     # tool_use id -> (session, ts, path, model)
     if stream is None:
         try:
             f = open(path, "rb")
@@ -45,7 +61,7 @@ def read_file(path: str, stream=None) -> list:
             return []
     else:
         f = stream
-    with _closing(f):
+    with closing(f):
         for raw in f:
             if not _MAYBE.search(raw):
                 continue
@@ -56,19 +72,15 @@ def read_file(path: str, stream=None) -> list:
             kind_line = get_str(d, "type")
             if kind_line not in LINE_TYPES:
                 continue
-            session = session or get_id(d, "sessionId")
-            if get_str(d, "cwd"):
-                cwd = os.path.normpath(d["cwd"])
-            dt = parse_ts(get_str(d, "timestamp") or None)
+            session = get_id(d, "sessionId") or fallback
+            folder = abs_path(d.get("cwd"))
+            if folder:
+                cwd = folder
+            dt = when(d.get("timestamp"))
             msg = get_dict(d, "message")
-            # A model belongs only to the assistant record that names it.
-            model = ""
-            if kind_line == "assistant":
-                m = get_str(msg, "model")
-                if m and not m.startswith("<"):
-                    model = m
+            model = model_id(msg.get("model")) if kind_line == "assistant" else ""
             if dt is not None:
-                presence(slots, dt, model, cwd)
+                presence(slots.setdefault(session, {}), dt, model, cwd)
             for item in get_list(msg, "content"):
                 if not isinstance(item, dict):
                     continue
@@ -77,22 +89,22 @@ def read_file(path: str, stream=None) -> list:
                     name = get_str(item, "name")
                     tid = get_id(item, "id")
                     if name in EDIT_TOOLS and tid:
-                        p = get_str(get_dict(item, "input"), EDIT_TOOLS[name])
+                        p = path_text(get_dict(item, "input").get(EDIT_TOOLS[name]))
                         if p:
-                            pending[tid] = (resolve(p, cwd), model)
+                            pending[tid] = (session, resolve(p, cwd), model)
                 elif kind_line == "user" and kind == "tool_result":
                     tid = get_id(item, "tool_use_id")
                     if tid in pending:
-                        p, m = pending.pop(tid)
+                        s, p, m = pending.pop(tid)
                         # Success only when the error flag is absent or literally false.
                         if item.get("is_error", False) is False and dt is not None:
-                            edits[tid] = (iso(dt), p, m)
-    session = session or stem
+                            edits[tid] = (s, iso(dt), p, m)
     out = []
-    for (_, m, folder), ts in slots.items():
-        out.append(Event(ts=ts, source="claude", kind="session", path=folder, session=session,
-                         harness="claude", model=m, actor="agent"))
-    for tid, (ts, p, m) in edits.items():
+    for session, sl in slots.items():
+        for (_, m, folder), ts in sl.items():
+            out.append(Event(ts=ts, source="claude", kind="session", path=folder, session=session,
+                             harness="claude", model=m, actor="agent"))
+    for tid, (session, ts, p, m) in edits.items():
         out.append(Event(ts=ts, source="claude", kind="edit", path=p, session=session,
                          harness="claude", model=m, actor="agent", op=tid))
     return sorted(set(out))

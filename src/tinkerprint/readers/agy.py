@@ -1,5 +1,8 @@
 """Antigravity reader (experimental, off by default): presence only.
 
+Schema: conversation_id: id, workspace_uris: JSON list of file:// URIs naming local absolute
+folders, last_modified_time: timestamp. Any other value is dropped.
+
 Reads conversation_id, workspace_uris and last_modified_time from conversation_summaries.
 Titles, previews, summaries and the search index are never read.
 """
@@ -12,25 +15,30 @@ import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import ident
+from ._common import abs_path, ident
 
 
 def _uri_path(uri: str) -> str | None:
+    """A local folder from a file:// URI. Percent escapes decode as UTF-8 bytes, literal characters
+    stay as they are. A URI naming another host gives None."""
     if not isinstance(uri, str) or not uri.startswith("file://"):
         return None
     p = uri[len("file://"):]
     if not p.startswith("/"):
-        # file://host/path names another machine unless the host is this one.
         host, _, rest = p.partition("/")
         if host.lower() != "localhost" or not rest:
             return None
         p = "/" + rest
-    raw = re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), p)
-    try:
-        raw = raw.encode("latin-1").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
-    return os.path.normpath(raw) if raw else None
+    raw = bytearray()
+    i = 0
+    while i < len(p):
+        if p[i] == "%" and re.match(r"[0-9A-Fa-f]{2}", p[i + 1:i + 3]):
+            raw.append(int(p[i + 1:i + 3], 16))
+            i += 3
+        else:
+            raw += p[i].encode("utf-8", "surrogatepass")
+            i += 1
+    return abs_path(raw.decode("utf-8", "replace")) or None
 
 
 def _ro_uri(path: str) -> str:
