@@ -13,7 +13,7 @@ from .readers.git import Identity, read_git
 from .render_card import render_card
 from .render_html import render_html
 from .score import finish, score_core
-from .snapshot import SnapshotStore, _write, core_key, data_home, pretty
+from .snapshot import SnapshotStore, _write, core_key, data_home, inside_repo_or_root, pretty
 from .timeutil import parse_day
 
 CACHE_VERSION = 2
@@ -100,21 +100,26 @@ def parse_season(s: str | None):
 
 def compute(profile: Profile, season=(None, None), as_of: date | None = None, home: str | None = None,
             inputs: Inputs | None = None):
-    """Score without writing anything. Returns (sheet, local, key, store)."""
+    """Score. Writes only the harness cache. Returns (sheet, local, key, store, prev_key)."""
     home = data_home(home)
+    why = inside_repo_or_root(home, [r for p in profile.projects for r in p.roots])
+    if why:
+        raise ValueError(f"data folder {home} is refused: {why}. Use --data-dir or XDG_DATA_HOME to pick "
+                         "a folder outside every repo")
     inputs = inputs if inputs is not None else gather(profile, home)
     priors = scan_priors(profile.projects)
     core, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
-    store = SnapshotStore(home, profile.id, season)
+    store = SnapshotStore(home, profile.id, season, profile.set)
     key = core_key(core)
-    sheet = finish(core, store.previous(key), profile)
-    return sheet, local, key, store
+    prev_key, prev = store.predecessor(key)
+    sheet = finish(core, prev, profile)
+    return sheet, local, key, store, prev_key
 
 
 def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | None = None,
           home: str | None = None, built_at: str = "", inputs: Inputs | None = None) -> dict:
-    sheet, local, key, store = compute(profile, season, as_of, home, inputs)
-    store.save(key, sheet)
+    sheet, local, key, store, prev_key = compute(profile, season, as_of, home, inputs)
+    store.save(key, sheet, prev_key)
     os.makedirs(out_dir, exist_ok=True)
     paths = {"json": os.path.join(out_dir, "sheet.json"), "html": os.path.join(out_dir, "sheet.html")}
     _write(paths["json"], pretty(sheet))

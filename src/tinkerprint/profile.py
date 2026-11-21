@@ -1,6 +1,7 @@
 """Profile loading and validation. A profile is a TOML file the person writes."""
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import tomllib
@@ -98,6 +99,15 @@ def _weights(raw, set_name: str, where: str) -> dict:
     return out
 
 
+def _bool(raw, default: bool, where: str) -> bool:
+    """TOML booleans only. A string like "false" is an error, never a truthy value."""
+    if raw is None:
+        return default
+    if not isinstance(raw, bool):
+        raise ProfileError(f"{where} must be true or false, without quotes")
+    return raw
+
+
 def _strs(raw, where: str) -> tuple:
     if raw is None:
         return ()
@@ -130,6 +140,8 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
 
     harn = data.get("harnesses", {})
     card = data.get("card", {})
+    if not isinstance(harn, dict) or not isinstance(card, dict):
+        raise ProfileError("[harnesses] and [card] must be tables")
     show = _strs(card.get("show"), "card.show")
     for s in show:
         if s not in CARD_EXTRAS:
@@ -176,16 +188,16 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
         set=set_name,
         timezone=tz,
         rollover_hour=rollover,
-        work=bool(data.get("work", False)),
-        card_allow=bool(card.get("allow", False)),
+        work=_bool(data.get("work"), False, "work"),
+        card_allow=_bool(card.get("allow"), False, "card.allow"),
         card_show=tuple(sorted(set(show))),
         emails=emails,
         names=names,
         bots=bots,
         projects=projects,
-        claude=bool(harn.get("claude", True)),
-        codex=bool(harn.get("codex", True)),
-        agy=bool(harn.get("agy", False)),
+        claude=_bool(harn.get("claude"), True, "harnesses.claude"),
+        codex=_bool(harn.get("codex"), True, "harnesses.codex"),
+        agy=_bool(harn.get("agy"), False, "harnesses.agy"),
         claude_dir=_path(harn.get("claude_dir", "~/.claude/projects"), base_dir),
         codex_dir=_path(harn.get("codex_dir", "~/.codex/sessions"), base_dir),
         agy_db=_path(harn.get("agy_db", "~/.gemini/antigravity-cli/conversation_summaries.db"), base_dir),
@@ -201,8 +213,10 @@ def load_profile(path: str) -> Profile:
             data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
             raise ProfileError(f"{os.path.basename(path)}: {e}") from e
+    # Two profile files never share snapshots by accident: the default id carries a hash of the path.
     stem = os.path.splitext(os.path.basename(path))[0]
-    return parse_profile(data, os.path.dirname(path), default_id=stem)
+    tag = hashlib.sha256(path.encode("utf-8")).hexdigest()[:8]
+    return parse_profile(data, os.path.dirname(path), default_id=f"{stem}-{tag}")
 
 
 def map_weights(weights: dict, set_name: str) -> dict:

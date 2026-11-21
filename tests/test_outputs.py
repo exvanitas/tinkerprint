@@ -114,7 +114,7 @@ class Built(unittest.TestCase):
         prof = self.profiles["tobi"]
         prof.card_allow = False
         try:
-            sheet, _, _, _ = compute(prof, home=os.path.join(self.tmp.name, "data", "tobi"))
+            sheet = compute(prof, home=os.path.join(self.tmp.name, "data", "tobi"))[0]
         finally:
             prof.card_allow = True
         self.assertEqual(set(sheet["card"]), {"enabled", "reason"})

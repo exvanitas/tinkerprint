@@ -108,7 +108,7 @@ def cmd_build(args) -> int:
 
 def cmd_audit(args) -> int:
     profile = load_profile(args.profile)
-    sheet, _, _, _ = compute(profile, parse_season(args.season), None, data_home(args.data_dir))
+    sheet = compute(profile, parse_season(args.season), None, data_home(args.data_dir))[0]
     print("\n".join(audit_lines(sheet, profile.id)))
     return 0
 
