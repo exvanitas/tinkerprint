@@ -19,7 +19,7 @@ Each reader turns one source into events. Readers keep timestamps, folders, file
 
 | Reader | Source | What it reads |
 |---|---|---|
-| git | the repos a profile lists, `log --all` | commit hash, author name and email, author time, changed paths, `Co-Authored-By` trailers |
+| git | the repos a profile lists, `log --all` | commit hash, author name and email, author time, changed paths, `Co-Authored-By` trailers, annotated tags. A merge counts only the files that differ from every parent |
 | Claude Code | `~/.claude/projects/*/*.jsonl` | session id, timestamps, `cwd`, model, file paths of Edit, Write, MultiEdit and NotebookEdit calls |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl` | `session_meta` (id, `cwd`, originator, time), model, file paths of applied patches when the log has them |
 | Antigravity | `~/.gemini/antigravity-cli/conversation_summaries.db` | conversation id, workspace folder, time. Experimental, off by default |
@@ -43,11 +43,11 @@ actor     human | agent | bot
 
 ## Days
 
-A day runs from the profile's rollover hour (default 04:00) to the next, in the profile's time zone. Work at 1am counts toward the day before.
+A day runs from the profile's rollover hour (default 04:00) to the next, in the profile's time zone. Work at 1am counts toward the day before. The time zone is an IANA name or a fixed offset in whole quarter hours.
 
 ## Projects
 
-A profile lists project roots: folders or repos. A path belongs to the longest matching root. One repo can hold several **parts** (subfolder rules in the profile), and a project with parts counts as one project when a day is split. Paths outside every root are **unassigned** and listed, never guessed into a profile.
+A profile lists project roots: folders or repos. A path belongs to the longest matching root. One repo can hold several **parts** (subfolder rules in the profile), and a project with parts counts as one project when a day is split. Roots and paths compare as real paths, with symlinks resolved. Paths outside every root are **unassigned** and listed, never guessed into a profile. The listing covers every session folder and changed file outside the roots within the season, with distinct session counts. Clones of one repository (any shared commit) count a file once.
 
 ## Sets and stats
 
@@ -121,7 +121,7 @@ Generic rules over events and git, the same for everyone. Each states its rule a
 | First light | your first active day |
 | Founder | you made the first commit of a repo |
 | Thousandfold | a repo reaches its 1,000th commit by you |
-| Shipwright | you pushed a version tag (`v1.0.0` and up counts as a 1.0) |
+| Shipwright | you made an annotated version tag of 1.0 or higher (`v1.0.0` and up). Lightweight tags name no author, so they never count |
 | Long road | a streak of 30 active days |
 | Swarm day | 100 or more of your commits in one day |
 | Necromancer | you returned to a repo after 180 quiet days |
@@ -136,7 +136,7 @@ A profile may add a milestones file (one dated line per milestone) for releases,
 - `sheet.json`: versioned, everything the pages draw. It depends on the events and the profile alone.
 - `changes.json`: what changed since an earlier sheet (see below). Kept apart so `sheet.json` never depends on history.
 - `sheet.html`: the private sheet. One file, no network: fonts inlined, a content policy that blocks every request.
-- `card.svg`: the share card, built from an allowlist only: name, set, class, level, stat shares rounded to 5%, achievement titles with month dates, and the party's harness names. Hours, weekdays, exact dates, streak ranges, project names and token totals stay off unless the profile turns them on. A profile marked `work = true` never goes on a card unless it says so.
+- `card.svg`: the share card, built from an allowlist only: name, set, class, level, stat shares rounded to 5%, achievement titles with month dates, and the party's harness names. Hours, weekdays, exact dates, streak ranges, project names and token totals stay off unless the profile turns them on. A profile marked `work = true` never goes on a card unless it says so. The card's chart follows its rounded shares: fewer than three nonzero rounded shares draw ranked bars, so no stat under 5% shows through.
 - `audit`: prints every text string in the `card.svg` on disk, in document order. It reads nothing else.
 - **What changed**: each successful build saves its sheet to a history kept per profile file and season, named by its as-of date (the `--as-of` date, or the build day). A build compares against the newest saved sheet with an earlier as-of date and names that date. The comparison covers points since then, level-ups, a new class, share drift, party changes and new achievements. A build with an earlier as-of date never compares against a later sheet.
 

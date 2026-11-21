@@ -3,7 +3,6 @@
 #   tinkerprint build --profile my-profile.toml
 # Everything here stays on your machine. Roots never reach a sheet or a card.
 
-id = "juno-personal"          # names this profile's snapshots. Default: the file name.
 name = "Juno Brightwater"     # shown on the sheet and the card
 set = "tinkerer"              # builder (the default) or tinkerer
 timezone = "Europe/Dublin"    # IANA name, or an offset like "+01:00"

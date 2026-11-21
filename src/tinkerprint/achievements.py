@@ -11,7 +11,7 @@ RULES = {
     "first-light": ("First light", "Your first active day."),
     "founder": ("Founder", "You made the first commit of a repo."),
     "thousandfold": ("Thousandfold", "A repo reached its 1,000th commit by you."),
-    "shipwright": ("Shipwright", "You tagged a version of 1.0 or higher."),
+    "shipwright": ("Shipwright", "You made an annotated version tag of 1.0 or higher."),
     "long-road": ("Long road", "A streak of 30 active days."),
     "swarm-day": ("Swarm day", "100 or more of your commits in one day."),
     "necromancer": ("Necromancer", "You returned to a repo after 180 quiet days."),

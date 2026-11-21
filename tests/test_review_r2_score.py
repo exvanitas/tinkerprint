@@ -175,5 +175,23 @@ class Item11ScoreOthers(Tmp):
 
 
 
+class Item11MulticlassNeverReusesTheClass(unittest.TestCase):
+    """Astra 16 came from the 2-point hold, which round 2 removed. This checks the property directly."""
+
+    def test_random_shares(self):
+        import random
+        from tinkerprint.classes import multiclass, pick_class
+        from tinkerprint.sets import BUILDER_STATS
+        rng = random.Random(7)
+        for _ in range(2000):
+            raw = {s: rng.random() ** 2 for s in BUILDER_STATS}
+            total = sum(raw.values())
+            shares = {s: v / total for s, v in raw.items()}
+            cls = pick_class(shares, "builder")
+            multi = multiclass(shares, "builder", cls)
+            if multi:
+                self.assertFalse(set(multi["stats"]) & set(cls["stats"]), shares)
+
+
 if __name__ == "__main__":
     unittest.main()
