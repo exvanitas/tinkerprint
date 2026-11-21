@@ -245,7 +245,10 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     harness_days = defaultdict(set)
     for (h, _), s in mine.items():
         harness_days[h] |= {d for d, _, _ in s["obs"]}
+    # Computed once here. sheet.json and the terminal listing both use these totals.
     un_sessions = set().union(*out_sessions.values()) if out_sessions else set()
+    edit_folders = {os.path.dirname(p) or "(no folder)" for p in unassigned_edits}
+    un_folders = set(out_sessions) | edit_folders
 
     # 7. Achievements over all history up to as_of.
     def repo_name(top: str) -> str:
@@ -301,14 +304,13 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "party": party,
         "achievements": achievements,
         "milestones": ms,
-        "unassigned": {"sessions": len(un_sessions), "folders": len(out_sessions),
-                       "edits": len(unassigned_edits)},
+        "unassigned": {"sessions": len(un_sessions), "folders": len(un_folders), "edits": len(unassigned_edits)},
         "inputs": {"commits": counted["commits"], "agent_edits": counted["edits"],
                    "sessions": len(mine)},
     }
     local = {"shares": shares, "latest_day": latest,
              "unassigned_folders": sorted(((f, len(v)) for f, v in out_sessions.items()), key=lambda kv: (-kv[1], kv[0])),
-             "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
+             "unassigned_edit_folders": sorted(edit_folders)}
     core["card"] = card_fields(core, profile, shares)
     return core, local
 

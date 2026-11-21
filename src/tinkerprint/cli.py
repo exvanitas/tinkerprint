@@ -98,28 +98,31 @@ def cmd_build(args) -> int:
             print(f"  {k:<5} {res['paths'][k]}")
     if not s["card"].get("enabled"):
         print("  card  off: " + s["card"].get("reason", ""))
-    for line in unassigned_lines(res["local"], args.list_unassigned):
+    for line in unassigned_lines(res["sheet"], res["local"], args.list_unassigned):
         print(line)
     for w in res.get("warnings", []):
         print("Warning: " + w)
     return 0
 
 
-def unassigned_lines(local: dict, limit: int) -> list:
-    """Terminal-only listing of folders outside every root: sessions, then edited files."""
-    out = []
-    un = local.get("unassigned_folders", [])
-    if un:
-        out.append(f"Unassigned: {sum(n for _, n in un)} sessions in {len(un)} folders outside every root. Not scored.")
-        out += [f"  {n:>4}  {folder}" for folder, n in un[:limit]]
-        if len(un) > limit:
-            out.append(f"  ... {len(un) - limit} more. Use --list-unassigned N to see them.")
-    edits = local.get("unassigned_edit_folders", [])
-    if edits:
-        out.append(f"Unassigned edits: files changed in {len(edits)} folders outside every root. Not scored.")
-        out += [f"        {folder}" for folder in edits[:limit]]
-        if len(edits) > limit:
-            out.append(f"  ... {len(edits) - limit} more. Use --list-unassigned N to see them.")
+def _n(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
+def unassigned_lines(sheet: dict, local: dict, limit: int) -> list:
+    """Terminal-only listing of folders outside every root. The totals are the sheet's own."""
+    un = sheet["unassigned"]
+    if not (un["sessions"] or un["folders"] or un["edits"]):
+        return []
+    out = [f"Unassigned: {_n(un['sessions'], 'session')} in {_n(un['folders'], 'folder')}, "
+           f"{_n(un['edits'], 'changed file')}, outside every root. Not scored."]
+    sessions = local.get("unassigned_folders", [])
+    out += [f"  {n:>4}  {folder}" for folder, n in sessions[:limit]]
+    edits = [f for f in local.get("unassigned_edit_folders", []) if f not in dict(sessions)]
+    out += [f"        {folder}" for folder in edits[:limit]]
+    hidden = max(0, len(sessions) - limit) + max(0, len(edits) - limit)
+    if hidden:
+        out.append(f"  ... {hidden} more. Use --list-unassigned N to see them.")
     return out
 
 

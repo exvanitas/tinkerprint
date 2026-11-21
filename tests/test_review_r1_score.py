@@ -76,8 +76,8 @@ class Item21UnassignedFollowsSeason(unittest.TestCase):
         from tinkerprint.cli import unassigned_lines
         prof = profile([("A", "/w/a", None)])
         evs = [session(TS, "/w/a", sid="s1"), edit(TS, "/elsewhere/notes/x.txt", session="s1")]
-        _, local = run(prof, evs)
-        self.assertIn("/elsewhere/notes", "\n".join(unassigned_lines(local, 10)))
+        sheet, local = run(prof, evs)
+        self.assertIn("/elsewhere/notes", "\n".join(unassigned_lines(sheet, local, 10)))
 
 
 if __name__ == "__main__":
