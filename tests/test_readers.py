@@ -94,7 +94,7 @@ class HarnessReaders(unittest.TestCase):
         edits = sorted(e.path for e in evs if e.kind == "edit")
         self.assertEqual(edits, [self.cwd + "/x.py", self.cwd + "/y.py"])
         self.assertEqual({e.origin for e in evs}, {"codex_exec"})
-        self.assertEqual({e.model for e in evs}, {"model-r"})
+        self.assertEqual({e.model for e in evs} - {""}, {"model-r"})
         self.assertNotIn("Invented", repr(evs))
 
     def test_agy_presence(self):

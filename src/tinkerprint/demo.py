@@ -151,12 +151,16 @@ def write_claude_session(base: str, cwd: str, start: datetime, model: str, edits
                                         "role": "assistant", "model": model, "content": [
                                             {"type": "tool_use", "id": tid, "name": "Write",
                                              "input": {"file_path": path, "content": "invented"}}]}}) + "\n")
+                f.write(json.dumps({"type": "user", "sessionId": sid, "isSidechain": True, "agentId": "a1",
+                                    "timestamp": _ts(when + timedelta(seconds=2)), "cwd": cwd, "message": {
+                                        "role": "user", "content": [
+                                            {"type": "tool_result", "tool_use_id": tid, "content": "invented"}]}}) + "\n")
     return sid
 
 
 def write_codex_session(base: str, cwd: str, start: datetime, model: str, edits: list, rng: random.Random,
                         originator: str = "codex_exec") -> str:
-    """edits: [(datetime, absolute path)]. Half go in as patch text with relative paths, half as FileChange items."""
+    """edits: [(datetime, absolute path)]. Each is a patch call followed by its FileChange completion."""
     sid = _uuid(rng)
     day = start.astimezone(ZoneInfo("UTC"))
     folder = os.path.join(base, f"{day:%Y}", f"{day:%m}", f"{day:%d}")
@@ -173,17 +177,16 @@ def write_codex_session(base: str, cwd: str, start: datetime, model: str, edits:
         {"timestamp": _ts(start), "type": "event_msg", "payload": {"type": "task_started", "turn_id": "t1"}},
     ]
     for i, (when, fp) in enumerate(edits):
-        if i % 2 == 0:
-            rel = os.path.relpath(fp, cwd)
-            patch = f"*** Begin Patch\n*** Update File: {rel}\n@@\n-invented\n+invented too\n*** End Patch"
-            lines.append({"timestamp": _ts(when), "type": "response_item", "payload": {
-                "type": "custom_tool_call", "name": "exec", "call_id": f"c{i}", "status": "completed",
-                "input": "const r = await apply_patch(`" + patch + "`);"}})
-        else:
-            lines.append({"timestamp": _ts(when), "type": "event_msg", "payload": {
-                "type": "item_completed", "turn_id": "t1", "item": {
-                    "type": "FileChange", "id": f"fc{i}", "status": "completed",
-                    "changes": {fp: {"type": "update", "unified_diff": "invented"}}}}})
+        # The patch call itself is never read. Only the completion record counts.
+        rel = os.path.relpath(fp, cwd)
+        patch = f"*** Begin Patch\n*** Update File: {rel}\n@@\n-invented\n+invented too\n*** End Patch"
+        lines.append({"timestamp": _ts(when), "type": "response_item", "payload": {
+            "type": "custom_tool_call", "name": "exec", "call_id": f"c{i}", "status": "completed",
+            "input": "const r = await apply_patch(`" + patch + "`);"}})
+        change = {"type": "update", "unified_diff": "invented"} if i % 2 == 0 else {"type": "add", "content": "invented"}
+        lines.append({"timestamp": _ts(when + timedelta(seconds=3)), "type": "event_msg", "payload": {
+            "type": "item_completed", "turn_id": "t1", "item": {
+                "type": "FileChange", "id": f"fc{i}", "status": "completed", "changes": {fp: change}}}})
     lines.append({"timestamp": _ts(start + timedelta(minutes=20)), "type": "event_msg",
                   "payload": {"type": "task_complete", "turn_id": "t1", "last_agent_message": "Invented summary."}})
     with open(path, "w", encoding="utf-8") as f:

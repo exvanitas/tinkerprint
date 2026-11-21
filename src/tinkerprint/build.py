@@ -16,7 +16,7 @@ from .score import finish, score_core
 from .snapshot import SnapshotStore, _write, core_key, data_home, pretty
 from .timeutil import parse_day
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 def _cached(files: list, reader, cache_path: str) -> list:

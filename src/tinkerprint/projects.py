@@ -23,8 +23,8 @@ class Resolver:
         self.projects = list(projects)
 
     def resolve(self, path: str):
-        if not path:
-            return None
+        if not path or not os.path.isabs(path):
+            return None  # relative paths have no known folder: unassigned
         path = os.path.normpath(path)
         for root, proj in self._roots:
             if path == root:

@@ -49,15 +49,24 @@ def read_db(path: str) -> list:
     finally:
         con.close()
     for cid, uris, ts in rows:
+        if isinstance(cid, int) and not isinstance(cid, bool):
+            cid = str(cid)
+        if not isinstance(cid, str) or not cid or not isinstance(ts, (str, int, float)):
+            continue
         dt = parse_ts(ts)
         if dt is None:
             continue
-        try:
-            folders = json.loads(uris) if uris else []
-        except ValueError:
+        folders = []
+        if isinstance(uris, (str, bytes)) and uris:
+            try:
+                folders = json.loads(uris)
+            except ValueError:
+                folders = []
+        if not isinstance(folders, list):
             folders = []
-        paths = sorted({p for p in (_uri_path(u) for u in folders if isinstance(u, str)) if p}) or ["/"]
+        # No readable folder: presence stays unassigned.
+        paths = sorted({p for p in (_uri_path(u) for u in folders if isinstance(u, str)) if p}) or [""]
         for p in paths:
-            out.append(Event(ts=iso(dt), source="agy", kind="session", path=p, session=str(cid),
+            out.append(Event(ts=iso(dt), source="agy", kind="session", path=p, session=cid,
                              harness="agy", actor="agent"))
     return sorted(set(out))
