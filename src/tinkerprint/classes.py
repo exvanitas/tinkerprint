@@ -1,7 +1,8 @@
 """Class rules: specialist, pair, generalist, multiclass, and naming a close runner-up.
 
 No rule looks at an earlier sheet. When the runner-up is within 2 points of share of the
-winner, the sheet names both: "Artificer, close to Alchemist".
+winner, the sheet names both: "Artificer, close to Alchemist". Thresholds compare exactly, and
+only exactly equal shares tie.
 """
 from __future__ import annotations
 
@@ -12,7 +13,6 @@ GENERALIST_UNDER = 0.20
 RUNNER_UP_AT = 0.10
 MULTICLASS_AT = 0.10
 CLOSE = 0.02
-_TINY = 1e-12
 
 
 def ranked(shares: dict, set_name: str) -> list:
@@ -45,11 +45,11 @@ def raw_class(shares: dict, set_name: str) -> dict | None:
         return None
     r = ranked(shares, set_name)
     top, second = shares.get(r[0], 0.0), shares.get(r[1], 0.0)
-    if top >= SPECIALIST_AT - _TINY:
+    if top >= SPECIALIST_AT:
         return make_class("specialist", [r[0]], set_name)
-    if top <= GENERALIST_UNDER + _TINY:
+    if top <= GENERALIST_UNDER:
         return make_class("generalist", [], set_name)
-    if second >= RUNNER_UP_AT - _TINY:
+    if second >= RUNNER_UP_AT:
         return make_class("pair", [r[0], r[1]], set_name)
     return make_class("specialist", [r[0]], set_name)
 
@@ -66,9 +66,9 @@ def pick_class(shares: dict, set_name: str) -> dict | None:
     r = ranked(shares, set_name)
     v = [shares.get(s, 0.0) for s in r]
     close = None
-    if cls["kind"] == "pair" and v[1] - v[2] <= CLOSE + _TINY:
+    if cls["kind"] == "pair" and v[1] - v[2] <= CLOSE:
         close = make_class("pair", [r[0], r[2]], set_name)
-    elif cls["kind"] == "specialist" and v[0] - v[1] <= CLOSE + _TINY:
+    elif cls["kind"] == "specialist" and v[0] - v[1] <= CLOSE:
         close = make_class("specialist", [r[1]], set_name)
     return _with_close(cls, close)
 
@@ -80,12 +80,12 @@ def multiclass(shares: dict, set_name: str, main: dict | None) -> dict | None:
         return None
     r = ranked(shares, set_name)
     v = [shares.get(s, 0.0) for s in r]
-    if v[2] < MULTICLASS_AT - _TINY or v[3] < MULTICLASS_AT - _TINY:
+    if v[2] < MULTICLASS_AT or v[3] < MULTICLASS_AT:
         return None
     a, b = sorted([r[2], r[3]], key=stats_of(set_name).index)
     multi = {"stats": [a, b], "name": pair_name(set_name, a, b)}
     close = None
-    if v[3] - v[4] <= CLOSE + _TINY:
+    if v[3] - v[4] <= CLOSE:
         c, d = sorted([r[2], r[4]], key=stats_of(set_name).index)
         close = {"stats": [c, d], "name": pair_name(set_name, c, d)}
     return _with_close(multi, close)

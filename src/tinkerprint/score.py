@@ -172,17 +172,20 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     day_points: dict = {}
     for d in sorted(days):
         projs = days[d]
-        pw = {p: math.log1p(sum(m for _, m in f.values())) for p, f in projs.items()}
-        total = sum(pw.values())
+        # Every sum is math.fsum over a fixed order, so equal contributions give exactly equal totals.
+        pw = {p: math.log1p(math.fsum(m for _, m in sorted(f.values(), key=repr))) for p, f in sorted(projs.items())}
+        total = math.fsum(pw[p] for p in sorted(pw))
         out = {}
         for pname in sorted(projs):
             share = pw[pname] / total
-            per = defaultdict(float)
-            for w, mass in projs[pname].values():
+            parts = defaultdict(list)
+            for key in sorted(projs[pname], key=repr):
+                w, mass = projs[pname][key]
                 for s, x in w.items():
-                    per[main_stat.get(pname, "Systems") if s is None else s] += x * mass
+                    parts[main_stat.get(pname, "Systems") if s is None else s].append(x * mass)
+            per = {s: math.fsum(v) for s, v in parts.items()}
             sw = {s: math.log1p(n) for s, n in per.items() if n > 0}
-            st = sum(sw.values())
+            st = math.fsum(sw[s] for s in sorted(sw, key=str))
             out[pname] = {s: share * v / st for s, v in sorted(sw.items(), key=lambda kv: str(kv[0]))}
         day_points[d] = out
 
@@ -194,22 +197,28 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
 
     # 5. Season totals.
     season_days = [d for d in active if in_season(d)]
-    stat_pts = {s: 0.0 for s in stats}
-    stat_proj = {s: defaultdict(float) for s in stats}
-    proj_pts = defaultdict(float)
+    stat_parts = {s: [] for s in stats}
+    stat_proj_parts = {s: defaultdict(list) for s in stats}
+    proj_parts = defaultdict(list)
     proj_days = defaultdict(int)
-    unclassified = 0.0
+    unclassified_parts = []
     for d in season_days:
-        for pname, per in day_points[d].items():
+        for pname in sorted(day_points[d]):
+            per = day_points[d][pname]
             proj_days[pname] += 1
-            for s, v in per.items():
-                proj_pts[pname] += v
+            for s in sorted(per, key=str):
+                v = per[s]
+                proj_parts[pname].append(v)
                 if s == "":
-                    unclassified += v
+                    unclassified_parts.append(v)
                 else:
-                    stat_pts[s] += v
-                    stat_proj[s][pname] += v
-    classified = sum(stat_pts.values())
+                    stat_parts[s].append(v)
+                    stat_proj_parts[s][pname].append(v)
+    stat_pts = {s: math.fsum(stat_parts[s]) for s in stats}
+    stat_proj = {s: {p: math.fsum(v) for p, v in stat_proj_parts[s].items()} for s in stats}
+    proj_pts = {p: math.fsum(v) for p, v in proj_parts.items()}
+    unclassified = math.fsum(unclassified_parts)
+    classified = math.fsum(stat_pts[s] for s in stats)
     shares = {s: (stat_pts[s] / classified if classified > 0 else 0.0) for s in stats}
     shares_r = {s: _r(v) for s, v in shares.items()}
 
@@ -300,7 +309,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     local = {"shares": shares, "latest_day": latest,
              "unassigned_folders": sorted(((f, len(v)) for f, v in out_sessions.items()), key=lambda kv: (-kv[1], kv[0])),
              "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
-    core["card"] = card_fields(core, profile)
+    core["card"] = card_fields(core, profile, shares)
     return core, local
 
 
@@ -360,7 +369,7 @@ def compare(sheet: dict, prev: dict | None, prev_as_of: str | None) -> dict:
     }
 
 
-def card_fields(sheet: dict, profile) -> dict:
+def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
     """The share card's allowlist. Nothing else ever reaches card.svg or audit's card listing."""
     if not profile.card_enabled:
         return {"enabled": False, "reason": "Work profile. Set [card] allow = true to make a card."}
@@ -368,7 +377,9 @@ def card_fields(sheet: dict, profile) -> dict:
     multi = sheet.get("multiclass") or {}
     stats = []
     for r in sheet["stats"]:
-        pct = int(round(r["share"] * 20)) * 5
+        full = shares.get(r["key"], r["share"]) if shares else r["share"]
+        # Under 5% at full precision stays off the card. The rest round to the nearest 5%.
+        pct = 0 if full < 0.05 else int(round(full * 20)) * 5
         stats.append({"stat": r["key"], "pct": pct})
     # The card's chart follows the rounded public shares, so it never reveals stats under 5%.
     public_chart = "radar" if sum(1 for x in stats if x["pct"] > 0) >= 3 else "bars"
