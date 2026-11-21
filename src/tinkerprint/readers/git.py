@@ -39,7 +39,8 @@ def _git(args, cwd) -> str | None:
         return None
     if r.returncode != 0:
         return None
-    return r.stdout.decode("utf-8", "replace")
+    # surrogateescape keeps every distinct byte path distinct, whatever its encoding.
+    return r.stdout.decode("utf-8", "surrogateescape")
 
 
 def _match(patterns, value: str) -> bool:
@@ -67,12 +68,6 @@ class Identity:
         return False
 
 
-def _unquote(p: str) -> str:
-    if len(p) >= 2 and p[0] == '"' and p[-1] == '"':
-        p = p[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1", "replace").decode("utf-8", "replace")
-    return p
-
-
 def toplevel(root: str) -> str | None:
     if not os.path.isdir(root):
         return None
@@ -83,50 +78,79 @@ def toplevel(root: str) -> str | None:
 def _log(top: str, numstat: bool) -> str | None:
     # Merges count the files whose result differs from every parent (dense combined diff):
     # conflict resolutions and hand edits made during the merge. A clean merge counts nothing.
-    args = ["-c", "core.quotePath=false", "log", "--all", "--no-renames", "--raw", "--diff-merges=dense-combined",
+    # -z gives raw paths, NUL-terminated, with no quoting.
+    args = ["log", "--all", "--no-renames", "--raw", "-z", "--diff-merges=dense-combined",
             "--no-abbrev", "--format=" + _FMT]
     if numstat:
-        args.insert(5, "--numstat")
+        args.insert(3, "--numstat")
     return _git(args, top)
+
+
+_NUMSTAT = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$", re.S)
+_RAW = re.compile(r"^:+[0-7]{6}")
+
+
+def _parse_files(tokens: list):
+    """(status by path, added lines by path) from the NUL-split body of one commit."""
+    status, added = {}, {}
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i].lstrip("\n")
+        i += 1
+        if not tok:
+            continue
+        if _RAW.match(tok):
+            if i < len(tokens):
+                letters = tok.split()[-1] if tok.split() else "M"
+                status[tokens[i]] = letters[:1] or "M"
+                i += 1
+            continue
+        m = _NUMSTAT.match(tok)
+        if m:
+            added[m.group(3)] = int(m.group(1)) if m.group(1).isdigit() else 0
+    return status, added
+
+
+def shallow_commits(top: str) -> set:
+    """Commits whose parents a shallow clone cut off. They are boundaries, not first commits."""
+    path = _git(["rev-parse", "--git-path", "shallow"], top)
+    if not path:
+        return set()
+    path = path.strip()
+    if not os.path.isabs(path):
+        path = os.path.join(top, path)
+    try:
+        with open(path, encoding="ascii", errors="replace") as f:
+            return {line.strip() for line in f if line.strip()}
+    except OSError:
+        return set()
 
 
 def read_repo(top: str, ident: Identity, warnings: list | None = None):
     """Parse one repo into commit dicts. Rows hold no text but paths.
 
     When line counts need objects the clone does not have (a partial clone), it reads the
-    history without them and adds a warning instead of fetching anything.
+    history without them and adds a warning instead of fetching anything. Warnings carry the
+    repo folder separately, so callers can name it by its profile alias.
     """
     out = _log(top, numstat=True)
     if out is None:
         out = _log(top, numstat=False)
         if warnings is not None:
-            warnings.append(f"{top}: incomplete local history. Line counts skipped." if out is not None
-                            else f"{top}: could not read git history.")
+            warnings.append((top, "incomplete local history. Line counts skipped." if out is not None
+                             else "could not read git history."))
     commits = []
     if not out:
         return commits
+    cut = shallow_commits(top)
     for chunk in out.split("\x1e")[1:]:
-        lines = chunk.split("\n")
-        head = lines[0].split("\x1f")
+        head_text, _, body = chunk.partition("\0")
+        head = head_text.split("\x1f")
         if len(head) < 6:
             continue
         h, parents, an, ae, at, trailers = head[:6]
         parents = parents.split()
-        status = {}
-        added = {}
-        for line in lines[1:]:
-            if not line:
-                continue
-            if line.startswith(":"):
-                meta, _, path = line.partition("\t")
-                path = path.split("\t")[-1]
-                st = meta.split()[-1][:1] if meta.split() else "M"
-                status[_unquote(path)] = st
-            else:
-                bits = line.split("\t", 2)
-                if len(bits) == 3:
-                    a = int(bits[0]) if bits[0].isdigit() else 0
-                    added[_unquote(bits[2])] = a
+        status, added = _parse_files(body.split("\0"))
         if len(parents) > 1:
             # A merge's numstat is against its first parent. Keep only the combined-diff files.
             files = sorted((p, status[p], 0) for p in status)
@@ -134,7 +158,8 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
             files = sorted((p, status.get(p, "M"), added.get(p, 0)) for p in set(status) | set(added))
         bot = ident.is_bot(an, ae)
         mine = (not bot) and (ident.is_me(an, ae) or ident.coauthor_is_me(trailers))
-        commits.append({"hash": h, "parents": parents, "ts": at, "mine": mine, "bot": bot, "files": files})
+        commits.append({"hash": h, "parents": parents, "ts": at, "mine": mine, "bot": bot, "files": files,
+                        "boundary": h in cut})
     return commits
 
 
@@ -153,28 +178,58 @@ def read_tags(top: str, ident: Identity):
     return rows
 
 
+def _repo_groups(per_top: dict) -> dict:
+    """Clones that share any commit are one repository. Returns {top: repo id}.
+
+    The id is the earliest genuine first commit in the group (a shallow clone's cut-off
+    boundary does not count), else the smallest commit hash in the group.
+    """
+    parent = {t: t for t in per_top}
+
+    def find(t):
+        while parent[t] != t:
+            parent[t] = parent[parent[t]]
+            t = parent[t]
+        return t
+
+    owner = {}
+    for top in sorted(per_top):
+        for c in per_top[top]:
+            o = owner.setdefault(c["hash"], top)
+            if o != top:
+                a, b = find(o), find(top)
+                if a != b:
+                    parent[max(a, b)] = min(a, b)
+    groups = {}
+    for top in per_top:
+        groups.setdefault(find(top), []).append(top)
+    ids = {}
+    for members in groups.values():
+        firsts = sorted(c["hash"] for t in members for c in per_top[t] if not c["parents"] and not c["boundary"])
+        every = sorted(c["hash"] for t in members for c in per_top[t])
+        gid = firsts[0] if firsts else (every[0] if every else min(members))
+        for t in members:
+            ids[t] = gid
+    return ids
+
+
 def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
     """Read every repo that holds a profile root. Commits dedupe by hash across clones and refs.
 
     in_roots(path) tells whether a path belongs to the profile. Each file of a commit seen in
     several clones takes the first clone where it lands inside a root.
-    roots ids: a root inside a repo is named by the repo's first commit and the root's place in it,
-    so clones of one repo share file keys and unrelated roots never do.
+    Root ids: a root inside a repo is named by the repository's id and the root's place in it,
+    so clones of one repo share file keys and unrelated roots never do. Keys are real paths.
     """
     in_roots = in_roots or (lambda p: True)
-    top_of = {r: toplevel(r) for r in roots}
+    top_of = {os.path.realpath(r): toplevel(r) for r in roots}
     tops = sorted({t for t in top_of.values() if t})
     res = Inputs()
-    per_top = {}
-    repo_ids = {}
-    for top in tops:
-        commits = read_repo(top, ident, res.warnings)
-        per_top[top] = commits
-        roots_of = sorted(c["hash"] for c in commits if not c["parents"])
-        repo_ids[top] = roots_of[0] if roots_of else top
+    per_top = {top: read_repo(top, ident, res.warnings) for top in tops}
+    repo_ids = _repo_groups(per_top)
     for r, top in top_of.items():
         if top:
-            rel = os.path.relpath(os.path.realpath(r), os.path.realpath(top))
+            rel = os.path.relpath(r, os.path.realpath(top))
             res.root_ids[r] = f"git:{repo_ids[top]}:{'' if rel == '.' else rel}"
 
     seen = {}
@@ -187,24 +242,27 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
         if dt is None:
             continue
         ts = iso(dt)
+        genuine_first = not c["parents"] and not any(cc["boundary"] for _, cc in copies)
         res.commits.append(Commit(ts=ts, hash=h, repo=repo_ids[top], top=top, mine=c["mine"],
-                                  bot=c["bot"], root=not c["parents"], files=len(c["files"])))
+                                  bot=c["bot"], root=genuine_first, files=len(c["files"])))
         if not c["mine"]:
             continue
         for path, st, add in c["files"]:
             where = next((t for t, _ in copies if in_roots(os.path.join(t, path))), top)
             res.events.append(Event(ts=ts, source="git", kind="commit", path=os.path.join(where, path),
-                                    actor="human", commit=h, status=st, added=add))
+                                    actor="human", commit=h, status=st, added=add, op=h))
+    tags = {}
     for top in tops:
-        by_hash = {c["hash"]: c for c in per_top[top]}
         for t in read_tags(top, ident):
-            target = by_hash.get(t["target"])
-            mine = t["tagger_me"] or (not t["annotated"] and bool(target and target["mine"]))
-            dt = parse_ts(t["ts"]) or (parse_ts(target["ts"]) if target else None)
+            # Only an annotated tag names who made it. A lightweight tag on your commit could be anyone's.
+            if not t["annotated"] or not t["tagger_me"]:
+                continue
+            dt = parse_ts(t["ts"])
             if dt is None:
                 continue
-            res.tags.append(Tag(ts=iso(dt), name=t["name"], repo=repo_ids[top], top=top, mine=mine))
+            key = (t["name"], t["target"])  # one tag, however many clones hold it
+            tags.setdefault(key, Tag(ts=iso(dt), name=t["name"], repo=repo_ids[top], top=top, mine=True))
     res.commits.sort()
     res.events.sort()
-    res.tags = sorted(set(res.tags))
+    res.tags = sorted(tags.values())
     return res

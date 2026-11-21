@@ -66,7 +66,7 @@ class Item07NoFetchInPartialClones(Tmp):
         res = read_git([clone], Identity([ME[1]], []))
         self.assertEqual(missing(), before)
         self.assertEqual(len([c for c in res.commits if c.mine]), 3)
-        self.assertTrue(any("incomplete local history" in w for w in res.warnings))
+        self.assertTrue(any("incomplete local history" in m for _, m in res.warnings))
 
 
 class Item12CloneChoiceFollowsRoots(Tmp):

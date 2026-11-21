@@ -8,7 +8,7 @@ from datetime import date
 
 from .events import Event, Inputs
 from .profile import Profile
-from .projects import Resolver, scan_priors
+from .projects import Resolver, canonical, scan_priors
 from .readers import agy, claude, codex
 from .readers._common import HashingStream
 from .readers.git import Identity, read_git
@@ -161,6 +161,19 @@ def last_out(home: str, profile: Profile) -> str | None:
         return None
 
 
+def alias_of(folder: str, profile: Profile) -> str:
+    """The profile's names for the projects in a folder. Diagnostics never print an assigned path."""
+    real = canonical(folder).rstrip("/")
+    names = []
+    for p in profile.projects:
+        for r in p.roots:
+            cr = canonical(r).rstrip("/")
+            if cr == real or cr.startswith(real + "/") or real.startswith(cr + "/"):
+                names.append(p.name)
+                break
+    return ", ".join(sorted(set(names))) if names else "A repo outside the profile"
+
+
 def compute(profile: Profile, season=(None, None), as_of: date | None = None, home: str | None = None,
             inputs: Inputs | None = None):
     """Score. Writes only the harness cache. sheet.json depends on the events and the profile alone.
@@ -170,7 +183,7 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     inputs = inputs if inputs is not None else gather(profile, home)
     priors = scan_priors(profile.projects)
     sheet, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
-    local["warnings"] = list(inputs.warnings)
+    local["warnings"] = [f"{alias_of(top, profile)}: {msg}" for top, msg in inputs.warnings]
     return sheet, local
 
 

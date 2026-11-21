@@ -11,6 +11,11 @@ TRAINING_DEPS = {"torch", "transformers", "peft", "jax"}
 DATA_DEPS = {"dbt", "pandas", "polars", "duckdb", "alembic"}
 
 
+def canonical(path: str) -> str:
+    """The real path, symlinks resolved. A path that does not exist (yet) is normalized as far as it goes."""
+    return os.path.realpath(os.path.expanduser(path))
+
+
 class Resolver:
     """Maps an absolute path to (project, path relative to its root) by the longest matching root."""
 
@@ -18,9 +23,10 @@ class Resolver:
         roots = []
         for p in projects:
             for r in p.roots:
-                roots.append((r.rstrip("/") or "/", p))
+                roots.append((canonical(r).rstrip("/") or "/", p))
         self._roots = sorted(roots, key=lambda x: (-len(x[0]), x[0], x[1].index))
         self.projects = list(projects)
+        self._real = lru_cache(maxsize=None)(canonical)
 
     def resolve(self, path: str):
         hit = self.resolve_root(path)
@@ -30,7 +36,7 @@ class Resolver:
         """(project, matched root, path relative to it), or None."""
         if not path or not os.path.isabs(path):
             return None  # relative paths have no known folder: unassigned
-        path = os.path.normpath(path)
+        path = self._real(path)  # roots and paths compare as real paths, symlinks resolved
         for root, proj in self._roots:
             if path == root:
                 return proj, root, ""
@@ -169,18 +175,19 @@ def manifest_prior(folder: str) -> str | None:
 
 
 def scan_priors(projects) -> dict:
-    """Priors per project: {project name: {part path or '': prior}}. Reads manifests at each root and part."""
+    """Priors per project: {project name: {(real root, part path or ''): prior}}.
+
+    Each root reads its own manifests, so two roots of one project never lend each other a prior.
+    """
     out = {}
     for p in projects:
         found = {}
-        for folder_rel in [""] + [part.path for part in p.parts]:
-            prior = None
-            for root in p.roots:
-                prior = manifest_prior(os.path.join(root, folder_rel) if folder_rel else root)
+        for root in p.roots:
+            real = canonical(root)
+            for folder_rel in [""] + [part.path for part in p.parts]:
+                prior = manifest_prior(os.path.join(real, folder_rel) if folder_rel else real)
                 if prior:
-                    break
-            if prior:
-                found[folder_rel] = prior
+                    found[(real, folder_rel)] = prior
         out[p.name] = found
     return out
 
@@ -195,10 +202,12 @@ def part_of(project, rel: str):
     return best
 
 
-def prior_for(priors: dict, project, rel: str) -> str | None:
-    """A file takes the prior of its part when the part has one, else the project root's."""
+def prior_for(priors: dict, project, rel: str, root: str | None = None) -> str | None:
+    """A file takes the prior of its part in its own root, else of that root. Without a root
+    given, the first root of the project decides."""
     found = priors.get(project.name, {})
+    real = canonical(root) if root else (canonical(project.roots[0]) if project.roots else "")
     part = part_of(project, rel)
-    if part is not None and part.path in found:
-        return found[part.path]
-    return found.get("")
+    if part is not None and (real, part.path) in found:
+        return found[(real, part.path)]
+    return found.get((real, ""))

@@ -122,14 +122,14 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
                     lines.append((d, lang, ev.added))
             if (ev.commit, proj.name, root, rel) in in_bulk:
                 continue
-        w = classify(rel, proj, profile.set, priors)
+        w = classify(rel, proj, profile.set, priors, root)
         if w is None:
             continue
         touches[(d, proj.name)][file_key(root, rel)] = (w, 1.0)
     for h, rows in sorted(bulk.items()):
         per_proj = defaultdict(list)
         for d, proj, root, rel in rows:
-            w = classify(rel, proj, profile.set, priors)
+            w = classify(rel, proj, profile.set, priors, root)
             if w is not None:
                 per_proj[(d, proj.name)].append(w)
         total = len(rows) + outside_bulk[h]

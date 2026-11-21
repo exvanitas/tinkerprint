@@ -132,7 +132,7 @@ def builder_stat(rel: str, prior: str | None) -> str | None:
     return path_stat(rel) or ext_stat(rel)
 
 
-def classify(rel: str, project, set_name: str, priors: dict):
+def classify(rel: str, project, set_name: str, priors: dict, root: str | None = None):
     """Weights for one file: None when skipped, else {stat: weight} summing to 1.
 
     The key "" is the unclassified share. In a tinkerer profile the key None stands for
@@ -154,7 +154,7 @@ def classify(rel: str, project, set_name: str, priors: dict):
     if weights is not None:
         mapped = map_weights(weights, set_name)
     else:
-        stat = builder_stat(rel, prior_for(priors, project, rel))
+        stat = builder_stat(rel, prior_for(priors, project, rel, root))
         if stat is None:
             return {"": 1.0}
         mapped = {stat: 1.0} if set_name == "builder" else {TINKERER_FROM_BUILDER[stat]: 1.0}
