@@ -58,8 +58,12 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     root_ids = getattr(inp, "root_ids", {}) or {}
 
     def file_key(root: str, rel: str):
-        # Clones of one repo share an identity, so their copies of a file are one file.
-        return (root_ids.get(root, root), rel)
+        # A file in git is its repository plus its repository-relative path, so clones and roots
+        # at any depth agree. Outside git it is the root plus the path under it.
+        rid = root_ids.get(root)
+        if isinstance(rid, (tuple, list)) and len(rid) == 2:
+            return (rid[0], "/".join(x for x in (rid[1], rel) if x))
+        return (root, rel)
 
     # 1. Resolve every event once. Sessions keep dated observations for the party.
     # Everything outside every root is collected here first, before any other filtering, and listed

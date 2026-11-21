@@ -101,6 +101,36 @@ def _log(top: str, numstat: bool) -> str | None:
 
 _NUMSTAT = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$", re.S)
 _RAW = re.compile(r"^:+[0-7]{6}")
+_HEAD = re.compile(r"^\n?\x1e([0-9a-f]{40,64})\x1f")
+
+
+def _split_commits(out: str):
+    """Yield (header text, body tokens) per commit from NUL-delimited log output.
+
+    A raw entry's path token is taken as a path whatever bytes it holds, so a file name with a
+    record separator or anything else can never start a new commit.
+    """
+    head = None
+    body: list = []
+    expect_path = False
+    for tok in out.split("\0"):
+        if expect_path:
+            body.append(tok)
+            expect_path = False
+            continue
+        m = _HEAD.match(tok)
+        if m:
+            if head is not None:
+                yield head, body
+            head, body = tok.lstrip("\n")[1:], []
+            continue
+        if head is None:
+            continue
+        body.append(tok)
+        if _RAW.match(tok.lstrip("\n")):
+            expect_path = True
+    if head is not None:
+        yield head, body
 
 
 def _parse_files(tokens: list):
@@ -156,14 +186,13 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
     if not out:
         return commits
     cut = shallow_commits(top)
-    for chunk in out.split("\x1e")[1:]:
-        head_text, _, body = chunk.partition("\0")
+    for head_text, body in _split_commits(out):
         head = head_text.split("\x1f")
         if len(head) < 6:
             continue
         h, parents, an, ae, at, trailers = head[:6]
         parents = parents.split()
-        status, added = _parse_files(body.split("\0"))
+        status, added = _parse_files(body)
         if len(parents) > 1:
             # A merge's numstat is against its first parent. Keep only the combined-diff files.
             files = sorted((p, status[p], 0) for p in status)
@@ -231,8 +260,8 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
 
     in_roots(path) tells whether a path belongs to the profile. Each file of a commit seen in
     several clones takes the first clone where it lands inside a root.
-    Root ids: a root inside a repo is named by the repository's id and the root's place in it,
-    so clones of one repo share file keys and unrelated roots never do. Keys are real paths.
+    Root ids: a root inside a repo maps to (repository id, its path inside the repo), so a file is
+    keyed by repository and repository-relative path whatever the root depth. Keys are real paths.
     """
     in_roots = in_roots or (lambda p: True)
     top_of = {os.path.realpath(r): toplevel(r) for r in roots}
@@ -243,19 +272,22 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
     for r, top in top_of.items():
         if top:
             rel = os.path.relpath(r, os.path.realpath(top))
-            res.root_ids[r] = f"git:{repo_ids[top]}:{'' if rel == '.' else rel}"
+            res.root_ids[r] = (f"git:{repo_ids[top]}", "" if rel == "." else rel.replace(os.sep, "/"))
 
     seen = {}
     for top in tops:
         for c in per_top[top]:
             seen.setdefault(c["hash"], []).append((top, c))
     for h, copies in seen.items():
-        top, c = copies[0]
+        # A shallow clone's boundary copy lacks its parents, so its diff is unreliable. Prefer a
+        # complete copy for parents, files and line counts. Any complete copy proves a first commit.
+        complete = [(t, cc) for t, cc in copies if not cc["boundary"]]
+        top, c = (complete or copies)[0]
         dt = parse_ts(c["ts"])
         if dt is None:
             continue
         ts = iso(dt)
-        genuine_first = not c["parents"] and not any(cc["boundary"] for _, cc in copies)
+        genuine_first = any(not cc["parents"] for _, cc in complete)
         res.commits.append(Commit(ts=ts, hash=h, repo=repo_ids[top], top=top, mine=c["mine"],
                                   bot=c["bot"], root=genuine_first, files=len(c["files"])))
         if not c["mine"]:
