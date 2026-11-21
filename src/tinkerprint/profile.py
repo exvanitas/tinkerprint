@@ -207,7 +207,7 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
 
 
 def load_profile(path: str) -> Profile:
-    path = os.path.abspath(os.path.expanduser(path))
+    path = os.path.realpath(os.path.expanduser(path))
     with open(path, "rb") as f:
         try:
             data = tomllib.load(f)
