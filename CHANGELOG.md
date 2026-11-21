@@ -4,6 +4,17 @@ Newest first. Every release gets a version, an entry here and a GitHub release.
 
 ## Unreleased
 
+- Readers declare the record shapes they accept and drop the rest. A model id must look like one, so a path or a sentence never shows as a model. Codex change records link through their call id.
+- Manifest priors come from the git commit at the as-of date, not the checkout. Roots outside git still read the files on disk.
+- Files are keyed by repository and path inside it, so clones at any depth count a file once. A complete clone wins over a shallow one.
+- History is written last, so a failed build never becomes a comparison. A sheet saved without `--as-of` never holds events after its date.
+- `audit` parses `card.svg` as XML and reports a file that does not parse. It works with `--out` alone.
+- What changed treats a first class as new and still compares points after a set change.
+- Shares add up exactly. Only equal shares tie. Stats under 5% stay off the card.
+- Paths compare with the platform's own rules, after symlinks.
+- Unassigned totals match between `sheet.json` and the terminal.
+- Card class lines fit instead of being cut. Necromancer, Polyglot and Season's turn match their wording.
+- README lists known limits.
 - Method version 2. `sheet.json` now depends on the logs and the profile alone. The 2-point class hold is gone. When the runner-up is within 2 points of share, the sheet names both: "Artificer, close to Alchemist". The multiclass works the same way.
 - What changed moves to `changes.json`. It compares with the newest saved sheet from an earlier as-of date and names that date. A build with an earlier `--as-of` never compares with a later sheet. A failed build is never saved.
 - History and default output folders are keyed by the profile file's real path. The `id` key in a profile is no longer used.

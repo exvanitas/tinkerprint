@@ -52,6 +52,14 @@ Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint
 - Read or store prompt text.
 - Rank people, or say anything about skill, productivity or seniority. A sheet shows where your recorded time went, nothing more.
 
+## Known limits
+
+- Two builds that write to the same output folder at the same time can leave a mix of their files. Run one build per folder at a time.
+- `audit` without `--out` reads the folder of the profile's last build. If another profile built into that folder later, it shows that card. Pass `--out` to audit a folder directly. That works even when the profile cannot be read.
+- Where a daylight-saving change crosses the rollover hour, as in `Pacific/Chatham`, the edge of a day can move during that hour. Work near the change may land on the next or previous day.
+- Two Codex records of one change that share no call id or item id count as two changes.
+- Roots outside git take manifest priors from the files on disk, so their sheets can change with the checkout.
+
 ## Tests
 
 ```

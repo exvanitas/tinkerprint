@@ -24,6 +24,8 @@ Each reader turns one source into events. Readers keep timestamps, folders, file
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl` | `session_meta` (id, `cwd`, originator, time), model, file paths of applied patches when the log has them |
 | Antigravity | `~/.gemini/antigravity-cli/conversation_summaries.db` | conversation id, workspace folder, time. Experimental, off by default |
 
+Each reader declares the record shapes it accepts and drops any other record or field. A model id is letters, digits and `. _ - : @ +`, with at most one `/` and at most 80 characters. A path holds no control characters. A Codex change counts once per call id, or item id when no call id exists.
+
 Commits are matched to a profile by its identity patterns and deduplicated by hash across refs and clones. Bot authors (`[bot]` and a configurable list) never count. A commit with you as author or co-author counts.
 
 ## Events
