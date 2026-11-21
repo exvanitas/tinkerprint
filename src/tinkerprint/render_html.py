@@ -12,74 +12,114 @@ CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'
 CSS = """
 :root {
   color-scheme: light;
-  --page: #f3f1ea; --surface: #fcfcfb; --surface-2: #f5f4ef; --ink: #0b0b0b; --ink-2: #4a4943;
-  --muted: #7a7872; --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10); --border-2: rgba(11,11,11,.18);
-  --me: #2a78d6; --me-wash: rgba(42,120,214,.14); --good: #2f8a4c; --warn: #b8641c; --dot: rgba(11,11,11,.06);
+  --page: #efe6d4; --glow: rgba(226,150,60,.20); --surface: #fbf6ec; --surface-2: #f3ebdc; --ink: #24190f; --ink-2: #5b4a39;
+  --muted: #86766a; --grid: #e2d6c1; --axis: #cbbca2; --border: rgba(70,45,20,.13); --border-2: rgba(70,45,20,.24);
+  --lantern: #c27a26; --lantern-ink: #93500e; --lantern-wash: rgba(214,140,50,.17); --frame: #3a2a1e;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", P052, "URW Palladio L", Georgia, serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #222220; --ink: #f0efec; --ink-2: #c2c0b8;
-    --muted: #8f8d86; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --border-2: rgba(255,255,255,.18);
-    --me: #3987e5; --me-wash: rgba(57,135,229,.18); --good: #5cbf7a; --warn: #e39550; --dot: rgba(255,255,255,.05);
+    --page: #121117; --glow: rgba(235,160,70,.11); --surface: #1b1a21; --surface-2: #24222b; --ink: #f3eadb; --ink-2: #c9bda8;
+    --muted: #918774; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
+    --lantern: #eba84f; --lantern-ink: #f2bb6c; --lantern-wash: rgba(235,168,79,.17); --frame: #0b0a0e;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #222220; --ink: #f0efec; --ink-2: #c2c0b8;
-  --muted: #8f8d86; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --border-2: rgba(255,255,255,.18);
-  --me: #3987e5; --me-wash: rgba(57,135,229,.18); --good: #5cbf7a; --warn: #e39550; --dot: rgba(255,255,255,.05);
+  --page: #121117; --glow: rgba(235,160,70,.11); --surface: #1b1a21; --surface-2: #24222b; --ink: #f3eadb; --ink-2: #c9bda8;
+  --muted: #918774; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
+  --lantern: #eba84f; --lantern-ink: #f2bb6c; --lantern-wash: rgba(235,168,79,.17); --frame: #0b0a0e;
 }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stat { --hue-fill: var(--hue-1); } }
+:root[data-theme="dark"] .stat { --hue-fill: var(--hue-1); }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { background: var(--page); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 18px 18px;
+body { background: var(--page) radial-gradient(ellipse 90% 520px at 50% 0, var(--glow), transparent) no-repeat;
   color: var(--ink); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
-.wrap { max-width: 1160px; margin: 0 auto; padding: 20px 16px 64px; }
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-2); margin: 40px 0 6px; font-weight: 600; }
-.lede { color: var(--ink-2); margin: 0 0 14px; max-width: 72ch; }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
-.eyebrow b { color: var(--ink); font-weight: 600; }
-.ghost-btn { background: var(--surface); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink-2); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; position: relative; }
-.card.framed::before, .card.framed::after { content: ""; position: absolute; width: 12px; height: 12px; border: 2px solid var(--ink-2); opacity: .55; }
-.card.framed::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
-.card.framed::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-bottom-right-radius: 10px; }
-.changes { margin-bottom: 14px; border-left: 3px solid var(--me); }
-.changes h3 { margin: 0 0 6px; font-size: 15px; }
-.changes ul { margin: 0; padding-left: 18px; }
-.hero { display: grid; gap: 14px; grid-template-columns: minmax(280px, 390px) 1fr; align-items: start; }
-@media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
-.tagline { font-size: 11px; text-transform: uppercase; letter-spacing: .16em; color: var(--ink-2); }
-.nameplate { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 6px; }
-.nameplate h1 { font-size: 32px; line-height: 1.05; margin: 0 0 4px; font-weight: 700; overflow-wrap: anywhere; }
-.cls { font-size: 19px; font-weight: 600; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 16px 16px 64px; }
+h2 { font: 600 25px/1.2 var(--serif); margin: 52px 0 4px; display: flex; align-items: center; gap: 12px; }
+h2::before { content: ""; width: 10px; height: 10px; background: var(--lantern); transform: rotate(45deg); flex: none; }
+h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border-2), transparent); }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 72ch; font-size: 14px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+.eyebrow b { color: var(--lantern-ink); font-weight: 600; }
+.ghost-btn { background: var(--surface); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink-2); flex: none; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; }
+.empty { color: var(--muted); font-size: 14px; }
+.px { display: block; image-rendering: pixelated; }
+svg.defs { position: absolute; width: 0; height: 0; }
+code { font-family: var(--mono); font-size: .92em; }
+.bar { display: block; height: 8px; border-radius: 4px; background: var(--grid); position: relative; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; background: var(--lantern); }
+
+/* Hero: one scene. The workshop is the stage, the character stands in it, the nameplate hangs below. */
+.hero { position: relative; overflow: hidden; border-radius: 16px; background: var(--surface); border: 3px solid var(--frame);
+  box-shadow: 0 22px 44px -28px rgba(40,20,0,.6); }
+.banner { position: relative; overflow: hidden; background: var(--frame); }
+.set { position: relative; }
+.set > svg { width: 100%; height: auto; }
+.portrait { position: absolute; }
+.portrait svg { width: 100%; height: auto; }
+.portrait svg.alt { position: absolute; inset: 0; }
+.portrait.flip svg.alt { animation: costume 6s steps(1) infinite; }
+.portrait.flip:hover svg.alt { animation: none; opacity: 1; }
+@keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .portrait.flip svg.alt { animation: none; opacity: 0; } }
+.plaque { position: relative; display: grid; gap: 14px 24px; align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 380px); grid-template-areas: "seal who xp";
+  padding: 18px 24px 20px; border-top: 3px solid var(--lantern); }
+.seal { grid-area: seal; width: 92px; height: 92px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+  background: radial-gradient(circle at 38% 30%, #fbe2a4, #e0a447 55%, #b8731f); color: #2b1606;
+  border: 3px solid #6e4214; box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--border-2), 0 0 26px var(--lantern-wash); }
+.seal .n { font: 700 40px/1 var(--serif); }
+.seal .l { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+.who { grid-area: who; min-width: 0; }
+.who h1 { font: 700 42px/1.05 var(--serif); margin: 0; overflow-wrap: anywhere; letter-spacing: -.01em; }
+.cls { font: 600 21px/1.25 var(--serif); color: var(--lantern-ink); margin-top: 4px; }
 .cls .multi { color: var(--ink-2); font-weight: 500; }
-.cls-why { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.lvl { text-align: center; min-width: 82px; border: 1px solid var(--border-2); border-radius: 8px; padding: 6px 8px 5px; background: var(--surface-2); }
-.lvl .n { font-size: 40px; line-height: 1; font-weight: 700; }
-.lvl .l { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-2); }
-.next { margin: 14px 0 4px; font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; }
-.bar { height: 8px; border-radius: 4px; background: var(--grid); position: relative; overflow: hidden; }
-.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; background: var(--me); }
-.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 14px 0 0; }
-.vitals div { border-top: 1px solid var(--border); padding-top: 6px; }
+.cls-why, .costume { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.xp { grid-area: xp; min-width: 0; }
+.next { margin: 0 0 6px; font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; }
+.xp .bar { height: 10px; border-radius: 5px; }
+.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 12px 0 0; }
+.vitals div { border-top: 1px solid var(--border); padding-top: 5px; min-width: 0; }
 .vitals dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-.vitals dd { margin: 0; font-weight: 600; }
+.vitals dd { margin: 0; font-weight: 700; font-size: 17px; line-height: 1.2; }
 .vitals dd small { font-weight: 400; color: var(--ink-2); font-size: 12px; display: block; }
-.radar-card h3 { margin: 0; font-size: 16px; }
+@media (max-width: 860px) {
+  .plaque { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "seal who" "xp xp"; }
+}
+@media (max-width: 560px) {
+  .set { width: var(--zoom); margin-left: var(--crop); }
+  .hero { border-width: 2px; border-radius: 12px; }
+  .plaque { padding: 14px; gap: 12px 14px; }
+  .seal { width: 68px; height: 68px; border-width: 2px; }
+  .seal .n { font-size: 30px; }
+  .seal .l { font-size: 8px; }
+  .who h1 { font-size: 30px; }
+  .cls { font-size: 18px; }
+  h2 { font-size: 22px; margin-top: 44px; }
+}
+
+/* The build: radar beside the stat cards. */
+.build { display: grid; gap: 14px; grid-template-columns: minmax(0, 450px) minmax(0, 1fr); align-items: start; }
+@media (max-width: 900px) { .build { grid-template-columns: minmax(0, 1fr); } }
+.radar-card { position: sticky; top: 12px; }
+@media (max-width: 900px) { .radar-card { position: relative; top: 0; } }
+.radar-card h3 { margin: 0; font: 600 18px/1.25 var(--serif); }
 .radar-card .sub { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
-svg.radar { width: 100%; max-width: 620px; height: auto; display: block; margin: 6px auto 0; overflow: visible; }
+svg.radar { width: 100%; height: auto; display: block; margin: 6px auto 0; overflow: visible; }
 svg.radar .ring { fill: none; stroke: var(--grid); stroke-width: 1; }
 svg.radar .spoke { stroke: var(--axis); stroke-width: 1; }
-svg.radar .area { fill: var(--me-wash); stroke: var(--me); stroke-width: 2; stroke-linejoin: round; }
-svg.radar .pt { fill: var(--me); stroke: var(--surface); stroke-width: 2; }
-svg.radar .lab { fill: var(--ink); font-size: 15px; font-weight: 600; }
+svg.radar .area { fill: var(--lantern-wash); stroke: var(--lantern); stroke-width: 2.5; stroke-linejoin: round; }
+svg.radar .pt { stroke: var(--surface); stroke-width: 2.5; }
+svg.radar .lab { fill: var(--ink); font-size: 19px; font-weight: 600; }
 svg.radar .lab.zero { fill: var(--muted); font-weight: 400; }
-svg.radar .tick { fill: var(--muted); font-size: 10px; }
-@media (max-width: 520px) { svg.radar .lab { font-size: 19px; } svg.radar .tick { font-size: 13px; } }
+svg.radar .tick { fill: var(--muted); font-size: 12px; }
 .bars { display: grid; gap: 8px; margin-top: 12px; }
 .bars .row { display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 13px; }
 .bars .row .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -91,74 +131,79 @@ th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .scroll-x { overflow-x: auto; }
 .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-.stat { display: flex; flex-direction: column; }
-.stat header { display: flex; align-items: center; gap: 10px; }
-.code { font-weight: 700; font-size: 11px; letter-spacing: .06em; width: 38px; height: 34px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--border-2); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
-.stat h3 { margin: 0; font-size: 18px; flex: 1; }
-.stat .pts { font-weight: 700; font-size: 22px; text-align: right; line-height: 1; }
-.stat .pts small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
-.stat .def { color: var(--ink-2); font-size: 13px; margin: 8px 0 10px; }
-.stat.zero { opacity: .62; }
-.ev { list-style: none; padding: 0; margin: 12px 0 0; font-size: 13px; }
+.stat { --hue-fill: var(--hue-2); border-top: 3px solid var(--hue-fill); padding-top: 14px; }
+.stat header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.trinket { width: 60px; height: 60px; border-radius: 10px; display: grid; place-items: center; background: var(--hue-wash);
+  border: 1px solid var(--border); }
+.stat h3 { margin: 0; font: 600 19px/1.2 var(--serif); }
+.stat .pts { font: 700 26px/1 var(--serif); text-align: right; }
+.stat .pts small { display: block; font: 400 11px/1.4 var(--sans); color: var(--muted); }
+.stat .def { color: var(--ink-2); font-size: 13px; margin: 10px 0; }
+.stat .bar i { background: var(--hue-fill); }
+.ev { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; }
 .ev li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px dashed var(--border); }
 .ev li span:first-child { overflow-wrap: anywhere; }
 .ev li span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ev-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-top: 10px; }
-.party { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-.comp { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-content: start; }
-.comp .nm { font-weight: 700; font-size: 17px; }
-.comp .role { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
-.comp .big { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-weight: 700; font-size: 26px; line-height: 1; }
-.comp .big small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
-.comp .facts { grid-column: 1 / -1; display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
-.comp .models { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
-.comp .models span { font-size: 11px; border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; color: var(--ink-2); font-family: var(--mono); }
-.achs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-.ach { padding: 12px 14px; }
-.ach .t { font-weight: 600; font-size: 15px; }
-.ach .d { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.ach .x { font-size: 13px; color: var(--ink); margin-top: 4px; }
-.ach .src { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.unlit { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted);
+  border: 1px dashed var(--border-2); border-radius: 12px; padding: 10px 14px; }
+.unlit > span { display: inline-flex; gap: 8px; align-items: center; }
+.unlit .trinket { width: 34px; height: 34px; border-radius: 8px; filter: grayscale(1); opacity: .7; }
+.unlit b { color: var(--ink-2); }
+
+/* Party: each familiar on its own patch of floor. */
+.party { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.comp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px 14px; align-items: center; }
+.comp .fam { width: 96px; height: 84px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px;
+  border-radius: 10px; background: linear-gradient(var(--surface-2) 72%, var(--lantern-wash) 72%); border: 1px solid var(--border); }
+.comp .nm { font: 600 20px/1.2 var(--serif); }
+.comp .role { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); margin-top: 2px; }
+.comp .big { text-align: right; font: 700 32px/1 var(--serif); }
+.comp .big small { display: block; font: 400 11px/1.4 var(--sans); color: var(--muted); }
+.comp .facts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.comp .facts div { background: var(--surface-2); border-radius: 8px; padding: 5px 8px; min-width: 0; }
+.comp .facts dt { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.comp .facts dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.comp .when { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.comp .when span.m { font-size: 11px; border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); }
+
+/* Achievements: a pin on each. */
+.achs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.ach { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 0 14px; align-items: start; }
+.ach .ic { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2);
+  border: 2px solid var(--lantern-wash); box-shadow: 0 0 0 1px var(--border) inset; }
+.ach .t { font: 600 18px/1.2 var(--serif); }
+.ach .d { font-size: 12px; color: var(--lantern-ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.ach .x { font-size: 13px; margin-top: 4px; }
+.ach .src { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
 .ms { list-style: none; padding: 0; margin: 12px 0 0; }
 .ms li { display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
 .ms li span:first-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.ms li .ic { display: inline-block; vertical-align: -6px; margin-right: 8px; }
+.ms li .ic svg { display: inline-block; }
+
+/* Chronicle: a road of chapters, oldest first. */
+.chron { list-style: none; margin: 0; display: flex; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+.chap { flex: 1 0 140px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; text-align: center;
+  position: relative; padding: 0 6px; }
+.chap::before { content: ""; position: absolute; left: 0; right: 0; top: 74px; height: 4px; background: repeating-linear-gradient(90deg, var(--axis) 0 10px, transparent 10px 16px); }
+.chap:first-child::before { left: 50%; }
+.chap:last-child::before { right: 50%; }
+.chap .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-variant-numeric: tabular-nums; height: 18px; }
+.chap .pic { position: relative; padding: 4px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-2); margin: 4px 0 8px; }
+.chap .pic svg { border-radius: 6px; }
+.chap .c { font: 600 16px/1.2 var(--serif); }
+.chap .n { font-size: 12px; color: var(--muted); }
+.chap.rest .c { color: var(--ink-2); font-weight: 500; }
+.chap.now .pic { border: 2px solid var(--lantern); box-shadow: 0 0 22px var(--lantern-wash); }
+.chap.now .q { color: var(--lantern-ink); font-weight: 700; }
+
+.changes ul { margin: 0; padding: 0; list-style: none; columns: 2 260px; column-gap: 28px; }
+.changes li { padding: 4px 0 4px 18px; position: relative; break-inside: avoid; }
+.changes li::before { content: ""; position: absolute; left: 2px; top: 12px; width: 6px; height: 6px; background: var(--lantern); transform: rotate(45deg); }
 .method { columns: 2 320px; column-gap: 28px; font-size: 14px; color: var(--ink-2); }
 .method p { margin: 0 0 10px; break-inside: avoid; }
 .method b { color: var(--ink); }
 .foot { margin-top: 36px; font-size: 12px; color: var(--muted); }
-.empty { color: var(--muted); font-size: 14px; }
-.px { display: block; image-rendering: pixelated; }
-.banner { margin: 0 0 14px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-2); background: #16213d; }
-.banner svg { width: 100%; height: auto; }
-.nameplate { align-items: flex-start; }
-.nameplate .who { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.portrait { position: relative; flex: none; align-self: flex-start; border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--border-2); }
-.portrait svg.alt { position: absolute; inset: 0; }
-.portrait.flip svg.alt { animation: costume 6s steps(1) infinite; }
-.portrait.flip:hover svg.alt { animation: none; opacity: 1; }
-@keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .portrait.flip svg.alt { animation: none; opacity: 0; } }
-.costume { font-size: 12px; color: var(--muted); margin-top: 4px; }
-svg.defs { position: absolute; width: 0; height: 0; }
-.chron { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
-.chap { flex: none; width: 132px; padding: 10px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; }
-.chap svg { align-self: flex-start; border-radius: 6px; margin-bottom: 6px; }
-.chap .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.chap .c { font-weight: 600; font-size: 14px; line-height: 1.25; }
-.chap .n { font-size: 12px; color: var(--muted); }
-.chap.rest { background: var(--surface-2); }
-.chap.now { border-color: var(--me); }
-.trinket { flex: none; width: 40px; height: 40px; }
-.trinket svg { width: 100%; height: 100%; }
-.stat.zero .trinket { filter: grayscale(1); }
-.comp { grid-template-columns: auto 1fr auto; }
-.comp .fam { grid-row: 1 / span 2; width: 60px; height: 60px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
-.comp .fam svg { width: 100%; height: 100%; }
-.comp .big { grid-column: 3; }
-.ach { display: grid; grid-template-columns: 40px 1fr; gap: 0 12px; align-items: start; }
-.ach .ic svg { width: 40px; height: 40px; }
-.ms li .ic { display: inline-block; vertical-align: -4px; margin-right: 6px; }
 """
 
 JS = """
@@ -196,14 +241,15 @@ def pts(x: float) -> str:
     return f"{x:.1f}" if x < 100 else f"{round(x)}"
 
 
-def _radar(stats: list) -> str:
+def _radar(stats: list, hues: dict | None = None) -> str:
     cx, cy, r = 280, 262, 182
     n = len(stats)
+    hues = hues or {}
 
     def pt(i, frac):
         return radar.point(cx, cy, r, i, n, frac)
 
-    out = ['<svg class="radar" viewBox="0 0 560 520" role="img" aria-label="Radar of stat shares">']
+    out = ['<svg class="radar" viewBox="-40 0 640 520" role="img" aria-label="Radar of stat shares">']
     for ring_share in radar.RINGS:
         fr = radar.radius(ring_share)
         ring = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, fr) for i in range(n)))
@@ -218,12 +264,13 @@ def _radar(stats: list) -> str:
     out.append(f'<polygon class="area" points="{area}"/>')
     for i, s in enumerate(stats):
         x, y = pt(i, radar.radius(s["share"]))
-        out.append(f'<circle class="pt" cx="{x:.1f}" cy="{y:.1f}" r="4"><title>{e(s["key"])}: {pct(s["share"])}, '
+        fill = hues.get(s["key"], ["", "", "#c27a26"])[2]
+        out.append(f'<circle class="pt" cx="{x:.1f}" cy="{y:.1f}" r="6" fill="{fill}"><title>{e(s["key"])}: {pct(s["share"])}, '
                    f'{pts(s["points"])} points</title></circle>')
     for i, s in enumerate(stats):
         x, y = pt(i, radar.LABEL_AT)
         cls = "lab" if s["points"] > 0 else "lab zero"
-        out.append(f'<text class="{cls}" x="{x:.1f}" y="{y + 5:.1f}" text-anchor="{radar.anchor(i, n)}">{e(s["key"])}</text>')
+        out.append(f'<text class="{cls}" x="{x:.1f}" y="{y + 6:.1f}" text-anchor="{radar.anchor(i, n)}">{e(s["key"])}</text>')
     out.append("</svg>")
     return "\n".join(out)
 
@@ -264,9 +311,36 @@ def _changes(ch: dict | None) -> str:
     for t in ch.get("achievements_new", []):
         items.append(f"New achievement: {e(t)}.")
     lis = "".join(f"<li>{i}</li>" for i in items)
-    return (f'<section class="card changes"><h3>What changed since the sheet as of {day_label(ch["against"])}</h3>'
-            f'<ul>{lis}</ul></section>')
+    return (f'<h2>What changed</h2><p class="lede">Since the sheet as of {day_label(ch["against"])}.</p>'
+            f'<section class="card changes"><ul>{lis}</ul></section>')
 
+
+def _hero_scene(sheet: dict, pack: dict, main, alt, name: str, ranked: list, harnesses: list) -> dict:
+    """The workshop banner with the character layered on its rug, so a close call can flip the costume.
+    Also the phone crop: the zoom and offset that keep the figure and familiars in view."""
+    set_name = sheet["profile"]["set"]
+    seed = "|".join([set_name, name] + [f"{s}={p}" for s, p in ranked] + harnesses)
+    stage = art.banner(pack, main, ranked, harnesses, seed, with_figure=False)
+    banner_svg = stage.svg(1, f"A workshop: shelves hold {', '.join(s for s, _ in ranked[:4]) or 'nothing yet'}", "px")
+    fig = art.figure(pack, main)
+    fx, fy = art.banner_figure_box(pack, fig)
+    figs = fig.svg(1, f"Portrait of a {name}", "px main")
+    flip = ""
+    if alt:
+        figs += art.figure(pack, alt).svg(1, f"Portrait of a {sheet['class']['close']['name']}", "px alt")
+        flip = " flip"
+    # Phone crop: centre between the figure and the last familiar, zoomed so both fill the frame.
+    right = fx + fig.w
+    if harnesses:
+        right = min(stage.w, right + 6 + sum(art.familiar(pack, h).w + 3 for h in harnesses[:3]))
+    zoom = min(1.9, stage.w / (right - fx + 24))
+    view = 1 / zoom
+    focus = (fx + right) / 2 / stage.w
+    left = min(max(focus - view / 2, 0.0), 1 - view)
+    style = f"--zoom:{zoom * 100:.1f}%;--crop:{-left * zoom * 100:.2f}%"
+    box = (f"left:{fx / stage.w * 100:.3f}%;top:{fy / stage.h * 100:.3f}%;"
+           f"width:{fig.w / stage.w * 100:.3f}%")
+    return {"style": style, "html": f'{banner_svg}<div class="portrait{flip}" style="{box}">{figs}</div>'}
 
 
 def _art(sheet: dict, pack: dict) -> dict:
@@ -276,26 +350,21 @@ def _art(sheet: dict, pack: dict) -> dict:
     cls = sheet.get("class")
     name = cls["name"] if cls else "Unclassed"
     a = {}
-    hero_scale = round(128 / pack["canvas"][0])
-    a["portrait"] = art.portrait(pack, main).svg(hero_scale, f"Portrait of a {name}", "px main")
     a["costume"] = ""
-    a["flip"] = ""
     if alt:
-        other = cls["close"]["name"]
-        a["portrait"] += art.portrait(pack, alt).svg(hero_scale, f"Portrait of a {other}", "px alt")
-        a["flip"] = " flip"
-        a["costume"] = f'<div class="costume">Close call: the portrait changes into the {e(other)} costume.</div>'
+        a["costume"] = (f'<div class="costume">Close call: the portrait changes into the '
+                        f'{e(cls["close"]["name"])} costume.</div>')
     pcts = art.sheet_pcts(sheet)
     ranked = [(s, pcts[s]) for s in art.art_rank(pcts, set_name)]
     harnesses = [m["harness"] for m in sheet["party"]]
-    seed = "|".join([set_name, name] + [f"{s}={p}" for s, p in ranked] + harnesses)
-    a["banner"] = art.banner(pack, main, ranked, harnesses, seed).svg(
-        1, f"A workshop: shelves hold {', '.join(s for s, _ in ranked[:4]) or 'nothing yet'}", "px")
+    a["scene"] = _hero_scene(sheet, pack, main, alt, name, ranked, harnesses)
     a["familiar"] = {m["harness"]: art.familiar(pack, m["harness"]).svg(3, f"{m['name']} familiar", "px")
                      for m in sheet["party"]}
-    a["icon"] = {x["id"]: art.icon(pack, x["id"]).svg(2, "", "px") for x in sheet["achievements"]}
-    a["milestone"] = art.icon(pack, "milestone").svg(1, "", "px")
+    a["icon"] = {x["id"]: art.icon(pack, x["id"]).svg(3, "", "px") for x in sheet["achievements"]}
+    a["milestone"] = art.icon(pack, "milestone").svg(2, "", "px")
     a["trinket"] = {r["key"]: art.trinket(pack, r["key"]).svg(4, "", "px") for r in sheet["stats"]}
+    a["small_trinket"] = {r["key"]: art.trinket(pack, r["key"]).svg(2, "", "px") for r in sheet["stats"]}
+    a["hue"] = {r["key"]: art.stat_ramp(pack, r["key"]) for r in sheet["stats"]}
     a["chronicle"] = _chronicle(sheet, pack)
     return a
 
@@ -311,14 +380,15 @@ def _chronicle(sheet: dict, pack: dict) -> str:
     side = pack["canvas"][0]
     scale = 2 if side <= 48 else 1
     for i, ch in enumerate(chapters):
+        now = " now" if i == len(chapters) - 1 else ""
         if ch.get("rest"):
             fire = art.plate(pack, set_name)
             flame = art.campfire(pack)
             fire.paste(flame, (fire.w - flame.w) // 2, fire.h - flame.h - 3)
             span = ch["label"] if ch["quarters"] == 1 else f'{ch["label"]} to {ch["label_to"]}'
-            cards.append(f'<article class="card chap rest">{fire.svg(scale, "A campfire", "px")}'
-                         f'<div class="q">{e(span)}</div><div class="c">Resting at camp</div>'
-                         f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></article>')
+            cards.append(f'<li class="chap rest{now}"><div class="q">{e(span)}</div>'
+                         f'<div class="pic">{fire.svg(scale, "A campfire", "px")}</div><div class="c">Resting at camp</div>'
+                         f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></li>')
             continue
         look = art.chapter_look(ch, set_name)
         if look not in cache:
@@ -330,14 +400,17 @@ def _chronicle(sheet: dict, pack: dict) -> str:
         c = ch.get("class")
         name = c["name"] if c else "Unclassed"
         close = f'<div class="n">close to {e(ch["close"])}</div>' if ch.get("close") else ""
-        now = " now" if i == len(chapters) - 1 else ""
-        cards.append(f'<article class="card chap{now}">{cache[look]}<div class="q">{e(ch["label"])}</div>'
+        cards.append(f'<li class="chap{now}"><div class="q">{e(ch["label"])}</div><div class="pic">{cache[look]}</div>'
                      f'<div class="c">{e(name)}</div>{close}<div class="n">{plural(ch["active_days"], "active day")}</div>'
-                     f'</article>')
+                     f'</li>')
     return ('<h2>Chronicle</h2><p class="lede">One chapter per calendar quarter, over all history. Each shows the class '
             'that quarter\'s points would give on their own. Quiet quarters rest at camp.</p>'
             f'<svg class="defs" width="0" height="0" aria-hidden="true"><defs>{"".join(defs)}</defs></svg>'
-            f'<div class="chron">{"".join(cards)}</div>')
+            f'<ol class="chron card"">{"".join(cards)}</ol>')
+
+
+def _wash(color: str, alpha: str = "2e") -> str:
+    return color + alpha
 
 
 def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pack: dict | None = None) -> str:
@@ -370,7 +443,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     vit = "".join(f"<div><dt>{k}</dt><dd>{v}</dd></div>" for k, v in vitals)
 
     if sheet["chart"] == "radar":
-        chart = _radar(stats)
+        chart = _radar(stats, pix["hue"])
         chart_note = ("Eight spokes in the set's order on a square-root scale that is the same on every sheet, "
                       "so two sheets of the same set overlay.")
     else:
@@ -379,34 +452,42 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     table_rows = "".join(f'<tr><td>{e(s["key"])}</td><td class="num">{pts(s["points"])}</td>'
                          f'<td class="num">{pct(s["share"])}</td></tr>' for s in stats)
 
+    # Lit stats get a card each, strongest first. Stats with no points share one line below.
     cards = []
-    for s in stats:
+    unlit = []
+    for s in sorted(stats, key=lambda s: -s["share"]):
+        hue = pix["hue"][s["key"]]
+        if s["points"] <= 0:
+            unlit.append(f'<span><span class="trinket">{pix["small_trinket"][s["key"]]}</span>'
+                         f'<span><b>{e(s["key"])}</b>: {e(s["description"])}</span></span>')
+            continue
         projs = "".join(f'<li><span>{e(p["name"])}</span><span>{pts(p["points"])}</span></li>'
                         for p in s["projects"][:5])
         more = len(s["projects"]) - 5
         if more > 0:
             projs += f'<li><span>{more} more</span><span></span></li>'
-        body = (f'<div class="ev-title">Projects behind it</div><ul class="ev">{projs}</ul>' if projs
-                else '<p class="empty">No points this season.</p>')
-        zero = "" if s["points"] > 0 else " zero"
+        body = f'<ul class="ev" aria-label="Projects behind it">{projs}</ul>' if projs else ""
         cards.append(
-            f'<article class="card stat{zero}"><header><span class="trinket">{pix["trinket"][s["key"]]}</span>'
+            f'<article class="card stat" style="--hue-1:{hue[1]};--hue-2:{hue[2]};--hue-wash:{_wash(hue[1])}">'
+            f'<header><span class="trinket">{pix["trinket"][s["key"]]}</span>'
             f'<h3>{e(s["key"])}</h3><div class="pts">{pct(s["share"])}<small>{pts(s["points"])} pts</small></div>'
             f'</header><p class="def">{e(s["description"])}</p>'
             f'<span class="bar"><i style="width:{s["share"] * 100:.1f}%"></i></span>{body}</article>')
+    unlit_html = (f'<div class="unlit"><span>No points this season:</span>{"".join(unlit)}</div>' if unlit else "")
 
     party = []
     for m in sheet["party"]:
-        models = "".join(f"<span>{e(x)}</span>" for x in m["models"][:6])
+        models = "".join(f'<span class="m">{e(x)}</span>' for x in m["models"][:6])
+        facts = [("Sessions", m["sessions"]), ("Edited", m["edit_sessions"]), ("Reviewed", m["review_sessions"]),
+                 ("Other", m["other_sessions"])]
         party.append(
             f'<article class="card comp"><div class="fam">{pix["familiar"][m["harness"]]}</div>'
-            f'<div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div>'
+            f'<div><div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div></div>'
             f'<div class="big">{m["days_together"]}<small>days together</small></div>'
-            f'<div class="facts"><span>{plural(m["sessions"], "session")}</span><span>{m["edit_sessions"]} edited</span>'
-            f'<span>{m["review_sessions"]} reviewed</span><span>{m["other_sessions"]} other</span></div>'
-            f'<div class="facts"><span>{day_label(m["first_day"])} to {day_label(m["last_day"])}</span></div>'
-            f'<div class="models">{models}</div></article>')
-    party_html = "".join(party) or '<p class="empty">No harness sessions inside this profile.</p>'
+            f'<dl class="facts">{"".join(f"<div><dt>{k}</dt><dd>{v}</dd></div>" for k, v in facts)}</dl>'
+            f'<div class="when"><span>{day_label(m["first_day"])} to {day_label(m["last_day"])}</span>{models}</div></article>')
+    party_html = (f'<div class="party">{"".join(party)}</div>' if party
+                  else '<p class="empty">No harness sessions inside this profile.</p>')
 
     achs = []
     for a in sheet["achievements"]:
@@ -415,7 +496,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
         achs.append(f'<article class="card ach"><div class="ic">{pix["icon"][a["id"]]}</div><div>'
                     f'<div class="t">{e(a["title"])}{count}</div>'
                     f'<div class="d">{day_label(a["date"])}</div><div class="x">{e(a["rule"])}</div>{detail}</div></article>')
-    ach_html = "".join(achs) or '<p class="empty">None yet.</p>'
+    ach_html = f'<div class="achs">{"".join(achs)}</div>' if achs else '<p class="empty">None yet.</p>'
     ms = "".join(f'<li><span>{day_label(m["date"])}</span><span><span class="ic">{pix["milestone"]}</span>{e(m["text"])}</span></li>'
                  for m in sheet["milestones"])
     ms_html = f'<h2>Milestones</h2><p class="lede">Written by hand in the profile\'s milestones file.</p><ul class="ms">{ms}</ul>' if ms else ""
@@ -429,7 +510,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     un = sheet["unassigned"]
     un_html = ""
     if un["sessions"] or un["edits"]:
-        un_html = (f'<p class="lede">Outside every root: {plural(un["sessions"], "session")} in {plural(un["folders"], "folder")} and '
+        un_html = (f'<p class="lede" style="margin-top:12px">Outside every root: {plural(un["sessions"], "session")} in {plural(un["folders"], "folder")} and '
                    f'{plural(un["edits"], "edited file")}. They are not scored. Run <code>tinkerprint build</code> in a terminal to list '
                    f'the folders, then add roots to the profile if they belong.</p>')
 
@@ -438,6 +519,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     work = " · work profile" if prof.get("work") else ""
     as_of = f" · as of {day_label(season['as_of'])}" if season.get("as_of") else ""
     built = f"Built {e(built_at)}. " if built_at else ""
+    scene = pix["scene"]
 
     return f"""<!doctype html>
 <html lang="en">
@@ -454,48 +536,50 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
   <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
   <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
 </div>
-<div class="banner">{pix["banner"]}</div>
-{_changes(changes)}
 <section class="hero">
-  <div class="card framed">
-    <div class="tagline">Character</div>
-    <div class="nameplate">
-      <div class="who">
-        <div class="portrait{pix["flip"]}">{pix["portrait"]}</div>
-        <div>
-          <h1>{e(prof["name"])}</h1>
-          <div class="cls">{cls_html}</div>
-        </div>
-      </div>
-      <div class="lvl"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
+  <div class="banner"><div class="set" style="{scene["style"]}">{scene["html"]}</div></div>
+  <div class="plaque">
+    <div class="seal"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
+    <div class="who">
+      <h1>{e(prof["name"])}</h1>
+      <div class="cls">{cls_html}</div>
+      <div class="cls-why">{why}</div>{pix["costume"]}
     </div>
-    <div class="cls-why">{why}</div>{pix["costume"]}
-    <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
-    <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
-    <dl class="vitals">{vit}</dl>
+    <div class="xp">
+      <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
+      <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
+      <dl class="vitals">{vit}</dl>
+    </div>
   </div>
-  <div class="card framed radar-card">
+</section>
+
+<h2>The build</h2>
+<p class="lede">Each active day is one point. It splits across the day's projects, then across each project's stats, by the log of files changed. Shares are of classified points.</p>
+<div class="build">
+  <div class="card radar-card">
     <h3>Where the season's points went</h3>
     <p class="sub">{chart_note}</p>
     {chart}
     <details><summary>Stats as a table</summary><div class="scroll-x"><table><thead><tr><th>Stat</th><th class="num">Points</th><th class="num">Share</th></tr></thead><tbody>{table_rows}</tbody></table></div></details>
   </div>
-</section>
-
-{pix["chronicle"]}
-
-<h2>Stats</h2>
-<p class="lede">Each active day is one point. It splits across the day's projects, then across each project's stats, by the log of files changed. Shares are of classified points.</p>
-<div class="stats">{"".join(cards)}</div>
+  <div>
+    <div class="stats">{"".join(cards)}</div>
+    {unlit_html}
+  </div>
+</div>
 
 <h2>Party</h2>
 <p class="lede">The agents that worked beside you. The party shows presence, never a share of the work. Sessions with no file change earn no points.</p>
-<div class="party">{party_html}</div>
+{party_html}
 
 <h2>Achievements</h2>
 <p class="lede">Generic rules, the same for everyone. Each shows its rule and the day it was earned.</p>
-<div class="achs">{ach_html}</div>
+{ach_html}
 {ms_html}
+
+{pix["chronicle"]}
+
+{_changes(changes)}
 
 <h2>Projects</h2>
 {proj_html}

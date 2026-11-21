@@ -378,10 +378,10 @@ class Built(unittest.TestCase):
         self.assertIn(f"the {cls['close']['name']} costume", page)
 
     def test_page_sizes_stay_small(self):
-        """Budgets: sheet.html under 104 KB, card.svg under 16 KB, the gallery under 240 KB."""
+        """Budgets: sheet.html under 104 KB, card.svg under 30 KB, the gallery under 240 KB."""
         for res in self.out.values():
             self.assertLess(os.path.getsize(res["paths"]["html"]), 104_000)
-            self.assertLess(os.path.getsize(res["paths"]["card"]), 16_000)
+            self.assertLess(os.path.getsize(res["paths"]["card"]), 30_000)
         with tempfile.TemporaryDirectory() as tmp:
             path = write_gallery(tmp)[0]
             self.assertLess(os.path.getsize(path), 240_000)

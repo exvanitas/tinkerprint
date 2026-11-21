@@ -269,9 +269,23 @@ def shelf_counts(ranked_pcts: list, slots: int = 16) -> list:
     return trimmed
 
 
-def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str) -> Canvas:
+def banner_figure_box(pack: dict, fig: Canvas) -> tuple:
+    """Where banner() pastes the figure: (x, y) on the banner canvas."""
+    if pack.get("version") == 2:
+        return 116 - fig.w // 2, 65 - fig.h + fig.h // 10
+    return 88, 13
+
+
+def stat_ramp(pack: dict, stat: str) -> list:
+    """A stat's four colors, highlight to deep shadow. The sheet and card tint each stat with them."""
+    return list(_ramp(pack, stat))
+
+
+def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str,
+           with_figure: bool = True) -> Canvas:
     """A workshop: shelves hold trinkets for the strongest stats, the figure stands on a rug in its
-    top stat's colors, and each party harness sends its familiar."""
+    top stat's colors, and each party harness sends its familiar. With with_figure=False a version 2
+    pack leaves the rug empty, so a page can layer the figure (and a close-call costume) on top."""
     sp = pack["sets"][look.set_name]
     rng = Stream("banner|" + seed)
     if pack.get("version") == 2:
@@ -288,8 +302,9 @@ def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str
         for stat, (x, y) in zip(stock, rng.shuffle(positions)):
             token = trinket(pack, stat)
             c.paste(token, x, y - token.h)
-        fig = figure(pack, look)
-        c.paste(fig, 116 - fig.w // 2, 65 - fig.h + fig.h // 10)
+        if with_figure:
+            fig = figure(pack, look)
+            c.paste(fig, *banner_figure_box(pack, fig))
         x = 143
         for harness in harnesses[:3]:
             f = familiar(pack, harness)
@@ -354,7 +369,9 @@ def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str
     for x in range(88, 120, 3):
         c.set(x, 41, rug[2])
         c.set(x + 1, 43, rug[2])
-    c.paste(figure(pack, look), 88, 13)
+    if with_figure:
+        fig = figure(pack, look)
+        c.paste(fig, *banner_figure_box(pack, fig))
     _pennant(c, pack, 134, 5, rug, _ramp(pack, look.item) if look.item else rug)
     # Familiars on the floor in front, right of the figure.
     x = 124

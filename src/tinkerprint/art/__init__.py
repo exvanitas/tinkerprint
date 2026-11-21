@@ -6,12 +6,12 @@ art reads only the card's allowlisted fields: set, class, multiclass, rounded sh
 from __future__ import annotations
 
 from ..classes import card_pct
-from .compose import (Look, art_rank, banner, campfire, class_by_name, familiar, icon, look_for, plate,
-                      portrait, shelf_counts, trinket)
+from .compose import (Look, art_rank, banner, banner_figure_box, campfire, class_by_name, familiar, figure, icon, look_for, plate,
+                      portrait, shelf_counts, stat_ramp, trinket)
 from .pack import PackError, default_pack, export_pack, load_pack
 
 __all__ = ["Look", "PackError", "default_pack", "export_pack", "load_pack", "sheet_looks", "card_look",
-           "art_rank", "banner", "campfire", "familiar", "icon", "plate", "portrait", "shelf_counts", "trinket", "chapter_look", "sheet_pcts",
+           "art_rank", "banner", "banner_figure_box", "figure", "campfire", "familiar", "icon", "plate", "portrait", "shelf_counts", "stat_ramp", "trinket", "chapter_look", "sheet_pcts",
            "card_portrait_paths"]
 
 

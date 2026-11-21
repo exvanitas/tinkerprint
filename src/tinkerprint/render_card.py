@@ -1,18 +1,21 @@
 """card.svg: the share card. It draws only the card's allowlisted fields."""
 from __future__ import annotations
 
+import re
 from html import escape
 
 from . import art, radar
+from .party import HARNESS_NAMES
 
 W, H = 1200, 630
 FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
 
 
-def _t(x, y, text, size, weight=400, fill="#f2f1ec", anchor="start", spacing=None) -> str:
+def _t(x, y, text, size, weight=400, fill="#f3eadb", anchor="start", spacing=None, family=None) -> str:
     sp = f' letter-spacing="{spacing}"' if spacing else ""
+    fam = f' font-family="{family}"' if family else ""
     return (f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size}" font-weight="{weight}" fill="{fill}" '
-            f'text-anchor="{anchor}"{sp}>{escape(str(text))}</text>')
+            f'text-anchor="{anchor}"{sp}{fam}>{escape(str(text))}</text>')
 
 
 def _clip(s: str, n: int) -> str:
@@ -48,68 +51,112 @@ def visible(card: dict) -> dict:
     return v
 
 
-PX, PY, TX = 64, 44, 232  # portrait frame and the text beside it
+PX, PY, TX = 64, 186, 64  # portrait frame; the name runs from TX across the top
+SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', P052, Georgia, serif"
+# Lantern palette, shared with the sheet's dark theme.
+BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a3542", "#f3eadb", "#c9bda8",
+                                                       "#918774", "#eba84f", "#f2bb6c")
+
+
+def _familiars(party: list, pack: dict) -> list:
+    """The party's familiars, from the allowlisted party names. Unknown names get the fallback sprout."""
+    by_name = {v: k for k, v in HARNESS_NAMES.items()}
+    return [art.familiar(pack, by_name.get(name, "")) for name in party[:3]]
+
+
+_PATH = re.compile(r'<path fill="(#[0-9a-fA-F]{6})" d="([^"]*)"/>')
+
+
+def _merge(paths: list) -> list:
+    """One path per ink across sprites that never overlap: the portrait and the familiars."""
+    by_fill: dict = {}
+    for p in paths:
+        m = _PATH.fullmatch(p)
+        if not m:
+            raise ValueError("unexpected sprite path")
+        by_fill.setdefault(m.group(1), []).append(m.group(2))
+    return [f'<path fill="{fill}" d="{"".join(d)}"/>' for fill, d in sorted(by_fill.items())]
 
 
 def render_card(card: dict, pack: dict | None = None) -> str:
     if not card.get("enabled"):
         raise ValueError("card is off for this profile")
     v = visible(card)
+    pack = pack or art.default_pack()
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
            f'font-family="{FONT}" role="img" aria-label="{escape(v["name"])} stat card">']
-    out.append(f'<rect width="{W}" height="{H}" rx="28" fill="#141413"/>')
-    out.append(f'<rect x="14" y="14" width="{W - 28}" height="{H - 28}" rx="20" fill="none" stroke="#3a3936"/>')
+    out.append('<defs><radialGradient id="glow" cx="0.3" cy="0" r="0.9"><stop offset="0" stop-color="#3a2a1c"/>'
+               f'<stop offset="1" stop-color="{BG}"/></radialGradient>'
+               '<radialGradient id="seal" cx="0.38" cy="0.3" r="0.75"><stop offset="0" stop-color="#fbe2a4"/>'
+               '<stop offset="0.55" stop-color="#e0a447"/><stop offset="1" stop-color="#b8731f"/></radialGradient></defs>')
+    out.append(f'<rect width="{W}" height="{H}" rx="28" fill="url(#glow)"/>')
+    out.append(f'<rect x="14" y="14" width="{W - 28}" height="{H - 28}" rx="20" fill="none" stroke="{LINE}"/>')
+    out.append(f'<rect x="{W // 2 - 60}" y="14" width="120" height="3" fill="{LANTERN}"/>')
+
+    # Who: set, then the name across the top of the left column.
+    out.append(_t(TX, 92, v["set"], 18, 700, LANTERN, spacing="3"))
+    out.append(_t(TX, 156, v["name"], name_size(v["name"]), 700, INK, family=SERIF))
 
     # Portrait: pixel art from the allowlisted set, class, multiclass and rounded shares only.
-    pack = pack or art.default_pack()
     resolution = pack["canvas"][0]
-    scale = round(128 / resolution)
+    scale = max(1, round(176 / resolution))
     padding = 4 if resolution == 48 else 8
     frame = resolution * scale + 2 * padding
-    out.append(f'<rect x="{PX}" y="{PY}" width="{frame}" height="{frame}" rx="14" fill="#1f1f1d" '
-               f'stroke="#3a3936"/>')
-    out.append('<g shape-rendering="crispEdges">')
-    out += art.card_portrait_paths(card, PX + padding, PY + padding, scale, pack)
-    out.append("</g>")
-    # Left column: who and what.
-    out.append(_t(TX, 92, v["set"], 18, 600, "#9c9a92", spacing="3"))
-    out.append(_t(TX, 156, v["name"], name_size(v["name"]), 700))
-    # Class names are never cut. Each line shrinks until it fits the left column.
-    out.append(_t(64, 238, v["class"], _fit(v["class"], 34), 600, "#7fb0f0"))
+    out.append(f'<rect x="{PX - 3}" y="{PY - 3}" width="{frame + 6}" height="{frame + 6}" rx="16" fill="#0b0a0e" '
+               f'stroke="{LANTERN}" stroke-opacity="0.55" stroke-width="2"/>')
+    sprites = art.card_portrait_paths(card, PX + padding, PY + padding, scale, pack)
+    # The party's familiars stand at the foot of the left column.
+    fx = 64
+    for f in _familiars(card["party"], pack) if v["party"] else []:
+        sprites += f.svg_paths(2, fx, H - 42 - f.h * 2)
+        fx += f.w * 2 + 6
+    out.append(f'<g shape-rendering="crispEdges">{"".join(_merge(sprites))}</g>')
+    # Level: a lantern seal on the portrait's corner.
+    sx, sy = PX + frame, PY + frame - 38
+    out.append(f'<circle cx="{sx}" cy="{sy}" r="44" fill="{BG}"/>')
+    out.append(f'<circle cx="{sx}" cy="{sy}" r="39" fill="url(#seal)" stroke="#6e4214" stroke-width="3"/>')
+    out.append(_t(sx, sy + 9, v["level"], 34 if len(v["level"]) < 3 else 26, 700, "#2b1606", anchor="middle", family=SERIF))
+    out.append(_t(sx, sy + 25, "LEVEL", 10, 700, "#2b1606", anchor="middle", spacing="2"))
+
+    # Class beside the portrait. Class names are never cut: each line shrinks to fit.
+    cx0 = PX + frame + 58
+    room = COL_RIGHT - cx0
+    out.append(_t(cx0, PY + 34, v["class"], _fit(v["class"], 32, room), 600, LANTERN2, family=SERIF))
     if v["multiclass"]:
-        out.append(_t(64, 268, v["multiclass"], _fit(v["multiclass"], 24), 500, "#9fc3f2"))
-
-    out.append('<rect x="64" y="288" width="150" height="96" rx="14" fill="#1f1f1d" stroke="#3a3936"/>')
-    out.append(_t(139, 348, v["level"], 56, 700, anchor="middle"))
-    out.append(_t(139, 372, "LEVEL", 14, 600, "#9c9a92", anchor="middle", spacing="3"))
-
-    y = 312
+        out.append(_t(cx0, PY + 64, v["multiclass"], _fit(v["multiclass"], 22, room), 500, INK2, family=SERIF))
+    # Top shares, each with a bar in its stat's colors.
+    y = PY + 100
     for stat, pct in v["stats"]:
-        out.append(_t(246, y, stat, 22, 600))
-        out.append(_t(470, y, pct, 22, 600, "#9c9a92", anchor="end"))
-        y += 26
+        hue = art.stat_ramp(pack, stat)
+        out.append(_t(cx0, y, stat, 18, 600, INK))
+        out.append(_t(COL_RIGHT, y, pct, 18, 600, INK2, anchor="end"))
+        p = int(pct.rstrip("%"))
+        out.append(f'<rect x="{cx0}" y="{y + 8}" width="{room}" height="4" rx="2" fill="#2d2b34"/>')
+        out.append(f'<rect x="{cx0}" y="{y + 8}" width="{room * p / 100:.1f}" height="4" rx="2" fill="{hue[1]}"/>')
+        y += 31
 
     if v["achievements"]:
-        out.append(_t(64, 420, "ACHIEVEMENTS", 14, 600, "#9c9a92", spacing="3"))
-        y = 452
+        out.append(_t(64, 426, "ACHIEVEMENTS", 13, 700, MUTED, spacing="3"))
+        y = 454
         for title, when in v["achievements"]:
-            out.append(_t(64, y, title, 22, 600))
-            out.append(_t(470, y, when, 18, 400, "#9c9a92", anchor="end"))
-            y += 32
+            out.append(f'<rect x="64" y="{y - 11}" width="7" height="7" fill="{LANTERN}" transform="rotate(45 67.5 {y - 7.5})"/>')
+            out.append(_t(84, y, title, 19, 600, INK))
+            out.append(_t(COL_RIGHT, y, when, 16, 400, MUTED, anchor="end"))
+            y += 26
     if v["party"]:
-        out.append(_t(64, H - 52, v["party"], 16, 600, "#9c9a92", spacing="1"))
+        out.append(_t(fx + 6, H - 50, v["party"], 15, 700, MUTED, spacing="1"))
     if v["projects"]:
-        out.append(_t(W - 64, H - 52, v["projects"], 16, 400, "#9c9a92", anchor="end"))
+        out.append(_t(W - 64, H - 52, v["projects"], 16, 400, MUTED, anchor="end"))
 
     if v["chart"] == "radar":
-        out += _radar(v["spokes"])
+        out += _radar(v["spokes"], pack)
     else:
-        out += _bars(v["bars"])
+        out += _bars(v["bars"], pack)
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
 
-def _radar(spokes: list) -> list:
+def _radar(spokes: list, pack: dict) -> list:
     """Rounded shares on the common square-root scale, eight spokes in the set's order."""
     cx, cy, r = 850, 300, 190
     n = len(spokes)
@@ -117,31 +164,32 @@ def _radar(spokes: list) -> list:
     for ring in radar.RINGS:
         fr = radar.radius(ring)
         pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in (radar.point(cx, cy, r, i, n, fr) for i in range(n)))
-        out.append(f'<polygon points="{pts}" fill="none" stroke="#2e2e2b" stroke-width="1.5"/>')
+        out.append(f'<polygon points="{pts}" fill="none" stroke="#2d2b34" stroke-width="1.5"/>')
     for i in range(n):
         x, y = radar.point(cx, cy, r, i, n, 1.0)
-        out.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="#3a3936" stroke-width="1.5"/>')
+        out.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="{LINE}" stroke-width="1.5"/>')
     poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in
                     (radar.point(cx, cy, r, i, n, radar.radius(p / 100)) for i, (_, p) in enumerate(spokes)))
-    out.append(f'<polygon points="{poly}" fill="#3987e5" fill-opacity="0.22" stroke="#5a9de9" stroke-width="3" '
+    out.append(f'<polygon points="{poly}" fill="{LANTERN}" fill-opacity="0.2" stroke="{LANTERN}" stroke-width="3" '
                f'stroke-linejoin="round"/>')
-    for i, (stat, p) in enumerate(spokes):
+    # Empty stats first, so their dots at the center never cover a lit one.
+    for i, (stat, p) in sorted(enumerate(spokes), key=lambda t: t[1][1] > 0):
         x, y = radar.point(cx, cy, r, i, n, radar.radius(p / 100))
-        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="#5a9de9"/>')
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="7" fill="{art.stat_ramp(pack, stat)[1]}" stroke="{BG}" stroke-width="2.5"/>')
         lx, ly = radar.point(cx, cy, r, i, n, radar.LABEL_AT)
-        out.append(_t(lx, ly + 7, stat, 19, 600, "#d9d7d0", anchor=radar.anchor(i, n)))
+        out.append(_t(lx, ly + 7, stat, 19, 600, INK if p > 0 else MUTED, anchor=radar.anchor(i, n)))
     return out
 
 
-def _bars(bars: list) -> list:
+def _bars(bars: list, pack: dict) -> list:
     """Ranked bars when fewer than three stats have points, as on the sheet."""
     out = []
     x0, x1, y = 640, 1100, 200
     for stat, p in bars:
-        out.append(_t(x0, y, stat, 22, 600, "#d9d7d0"))
-        out.append(_t(x1, y, f"{p}%", 22, 600, "#9c9a92", anchor="end"))
-        out.append(f'<rect x="{x0}" y="{y + 14}" width="{x1 - x0}" height="12" rx="6" fill="#2e2e2b"/>')
-        out.append(f'<rect x="{x0}" y="{y + 14}" width="{(x1 - x0) * p / 100:.1f}" height="12" rx="6" fill="#5a9de9"/>')
+        out.append(_t(x0, y, stat, 22, 600, INK))
+        out.append(_t(x1, y, f"{p}%", 22, 600, INK2, anchor="end"))
+        out.append(f'<rect x="{x0}" y="{y + 14}" width="{x1 - x0}" height="12" rx="6" fill="{BG2}"/>')
+        out.append(f'<rect x="{x0}" y="{y + 14}" width="{(x1 - x0) * p / 100:.1f}" height="12" rx="6" fill="{art.stat_ramp(pack, stat)[1]}"/>')
         y += 80
     return out
 
@@ -150,6 +198,7 @@ LEFT_WIDTH = 540  # px from x=64 before the chart begins
 
 
 NAME_RIGHT = 560  # the name ends here, clear of the radar's top-left spoke label
+COL_RIGHT = 480  # the class, shares and achievements end here, clear of the radar's left spoke label
 
 # Generous bold glyph widths in em, by class, so the widest system fonts still fit.
 _WIDE, _NARROW, _THIN = set("WMmw@"), set("ijlI.,'|!:;"), set("ftr")
