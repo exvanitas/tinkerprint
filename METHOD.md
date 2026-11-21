@@ -124,10 +124,10 @@ Generic rules over events and git, the same for everyone. Each states its rule a
 | Shipwright | you made an annotated version tag of 1.0 or higher (`v1.0.0` and up). Lightweight tags name no author, so they never count |
 | Long road | a streak of 30 active days |
 | Swarm day | 100 or more of your commits in one day |
-| Necromancer | you returned to a repo after 180 quiet days |
+| Necromancer | you returned to a repo after 180 or more quiet days with no commit of yours |
 | Polyglot | 5 or more languages past 1,000 added lines |
 | Full party | three harnesses on the same day |
-| Season's turn | four seasons with at least 10 active days each |
+| Season's turn | four calendar quarters, any four, with at least 10 active days each |
 
 A profile may add a milestones file (one dated line per milestone) for releases, launches or anything else the person keeps. Milestones show as the person wrote them and need no rule.
 

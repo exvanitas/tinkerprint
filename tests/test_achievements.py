@@ -54,7 +54,7 @@ class Achievements(unittest.TestCase):
     def test_polyglot(self):
         evs = []
         for i, ext in enumerate(("py", "ts", "go", "rs", "sql")):
-            evs.append(commit(f"2026-01-0{i + 1}T10:00:00+00:00", f"/w/a/f.{ext}", h=f"p{i}", status="A", added=1000))
+            evs.append(commit(f"2026-01-0{i + 1}T10:00:00+00:00", f"/w/a/f.{ext}", h=f"p{i}", status="A", added=1001))
         got = ids(run(self.prof, evs)[0])
         self.assertEqual(got["polyglot"]["date"], "2026-01-05")
         self.assertNotIn("polyglot", ids(run(self.prof, evs[:4])[0]))

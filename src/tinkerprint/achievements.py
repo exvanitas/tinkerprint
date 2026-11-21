@@ -17,7 +17,7 @@ RULES = {
     "necromancer": ("Necromancer", "You returned to a repo after 180 quiet days."),
     "polyglot": ("Polyglot", "Five or more languages past 1,000 added lines each."),
     "full-party": ("Full party", "Three harnesses on the same day."),
-    "seasons-turn": ("Season's turn", "Four quarters in a row with 10 or more active days each."),
+    "seasons-turn": ("Season's turn", "Four calendar quarters with 10 or more active days each."),
 }
 ORDER = list(RULES)
 
@@ -92,7 +92,7 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
     for repo, cs in per_repo.items():
         days = sorted({dayof(c.ts) for c in cs})
         for a, b in zip(days, days[1:]):
-            if (b - a).days >= 180:
+            if (b - a).days - 1 >= 180:  # 180 quiet days between the two
                 returns.append((b, repo_name(cs[0].top)))
     if returns:
         returns.sort()
@@ -103,7 +103,7 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
     for d, lang, n in lines_by_day:
         before = totals[lang]
         totals[lang] += n
-        if before < 1000 <= totals[lang]:
+        if before <= 1000 < totals[lang]:  # past 1,000
             crossed.append(lang)
             if len(crossed) == 5:
                 out.append(make("polyglot", d, ", ".join(sorted(crossed))))
@@ -117,13 +117,10 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
     q = defaultdict(list)
     for d in active_days:
         q[_quarter(d)].append(d)
-    full = sorted(k for k, v in q.items() if len(v) >= 10)
-    for i in range(len(full) - 3):
-        window = full[i:i + 4]
-        idx = [y * 4 + n for y, n in window]
-        if idx == list(range(idx[0], idx[0] + 4)):
-            out.append(make("seasons-turn", sorted(q[window[-1]])[9]))
-            break
+    # The day each quarter reached 10 active days. The fourth such day, in date order, earns it.
+    reached = sorted(sorted(v)[9] for v in q.values() if len(v) >= 10)
+    if len(reached) >= 4:
+        out.append(make("seasons-turn", reached[3]))
 
     out.sort(key=lambda a: (a["date"], ORDER.index(a["id"])))
     return out

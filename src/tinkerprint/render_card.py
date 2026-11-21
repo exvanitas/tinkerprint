@@ -28,12 +28,12 @@ def visible(card: dict) -> dict:
     """Exactly what the card draws. render_card draws only this and audit lists only this."""
     if not card.get("enabled"):
         return {}
-    cls = card["class"] + (f" / {card['multiclass']}" if card.get("multiclass") else "")
     ranked = sorted((s for s in card["stats"] if s["pct"] > 0), key=lambda s: -s["pct"])
     v = {
         "set": f"{card['set']} set".upper(),
         "name": _clip(card["name"], 22),
-        "class": _clip(cls, 34),
+        "class": card["class"],
+        "multiclass": f"/ {card['multiclass']}" if card.get("multiclass") else "",
         "level": str(card["level"]),
         "stats": [(s["stat"], f"{s['pct']}%") for s in ranked[:MAX_STATS]],
         "achievements": [(_clip(a["title"], 24), a["when"]) for a in card.get("achievements", [])[-MAX_ACHIEVEMENTS:]],
@@ -60,21 +60,24 @@ def render_card(card: dict) -> str:
     # Left column: who and what.
     out.append(_t(64, 96, v["set"], 18, 600, "#9c9a92", spacing="3"))
     out.append(_t(64, 168, v["name"], 60, 700))
-    out.append(_t(64, 222, v["class"], 34, 600, "#7fb0f0"))
+    # Class names are never cut. Each line shrinks until it fits the left column.
+    out.append(_t(64, 214, v["class"], _fit(v["class"], 34), 600, "#7fb0f0"))
+    if v["multiclass"]:
+        out.append(_t(64, 246, v["multiclass"], _fit(v["multiclass"], 24), 500, "#9fc3f2"))
 
-    out.append('<rect x="64" y="256" width="150" height="104" rx="14" fill="#1f1f1d" stroke="#3a3936"/>')
-    out.append(_t(139, 322, v["level"], 56, 700, anchor="middle"))
-    out.append(_t(139, 348, "LEVEL", 14, 600, "#9c9a92", anchor="middle", spacing="3"))
+    out.append('<rect x="64" y="270" width="150" height="104" rx="14" fill="#1f1f1d" stroke="#3a3936"/>')
+    out.append(_t(139, 336, v["level"], 56, 700, anchor="middle"))
+    out.append(_t(139, 362, "LEVEL", 14, 600, "#9c9a92", anchor="middle", spacing="3"))
 
-    y = 286
+    y = 300
     for stat, pct in v["stats"]:
         out.append(_t(246, y, stat, 22, 600))
         out.append(_t(470, y, pct, 22, 600, "#9c9a92", anchor="end"))
         y += 26
 
     if v["achievements"]:
-        out.append(_t(64, 412, "ACHIEVEMENTS", 14, 600, "#9c9a92", spacing="3"))
-        y = 446
+        out.append(_t(64, 420, "ACHIEVEMENTS", 14, 600, "#9c9a92", spacing="3"))
+        y = 452
         for title, when in v["achievements"]:
             out.append(_t(64, y, title, 22, 600))
             out.append(_t(470, y, when, 18, 400, "#9c9a92", anchor="end"))
@@ -129,12 +132,23 @@ def _bars(bars: list) -> list:
     return out
 
 
+LEFT_WIDTH = 540  # px from x=64 before the chart begins
+
+
+def _fit(text: str, size: int) -> int:
+    """A font size at which text fits the left column, at about 0.6 em per character."""
+    return max(12, min(size, int(LEFT_WIDTH / (0.6 * max(1, len(text))))))
+
+
 def card_strings(card: dict) -> list:
     """Every data string the card draws, as (field, value) pairs, from the same selection render_card uses."""
     v = visible(card)
     if not v:
         return []
-    out = [("set", v["set"]), ("name", v["name"]), ("class", v["class"]), ("level", v["level"])]
+    out = [("set", v["set"]), ("name", v["name"]), ("class", v["class"])]
+    if v["multiclass"]:
+        out.append(("multiclass", v["multiclass"]))
+    out.append(("level", v["level"]))
     out += [("stat", f"{s} {p}") for s, p in v["stats"]]
     out += [("spoke", s) for s, _ in v.get("spokes", [])]
     out += [("bar", f"{s} {p}%") for s, p in v.get("bars", [])]
