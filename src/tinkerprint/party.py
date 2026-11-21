@@ -36,10 +36,13 @@ def build_party(sessions: dict, in_season) -> list:
         if h not in members:
             continue
         m = members[h]
-        if m["edit"] and m["edit"] >= m["review"]:
+        total = m["edit"] + m["review"] + m["other"]
+        if m["edit"] * 2 > total:
             role = "Mostly edits"
-        elif m["review"] > m["edit"]:
+        elif m["review"] * 2 > total:
             role = "Mostly reviews"
+        elif m["edit"] or m["review"]:
+            role = "Mixed"
         else:
             role = "Present, no edits"
         days = sorted(m["days"])

@@ -62,9 +62,13 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         return (root_ids.get(root, root), rel)
 
     # 1. Resolve every event once. Sessions keep dated observations for the party.
+    # Everything outside every root is collected here first, before any other filtering, and listed
+    # by season: session folders with their distinct sessions, and folders of changed files.
     resolved = []
-    sessions: dict = {}   # (harness, session) -> {"obs": [(day, model, edited)], "out": [(day, folder)], "origin"}
-    unassigned_edits = set()
+    sessions: dict = {}   # (harness, session) -> {"obs": [(day, model, edited)], "origin"}
+    out_sessions = defaultdict(set)   # folder -> sessions seen there in season
+    unassigned_edits = set()          # files changed outside every root in season
+    outside_bulk = Counter()          # commit -> added non-code files outside every root
     lines = []
     for ev in sorted(inp.events):
         dt = parse_ts(ev.ts)
@@ -74,21 +78,24 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         if not in_bounds(d):
             continue
         hit = resolver.resolve_root(ev.path)
-        if ev.kind in ("session", "edit"):
-            s = sessions.setdefault((ev.harness, ev.session), {"obs": [], "out": [], "origin": ev.origin})
-            if hit is None or (ev.kind == "edit" and not hit[2]):
-                s["out"].append((d, ev.path if ev.kind == "session" else os.path.dirname(ev.path)))
-                if ev.kind == "edit" and in_season(d):
+        outside = hit is None or (ev.kind != "session" and not hit[2])
+        if outside:
+            if ev.kind == "commit" and ev.status == "A" and not is_code(ev.path) and not is_skipped(ev.path):
+                outside_bulk[ev.commit] += 1
+            if in_season(d):
+                if ev.kind == "session":
+                    out_sessions[ev.path or "(no folder)"].add((ev.harness, ev.session))
+                else:
                     unassigned_edits.add(ev.path)
-                continue
+                    if ev.kind == "edit":
+                        out_sessions[os.path.dirname(ev.path) or "(no folder)"].add((ev.harness, ev.session))
+            continue
+        if ev.kind in ("session", "edit"):
+            s = sessions.setdefault((ev.harness, ev.session), {"obs": [], "origin": ev.origin})
             s["obs"].append((d, ev.model, ev.kind == "edit"))
             if ev.kind == "session":
                 continue
-        elif hit is None:
-            continue
         proj, root, rel = hit
-        if not rel:
-            continue
         resolved.append((ev, d, proj, root, rel))
 
     # 2. Bulk imports: a commit adding more than 200 non-code files counts them once, as one file
@@ -97,7 +104,8 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     for ev, d, proj, root, rel in resolved:
         if ev.kind == "commit" and ev.status == "A" and not is_code(rel) and not is_skipped(rel):
             bulk_rows[ev.commit].append((d, proj, root, rel))
-    bulk = {h: rows for h, rows in bulk_rows.items() if len(rows) > BULK_LIMIT}
+    # Eligibility counts the whole commit, files outside the profile included.
+    bulk = {h: rows for h, rows in bulk_rows.items() if len(rows) + outside_bulk[h] > BULK_LIMIT}
     in_bulk = {(h, proj.name, root, rel) for h, rows in bulk.items() for _, proj, root, rel in rows}
 
     touches: dict = defaultdict(dict)  # (day, project) -> {file key: (weights, mass)}
@@ -124,7 +132,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
             w = classify(rel, proj, profile.set, priors)
             if w is not None:
                 per_proj[(d, proj.name)].append(w)
-        total = sum(len(v) for v in per_proj.values())
+        total = len(rows) + outside_bulk[h]
         for (d, pname), ws in sorted(per_proj.items()):
             avg = defaultdict(float)
             for w in ws:
@@ -222,13 +230,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     harness_days = defaultdict(set)
     for (h, _), s in mine.items():
         harness_days[h] |= {d for d, _, _ in s["obs"]}
-    un_folders = Counter()
-    for key, s in sessions.items():
-        if key in mine:
-            continue
-        seen = sorted({f for d, f in s["out"] if in_season(d)})
-        if seen:
-            un_folders[seen[0] or "(no folder)"] += 1
+    un_sessions = set().union(*out_sessions.values()) if out_sessions else set()
 
     # 7. Achievements over all history up to as_of.
     def repo_name(top: str) -> str:
@@ -284,13 +286,13 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "party": party,
         "achievements": achievements,
         "milestones": ms,
-        "unassigned": {"sessions": sum(un_folders.values()), "folders": len(un_folders),
+        "unassigned": {"sessions": len(un_sessions), "folders": len(out_sessions),
                        "edits": len(unassigned_edits)},
         "inputs": {"commits": counted["commits"], "agent_edits": counted["edits"],
                    "sessions": len(mine)},
     }
     local = {"shares": shares,
-             "unassigned_folders": sorted(un_folders.items(), key=lambda kv: (-kv[1], kv[0])),
+             "unassigned_folders": sorted(((f, len(v)) for f, v in out_sessions.items()), key=lambda kv: (-kv[1], kv[0])),
              "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
     core["card"] = card_fields(core, profile)
     return core, local
@@ -362,6 +364,8 @@ def card_fields(sheet: dict, profile) -> dict:
     for r in sheet["stats"]:
         pct = int(round(r["share"] * 20)) * 5
         stats.append({"stat": r["key"], "pct": pct})
+    # The card's chart follows the rounded public shares, so it never reveals stats under 5%.
+    public_chart = "radar" if sum(1 for x in stats if x["pct"] > 0) >= 3 else "bars"
     exact = "dates" in profile.card_show
     card = {
         "enabled": True,
@@ -374,7 +378,7 @@ def card_fields(sheet: dict, profile) -> dict:
         "achievements": [{"title": a["title"], "when": day_label(a["date"]) if exact else month_label(a["date"])}
                          for a in sheet["achievements"]],
         "party": [m["name"] for m in sheet["party"]],
-        "chart": sheet["chart"],
+        "chart": public_chart,
     }
     if "projects" in profile.card_show:
         card["projects"] = [p["name"] for p in sheet["projects"][:3]]

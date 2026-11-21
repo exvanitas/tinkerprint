@@ -5,6 +5,8 @@ import re
 from collections import defaultdict
 from datetime import date, timedelta
 
+from .timeutil import parse_ts
+
 RULES = {
     "first-light": ("First light", "Your first active day."),
     "founder": ("Founder", "You made the first commit of a repo."),
@@ -44,7 +46,7 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
 
     mine = [c for c in commits if c.mine]
 
-    roots = sorted((c for c in mine if c.root), key=lambda c: (c.ts, c.hash))
+    roots = sorted((c for c in mine if c.root), key=lambda c: (parse_ts(c.ts), c.hash))
     if roots:
         out.append(make("founder", dayof(roots[0].ts), repo_name(roots[0].top), count=len({c.repo for c in roots})))
 
@@ -53,7 +55,7 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
         per_repo[c.repo].append(c)
     firsts = []
     for repo, cs in per_repo.items():
-        cs.sort(key=lambda c: (c.ts, c.hash))
+        cs.sort(key=lambda c: (parse_ts(c.ts), c.hash))
         if len(cs) >= 1000:
             firsts.append((dayof(cs[999].ts), repo_name(cs[999].top)))
     if firsts:

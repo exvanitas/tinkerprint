@@ -54,6 +54,8 @@ def load_tz(name: str | None) -> tzinfo:
     m = _OFFSET.match(name.strip())
     if m:
         sign = -1 if m.group(1) == "-" else 1
+        if int(m.group(3)) % 15 or int(m.group(3)) >= 60:
+            raise ValueError(f"offset {name} must be in whole quarter hours, like +05:30 or +05:45")
         return timezone(sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3))))
     return ZoneInfo(name)
 

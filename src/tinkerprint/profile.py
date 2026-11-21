@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
 import tomllib
@@ -93,8 +94,8 @@ def _weights(raw, set_name: str, where: str) -> dict:
     for k, v in raw.items():
         if k not in allowed:
             raise ProfileError(f"{where}: unknown stat {k!r} for the {set_name} set")
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
-            raise ProfileError(f"{where}: weight for {k} must be a positive number")
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 < v <= 1e9:
+            raise ProfileError(f"{where}: weight for {k} must be a positive number up to 1e9")
         out[k] = float(v)
     return out
 
@@ -126,7 +127,8 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     try:
         load_tz(tz)
     except Exception as e:  # zoneinfo raises several types
-        raise ProfileError(f"unknown timezone {tz!r}") from e
+        raise ProfileError(f"timezone {tz!r} is not usable. Use an IANA name like \"Europe/Berlin\", "
+                           "or an offset in quarter hours like \"+05:30\"") from e
     rollover = data.get("rollover_hour", 4)
     if not isinstance(rollover, int) or not 0 <= rollover <= 23:
         raise ProfileError("rollover_hour must be a whole hour from 0 to 23")
