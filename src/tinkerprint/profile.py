@@ -78,10 +78,14 @@ def _slug(s: str) -> str:
 
 
 def _path(p: str, base: str) -> str:
+    """A profile path: user-expanded and joined to the profile's folder, not normalized, so '..'
+    resolves after symlinks. NUL and control characters are refused."""
+    if not isinstance(p, str) or not p or re.search(r"[\x00-\x1f\x7f]", p):
+        raise ProfileError("paths must be non-empty text without control characters")
     p = os.path.expanduser(p)
     if not os.path.isabs(p):
         p = os.path.join(base, p)
-    return os.path.normpath(p)
+    return p
 
 
 def _weights(raw, set_name: str, where: str) -> dict:

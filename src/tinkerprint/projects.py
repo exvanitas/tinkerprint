@@ -17,16 +17,22 @@ def canonical(path: str) -> str:
 
 
 class Resolver:
-    """Maps an absolute path to (project, path relative to its root) by the longest matching root."""
+    """Maps an absolute path to (project, matched root, path relative to it) by the longest
+    matching root. Containment uses the platform's path rules (pathmod), compares real paths
+    with symlinks resolved, and hands back the relative path with '/' separators."""
 
-    def __init__(self, projects):
+    def __init__(self, projects, pathmod=os.path):
+        self.pm = pathmod
+        if pathmod is os.path:
+            self._real = lru_cache(maxsize=None)(canonical)
+        else:
+            self._real = pathmod.normpath
         roots = []
         for p in projects:
             for r in p.roots:
-                roots.append((canonical(r).rstrip("/") or "/", p))
+                roots.append((self._real(r), p))
         self._roots = sorted(roots, key=lambda x: (-len(x[0]), x[0], x[1].index))
         self.projects = list(projects)
-        self._real = lru_cache(maxsize=None)(canonical)
 
     def resolve(self, path: str):
         hit = self.resolve_root(path)
@@ -34,14 +40,21 @@ class Resolver:
 
     def resolve_root(self, path: str):
         """(project, matched root, path relative to it), or None."""
-        if not path or not os.path.isabs(path):
+        pm = self.pm
+        if not path or not pm.isabs(path):
             return None  # relative paths have no known folder: unassigned
-        path = self._real(path)  # roots and paths compare as real paths, symlinks resolved
+        try:
+            path = self._real(path)  # real path first, so '..' resolves after symlinks
+        except (ValueError, OSError):
+            return None
+        key = pm.normcase(path)
         for root, proj in self._roots:
-            if path == root:
+            rkey = pm.normcase(root)
+            if key == rkey:
                 return proj, root, ""
-            if path.startswith(root + "/") or root == "/":
-                return proj, root, path[len(root):].lstrip("/")
+            prefix = rkey if rkey.endswith(pm.sep) else rkey + pm.sep
+            if key.startswith(prefix):
+                return proj, root, path[len(prefix):].replace(pm.sep, "/")
         return None
 
 
