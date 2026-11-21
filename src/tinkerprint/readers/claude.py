@@ -15,7 +15,7 @@ import re
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import presence, resolve, text
+from ._common import closing as _closing, get_dict, get_id, get_list, get_str, presence, resolve
 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
@@ -30,19 +30,22 @@ def transcript_files(base: str) -> list:
     return sorted(files)
 
 
-def read_file(path: str) -> list:
+def read_file(path: str, stream=None) -> list:
+    """stream: an iterable of the file's byte lines, when the caller hashes what is parsed."""
     stem = os.path.splitext(os.path.basename(path))[0]
     session = ""
     cwd = ""
-    model = ""
     slots: dict = {}
     pending: dict = {}   # tool_use id -> (path, model)
     edits: dict = {}     # tool_use id -> (ts, path, model)
-    try:
-        f = open(path, "rb")
-    except OSError:
-        return []
-    with f:
+    if stream is None:
+        try:
+            f = open(path, "rb")
+        except OSError:
+            return []
+    else:
+        f = stream
+    with _closing(f):
         for raw in f:
             if not _MAYBE.search(raw):
                 continue
@@ -50,47 +53,46 @@ def read_file(path: str) -> list:
                 d = json.loads(raw.decode("utf-8", "replace"))
             except ValueError:
                 continue
-            if not isinstance(d, dict) or d.get("type") not in LINE_TYPES:
+            kind_line = get_str(d, "type")
+            if kind_line not in LINE_TYPES:
                 continue
-            session = session or text(d.get("sessionId"))
-            if text(d.get("cwd")):
+            session = session or get_id(d, "sessionId")
+            if get_str(d, "cwd"):
                 cwd = os.path.normpath(d["cwd"])
-            ts = d.get("timestamp")
-            dt = parse_ts(ts) if isinstance(ts, str) else None
-            msg = d.get("message") if isinstance(d.get("message"), dict) else {}
-            if d["type"] == "assistant":
-                m = text(msg.get("model"))
+            dt = parse_ts(get_str(d, "timestamp") or None)
+            msg = get_dict(d, "message")
+            # A model belongs only to the assistant record that names it.
+            model = ""
+            if kind_line == "assistant":
+                m = get_str(msg, "model")
                 if m and not m.startswith("<"):
                     model = m
             if dt is not None:
                 presence(slots, dt, model, cwd)
-            content = msg.get("content")
-            if not isinstance(content, list):
-                continue
-            for item in content:
+            for item in get_list(msg, "content"):
                 if not isinstance(item, dict):
                     continue
-                kind = item.get("type")
-                if d["type"] == "assistant" and kind == "tool_use":
-                    name = item.get("name")
-                    tid = text(item.get("id"))
-                    inp = item.get("input") if isinstance(item.get("input"), dict) else {}
-                    if isinstance(name, str) and name in EDIT_TOOLS and tid:
-                        p = text(inp.get(EDIT_TOOLS[name]))
+                kind = get_str(item, "type")
+                if kind_line == "assistant" and kind == "tool_use":
+                    name = get_str(item, "name")
+                    tid = get_id(item, "id")
+                    if name in EDIT_TOOLS and tid:
+                        p = get_str(get_dict(item, "input"), EDIT_TOOLS[name])
                         if p:
                             pending[tid] = (resolve(p, cwd), model)
-                elif d["type"] == "user" and kind == "tool_result":
-                    tid = text(item.get("tool_use_id"))
+                elif kind_line == "user" and kind == "tool_result":
+                    tid = get_id(item, "tool_use_id")
                     if tid in pending:
                         p, m = pending.pop(tid)
-                        if item.get("is_error") is not True and dt is not None:
+                        # Success only when the error flag is absent or literally false.
+                        if item.get("is_error", False) is False and dt is not None:
                             edits[tid] = (iso(dt), p, m)
     session = session or stem
     out = []
     for (_, m, folder), ts in slots.items():
         out.append(Event(ts=ts, source="claude", kind="session", path=folder, session=session,
                          harness="claude", model=m, actor="agent"))
-    for ts, p, m in edits.values():
+    for tid, (ts, p, m) in edits.items():
         out.append(Event(ts=ts, source="claude", kind="edit", path=p, session=session,
-                         harness="claude", model=m, actor="agent"))
+                         harness="claude", model=m, actor="agent", op=tid))
     return sorted(set(out))

@@ -22,6 +22,7 @@ class Event:
     commit: str = ""   # commit hash (git)
     status: str = ""   # A, M or D for commit files
     added: int = 0     # lines added (git numstat)
+    op: str = ""       # operation id (tool call, change record or commit), so distinct changes stay distinct
 
     def to_dict(self) -> dict:
         return asdict(self)

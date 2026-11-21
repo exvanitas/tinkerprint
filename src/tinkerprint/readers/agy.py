@@ -12,6 +12,7 @@ import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
+from ._common import ident
 
 
 def _uri_path(uri: str) -> str | None:
@@ -19,7 +20,11 @@ def _uri_path(uri: str) -> str | None:
         return None
     p = uri[len("file://"):]
     if not p.startswith("/"):
-        p = p[p.find("/"):] if "/" in p else ""
+        # file://host/path names another machine unless the host is this one.
+        host, _, rest = p.partition("/")
+        if host.lower() != "localhost" or not rest:
+            return None
+        p = "/" + rest
     raw = re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), p)
     try:
         raw = raw.encode("latin-1").decode("utf-8")
@@ -51,7 +56,8 @@ def read_db(path: str) -> list:
     for cid, uris, ts in rows:
         if isinstance(cid, int) and not isinstance(cid, bool):
             cid = str(cid)
-        if not isinstance(cid, str) or not cid or not isinstance(ts, (str, int, float)):
+        cid = ident(cid)
+        if not cid or not isinstance(ts, (str, int, float)) or isinstance(ts, bool):
             continue
         dt = parse_ts(ts)
         if dt is None:

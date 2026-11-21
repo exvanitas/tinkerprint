@@ -10,6 +10,7 @@ from .events import Event, Inputs
 from .profile import Profile
 from .projects import Resolver, scan_priors
 from .readers import agy, claude, codex
+from .readers._common import HashingStream
 from .readers.git import Identity, read_git
 from .render_card import render_card
 from .render_html import render_html
@@ -18,7 +19,7 @@ from .score import compare, score_core
 from .datadir import _write, data_home, inside_repo_or_root, pretty
 from .timeutil import parse_day
 
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 def _digest(path: str) -> str | None:
@@ -66,7 +67,14 @@ def _cached(files: list, reader, cache_path: str) -> list:
             if now == digest:
                 evs = [Event.from_dict(x) for x in c.get("events", [])]
             else:
-                evs = reader(path)
+                # Hash the very bytes the reader parses, so the stored digest always matches its events.
+                try:
+                    with open(path, "rb") as f:
+                        hs = HashingStream(f)
+                        evs = reader(path, stream=hs)
+                        now = hs.digest()
+                except OSError:
+                    continue
             digest = now
         new[path] = {"stat": stamp, "sha256": digest, "events": [e.to_dict() for e in evs]}
         events.extend(evs)

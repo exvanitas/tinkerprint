@@ -1,7 +1,10 @@
 """Shared helpers for harness readers."""
 from __future__ import annotations
 
+import hashlib
 import os
+import re
+from contextlib import contextmanager
 from datetime import timezone
 
 from ..timeutil import iso
@@ -35,3 +38,58 @@ def resolve(path: str, cwd: str) -> str:
     if cwd:
         return os.path.normpath(os.path.join(cwd, path))
     return os.path.normpath(path)
+
+
+def get_str(d, key) -> str:
+    """d[key] when d is a dict and the value is a non-empty string, else ''."""
+    return text(d.get(key)) if isinstance(d, dict) else ""
+
+
+def get_dict(d, key) -> dict:
+    v = d.get(key) if isinstance(d, dict) else None
+    return v if isinstance(v, dict) else {}
+
+
+def get_list(d, key) -> list:
+    v = d.get(key) if isinstance(d, dict) else None
+    return v if isinstance(v, list) else []
+
+
+@contextmanager
+def closing(f):
+    """Close a file the reader opened. A caller's stream stays the caller's to close."""
+    try:
+        yield f
+    finally:
+        if hasattr(f, "close") and not isinstance(f, HashingStream):
+            f.close()
+
+
+class HashingStream:
+    """Byte lines of a file, hashed as they are read, so a digest always matches what was parsed."""
+
+    def __init__(self, f):
+        self.f = f
+        self.h = hashlib.sha256()
+
+    def __iter__(self):
+        for line in self.f:
+            self.h.update(line)
+            yield line
+
+    def digest(self) -> str:
+        for block in iter(lambda: self.f.read(1 << 20), b""):
+            self.h.update(block)
+        return self.h.hexdigest()
+
+
+_ID = re.compile(r"^[A-Za-z0-9._:@/+=-]{1,200}$")
+
+
+def ident(v) -> str:
+    """An id-shaped string (session, call, item or originator id), or ''. Free text never passes."""
+    return v if isinstance(v, str) and _ID.match(v) else ""
+
+
+def get_id(d, key) -> str:
+    return ident(d.get(key)) if isinstance(d, dict) else ""
