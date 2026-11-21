@@ -10,7 +10,7 @@ from .achievements import RULES
 from .art.compose import look_for
 from .datadir import _write
 from .party import HARNESS_NAMES
-from .render_html import CSS, JS, _chronicle
+from .render_html import CSP, CSS, JS, _chronicle
 from .sets import GENERALIST, PAIR, SETS, SPECIALIST
 
 GALLERY_CSS = """
@@ -71,9 +71,9 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         for name, look, why in class_looks(set_name):
             pic = art.portrait(pack, look)
             pngs[f"{set_name}-{name.lower()}.png"] = pic
-            tiles.append(_tile(pic.svg(3, f"Portrait of a {name}", "px"), name, why))
+            tiles.append(_tile(pic.svg(2, f"Portrait of a {name}", "px"), name, why))
         sections.append(f'<h2>{set_name.capitalize()} set</h2><p class="lede">Every class: 8 specialists, 28 pairs and '
-                        f'the generalist. A pair wears its top stat and holds its runner-up, so the same pair '
+                        f'the generalist. A pair wears its top stat’s outfit and its runner-up’s equipment, so the same pair '
                         f'with the order swapped looks different.</p><div class="grid">{"".join(tiles)}</div>')
     extra = []
     for set_name, kind, stats, ranked, multi, why in (
@@ -84,15 +84,15 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
             ("builder", "specialist", ["Tools"], ["Tools", "Logic"], None, "Artificer holding Logic's staff"),
             ("tinkerer", None, [], [], None, "Unclassed")):
         look = look_for(set_name, kind, stats, ranked, multi)
-        extra.append(_tile(art.portrait(pack, look).svg(3, why, "px"), why,
+        extra.append(_tile(art.portrait(pack, look).svg(2, why, "px"), why,
                            "multiclass cape" if multi else ""))
     sections.append('<h2>Multiclass and more</h2><p class="lede">A multiclass adds a cape in its first stat\'s colors '
                     f'with a hem in its second.</p><div class="grid">{"".join(extra)}</div>')
     # A close call: the hero portrait changes costume every few seconds, or on hover.
     a = look_for("builder", "pair", ["Logic", "Tools"], ["Logic", "Tools", "Data"])
     b = look_for("builder", "pair", ["Logic", "Data"], ["Logic", "Tools", "Data"])
-    flip = (f'<article class="card tile"><div class="portrait flip">{art.portrait(pack, a).svg(3, "Engineer", "px main")}'
-            f'{art.portrait(pack, b).svg(3, "Alchemist", "px alt")}</div><div class="nm">Engineer, close to Alchemist'
+    flip = (f'<article class="card tile"><div class="portrait flip">{art.portrait(pack, a).svg(2, "Engineer", "px main")}'
+            f'{art.portrait(pack, b).svg(2, "Alchemist", "px alt")}</div><div class="nm">Engineer, close to Alchemist'
             f'</div><div class="why">flips between both costumes</div></article>')
     sample = {"profile": {"set": "tinkerer"}, "chronicle": [
         {"label": "2025 Q1", "active_days": 31, "class": {"kind": "pair", "stats": ["Tools", "Art"], "name": "Toymaker"},
@@ -112,7 +112,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         f = art.familiar(pack, h)
         pngs[f"familiar-{h}.png"] = f
         fams.append(_tile(f.svg(3, "", "px"), HARNESS_NAMES.get(h, "Any other harness"),
-                          pack["familiars"].get(h, pack["familiars"]["default"]), small=True))
+                          small=True))
     sections.append(f'<h2>Familiars</h2><p class="lede">One creature per harness, mapped in the pack.</p>'
                     f'<div class="grid">{"".join(fams)}</div>')
     icons = []
@@ -123,10 +123,10 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
     fire = art.campfire(pack)
     icons.append(_tile(fire.svg(3, "", "px"), "Resting at camp", "a quiet chronicle chapter", small=True))
     sections.append(f'<h2>Achievement icons</h2><div class="grid">{"".join(icons)}</div>')
-    trinkets = [_tile(art.trinket(pack, s).svg(4, "", "px"), s, pack["looks"][s]["trinket"], small=True)
-                for s in sorted(pack["looks"])]
-    sections.append(f'<h2>Shelf trinkets</h2><p class="lede">One per stat. The banner\'s shelves hold them in '
-                    f'proportion to the stat\'s share.</p><div class="grid">{"".join(trinkets)}</div>')
+    trinkets = [_tile(art.trinket(pack, s).svg(4, "", "px"), s, small=True)
+                for s in sorted({stat for stats in SETS.values() for stat in stats})]
+    sections.append(f'<h2>Shelf trinkets</h2><p class="lede">One per stat. The workshop stocks the active trades, with '
+                    f'extra stock for the strongest.</p><div class="grid">{"".join(trinkets)}</div>')
     banners = []
     for i, (set_name, kind, stats, ranked, multi, harnesses, why) in enumerate(BANNERS):
         look = look_for(set_name, kind, stats, [s for s, _ in ranked], multi)
@@ -139,14 +139,14 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="{CSP}">
 <title>tinkerprint gallery</title>
 <style>{CSS}{GALLERY_CSS}</style>
 </head>
 <body>
 <div class="wrap">
 <div class="top">
-  <div class="eyebrow">tinkerprint · <b>art gallery</b> · pack {_e(pack.get("name", "custom"))}</div>
+  <div class="eyebrow">tinkerprint · <b>art gallery</b></div>
   <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
 </div>
 <p class="lede">Every picture the pack can draw. Portraits follow class shape only, never level or points.</p>

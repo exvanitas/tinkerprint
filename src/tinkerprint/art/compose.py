@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from ..sets import GENERALIST, PAIR, SPECIALIST, stats_of
 from .pixels import Canvas, mix
+from ._colors import SKIN_KEYS
 
 
 @dataclass(frozen=True)
@@ -75,18 +76,23 @@ def _ramp(pack, stat):
     return pack["stat_colors"].get(stat) or pack["wanderer_colors"]
 
 
-def palette(pack: dict, look: Look) -> dict:
+def palette(pack: dict, look: Look | None = None) -> dict:
     pal = dict(pack["ink"])
-    if look.kind in ("specialist", "pair"):
+    if pack.get("version") == 2 and "skin_colors" in pack:
+        pal.update(zip(SKIN_KEYS, pack["skin_colors"]))
+    if look and look.kind in ("specialist", "pair"):
         a = _ramp(pack, look.top)
         x = _ramp(pack, look.item)
     else:
         a = pack["wanderer_colors"]
-        x = _ramp(pack, look.top) if look.top else pack["wanderer_colors"]
+        x = _ramp(pack, look.top) if look and look.top else a
     pal.update(zip("ABC", a))
     pal.update(zip("XYZ", x))
-    t = _ramp(pack, look.trim[0]) if look.trim else a
-    v = _ramp(pack, look.trim[1]) if len(look.trim) > 1 else t
+    if pack.get("version") == 2:
+        pal.update(F=a[-1], H=x[-1])
+    trim = look.trim if look else ()
+    t = _ramp(pack, trim[0]) if trim else a
+    v = _ramp(pack, trim[1]) if len(trim) > 1 else t
     pal.update({"T": t[0], "U": t[1], "V": v[0], "W": v[1]})
     return pal
 
@@ -100,10 +106,34 @@ def _stamp(c: Canvas, pack: dict, name: str, pal: dict, dx: int = 0, dy: int = 0
 # ------------------------------------------------------------------ portrait
 
 def figure(pack: dict, look: Look) -> Canvas:
-    """The outlined figure on a clear 32 x 32 canvas."""
+    """The dressed figure on a clear canvas, with the tools registered to its pose."""
     w, h = pack["canvas"]
     c = Canvas(w, h)
     pal = palette(pack, look)
+    if pack.get("version") == 2:
+        costume = pack["looks"][look.top] if look.kind in ("specialist", "pair") else pack["generalist"]
+        if look.trim:
+            _stamp(c, pack, "cape", pal)
+        if look.kind == "generalist":
+            _stamp(c, pack, costume["back"], pal)
+        _stamp(c, pack, costume["body"], pal)
+        if look.item:
+            _stamp(c, pack, pack["looks"][look.item]["gear"], pal, *costume["shoulder"])
+        dx, dy = (a - b for a, b in zip(costume["grip"], pack["hand"]))
+        if look.kind:
+            item = pack["looks"][look.item]["item"] if look.item else costume["item"]
+            equipment = pack["parts"][item]
+            _stamp(c, pack, equipment["sleeve"], pal, dx, dy)
+        else:
+            _stamp(c, pack, "idle", pal, dx, dy)
+        _stamp(c, pack, costume["hat"] if look.kind else "base", pal)
+        if look.kind:
+            dx += equipment["offset"][0]
+            dy += equipment["offset"][1]
+            _stamp(c, pack, item, pal, dx, dy)
+            if not pack["parts"][item].get("cover"):
+                _stamp(c, pack, "hand", pal, dx, dy)
+        return c.material_edges(pack["edges"], pack["outline"])
     if look.kind in ("specialist", "pair"):
         parts = pack["looks"]
         hat, body = parts[look.top]["hat"], parts[look.top]["body"]
@@ -127,9 +157,13 @@ def figure(pack: dict, look: Look) -> Canvas:
     return c.outline(pack["outline"])
 
 
-def plate(pack: dict, set_name: str, w: int = 32, h: int = 32) -> Canvas:
+def plate(pack: dict, set_name: str, w: int | None = None, h: int | None = None) -> Canvas:
     sp = pack["sets"][set_name]
+    w, h = w or pack["canvas"][0], h or pack["canvas"][1]
     c = Canvas(w, h, sp["plate"])
+    if pack.get("version") == 2:
+        _stamp(c, pack, sp["scene"], palette(pack))
+        return c
     c.rect(0, h - 5, w, 5, sp["floor"])
     shade = mix(sp["floor"], "#000000", 0.35)
     c.rect(10, h - 4, 12, 1, shade)
@@ -142,7 +176,7 @@ def portrait(pack: dict, look: Look, scene: bool = True) -> Canvas:
     if not scene:
         return fig
     c = plate(pack, look.set_name)
-    c.paste(fig, 0, 1)
+    c.paste(fig, 0, 0 if pack.get("version") == 2 else 1)
     return c
 
 
@@ -153,9 +187,12 @@ def sprite(pack: dict, name: str, pal: dict | None = None) -> Canvas:
     part = pack["parts"][name]
     rows = part["rows"]
     c = Canvas(len(rows[0]) + 2, len(rows) + 2)
-    p = dict(pack["ink"], **(pal or {}))
+    p = palette(pack)
+    p.update(pal or {})
     p.update(part.get("palette", {}))
     c.stamp(rows, p, 1, 1)
+    if pack.get("version") == 2:
+        return c.material_edges(pack["edges"], pack["outline"])
     return c.outline(pack["outline"])
 
 
@@ -171,7 +208,10 @@ def icon(pack: dict, achievement: str) -> Canvas:
 
 def trinket(pack: dict, stat: str) -> Canvas:
     x = _ramp(pack, stat)
-    return sprite(pack, pack["looks"][stat]["trinket"], dict(zip("XYZ", x)))
+    pal = dict(zip("XYZ", x))
+    if pack.get("version") == 2:
+        pal["H"] = x[-1]
+    return sprite(pack, pack["looks"][stat]["trinket"], pal)
 
 
 def campfire(pack: dict) -> Canvas:
@@ -234,6 +274,30 @@ def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str
     top stat's colors, and each party harness sends its familiar."""
     sp = pack["sets"][look.set_name]
     rng = Stream("banner|" + seed)
+    if pack.get("version") == 2:
+        pal = palette(pack, look)
+        c = Canvas(252, 72, sp["wall"])
+        _stamp(c, pack, sp["studio"], pal)
+        _stamp(c, pack, "standard", pal)
+        _stamp(c, pack, "runner", pal)
+        # Give each trade a space before using spare cubbies for stock.
+        positions = [(x, y) for y in (19, 34) for x in (200, 211, 222, 233)]
+        stock = [stat for stat, pct in ranked_pcts if pct > 0][:len(positions)]
+        multiple = [stat for stat, pct in ranked_pcts if pct >= 25]
+        stock += multiple[:len(positions) - len(stock)]
+        for stat, (x, y) in zip(stock, rng.shuffle(positions)):
+            token = trinket(pack, stat)
+            c.paste(token, x, y - token.h)
+        fig = figure(pack, look)
+        c.paste(fig, 116 - fig.w // 2, 65 - fig.h + fig.h // 10)
+        x = 143
+        for harness in harnesses[:3]:
+            f = familiar(pack, harness)
+            ground = 67 + rng.below(2)
+            c.rect(x + 3, ground, max(2, f.w - 5), 1, sp["board2"])
+            c.paste(f, x, ground - f.h + 1)
+            x += f.w + 3
+        return c
     W, H = BANNER_W, BANNER_H
     c = Canvas(W, H, sp["wall"])
     # Wall: stone courses for the builder set, planks for the tinkerer set.

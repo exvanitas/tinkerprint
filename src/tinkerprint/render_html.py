@@ -132,9 +132,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .banner svg { width: 100%; height: auto; }
 .nameplate { align-items: flex-start; }
 .nameplate .who { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.portrait { position: relative; flex: none; width: 128px; height: 128px; border-radius: 8px; overflow: hidden;
+.portrait { position: relative; flex: none; align-self: flex-start; border-radius: 8px; overflow: hidden;
   border: 1px solid var(--border-2); }
-.portrait svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.portrait svg.alt { position: absolute; inset: 0; }
 .portrait.flip svg.alt { animation: costume 6s steps(1) infinite; }
 .portrait.flip:hover svg.alt { animation: none; opacity: 1; }
 @keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
@@ -143,7 +143,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 svg.defs { position: absolute; width: 0; height: 0; }
 .chron { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
 .chap { flex: none; width: 132px; padding: 10px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; }
-.chap svg { width: 64px; height: 64px; border-radius: 6px; margin-bottom: 6px; }
+.chap svg { align-self: flex-start; border-radius: 6px; margin-bottom: 6px; }
 .chap .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .chap .c { font-weight: 600; font-size: 14px; line-height: 1.25; }
 .chap .n { font-size: 12px; color: var(--muted); }
@@ -276,12 +276,13 @@ def _art(sheet: dict, pack: dict) -> dict:
     cls = sheet.get("class")
     name = cls["name"] if cls else "Unclassed"
     a = {}
-    a["portrait"] = art.portrait(pack, main).svg(3, f"Portrait of a {name}", "px main")
+    hero_scale = round(128 / pack["canvas"][0])
+    a["portrait"] = art.portrait(pack, main).svg(hero_scale, f"Portrait of a {name}", "px main")
     a["costume"] = ""
     a["flip"] = ""
     if alt:
         other = cls["close"]["name"]
-        a["portrait"] += art.portrait(pack, alt).svg(3, f"Portrait of a {other}", "px alt")
+        a["portrait"] += art.portrait(pack, alt).svg(hero_scale, f"Portrait of a {other}", "px alt")
         a["flip"] = " flip"
         a["costume"] = f'<div class="costume">Close call: the portrait changes into the {e(other)} costume.</div>'
     pcts = art.sheet_pcts(sheet)
@@ -307,12 +308,15 @@ def _chronicle(sheet: dict, pack: dict) -> str:
     cards = []
     cache: dict = {}
     defs: list = []
+    side = pack["canvas"][0]
+    scale = 2 if side <= 48 else 1
     for i, ch in enumerate(chapters):
         if ch.get("rest"):
             fire = art.plate(pack, set_name)
-            fire.paste(art.campfire(pack), 7, 13)
+            flame = art.campfire(pack)
+            fire.paste(flame, (fire.w - flame.w) // 2, fire.h - flame.h - 3)
             span = ch["label"] if ch["quarters"] == 1 else f'{ch["label"]} to {ch["label_to"]}'
-            cards.append(f'<article class="card chap rest">{fire.svg(2, "A campfire", "px")}'
+            cards.append(f'<article class="card chap rest">{fire.svg(scale, "A campfire", "px")}'
                          f'<div class="q">{e(span)}</div><div class="c">Resting at camp</div>'
                          f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></article>')
             continue
@@ -321,7 +325,7 @@ def _chronicle(sheet: dict, pack: dict) -> str:
             # Each look is drawn once in <defs>. Chapters that share it reuse it.
             ref = f"look-{len(cache)}"
             defs.append(f'<g id="{ref}">' + "".join(art.portrait(pack, look).svg_paths()) + "</g>")
-            cache[look] = (f'<svg class="px" viewBox="0 0 32 32" width="64" height="64" shape-rendering="crispEdges" '
+            cache[look] = (f'<svg class="px" viewBox="0 0 {side} {side}" width="{side * scale}" height="{side * scale}" shape-rendering="crispEdges" '
                            f'aria-hidden="true"><use href="#{ref}"/></svg>')
         c = ch.get("class")
         name = c["name"] if c else "Unclassed"

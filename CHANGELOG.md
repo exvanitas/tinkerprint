@@ -4,8 +4,8 @@ Newest first. Every release gets a version, an entry here and a GitHub release.
 
 ## Unreleased
 
-- Pixel art, made in code from a pack of parts. A portrait beside your class wears your top stat and holds your runner-up, with a cape for a multiclass. On a close call it changes into the other costume.
-- A workshop banner on top of the sheet. Its shelves hold trinkets for your strongest stats and your party's familiars stand beside you.
+- Pixel art, made in code from a pack of parts: a woodland guild with one animal per trade, by lantern light. A portrait beside your class shows your top stat's animal and costume, with your runner-up's tool, sleeve and shoulder piece, and a cape for a multiclass. On a close call it changes into the other costume.
+- A workshop banner on top of the sheet, looking out on a moonlit viaduct (builder) or a lake (tinkerer). Its shelves hold trinkets for your strongest stats and your party's familiars stand beside you.
 - Familiars for each harness, icons for each achievement, trinkets on the stat cards.
 - A chronicle on the sheet: one chapter per quarter with that quarter's class. Quiet stretches rest at camp. `sheet.json` gains a `chronicle` list.
 - The share card shows the portrait, drawn from its allowlisted fields only. `build` writes `portrait.png` when the card is on.

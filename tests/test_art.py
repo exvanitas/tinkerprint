@@ -56,6 +56,7 @@ class EveryClass(unittest.TestCase):
                 drawn = sum(1 for row in fig.px for p in row if p)
                 self.assertGreater(drawn, 250, name)
                 self.assertGreaterEqual(len(fig.colors()), 7, name)
+                self.assertLessEqual(set(c.colors()), set(PACK["ink"].values()), name)
                 svg = c.svg(3)
                 self.assertNotIn(svg, seen, (set_name, name, seen.get(svg)))
                 seen[svg] = name
@@ -74,10 +75,13 @@ class EveryClass(unittest.TestCase):
                     art.portrait(PACK, look)
 
     def test_figures_stay_inside_the_canvas(self):
-        """Only outline reaches the canvas edge, so no outline is ever cut."""
-        ok = {None, PACK["outline"]}
+        """All the paint, including the selective outline, fits inside the border."""
+        ok = {None}
         for set_name in SETS:
-            for name, look, _ in class_looks(set_name):
+            cases = [(name, look) for name, look, _ in class_looks(set_name)]
+            cases += [(f"{a} holding {b}", Look(set_name, "pair", a, b))
+                      for a in SETS[set_name] for b in SETS[set_name] if a != b]
+            for name, look in cases:
                 for multi in ((), tuple(SETS[set_name][:2])):
                     fig = art.compose.figure(PACK, Look(look.set_name, look.kind, look.top, look.item, multi))
                     edge = [fig.px[y][0] for y in range(fig.h)] + [fig.px[y][fig.w - 1] for y in range(fig.h)]
@@ -135,18 +139,54 @@ class Deterministic(unittest.TestCase):
         self.assertEqual(raw[5:9], b"\xff\x00\x00\xff")
         self.assertEqual(raw[9:13], b"\x00\x00\x00\x00")
 
+    def test_indexed_inline_art_preserves_transparency_and_custom_pack_colors(self):
+        c = Canvas(3, 1)
+        c.set(0, 0, "#bb6622")
+        c.set(2, 0, "#000000")
+        data = c.png(2, indexed=True)
+        self.assertEqual(data[25], 3)  # IHDR color type
+        self.assertIn(b"PLTE" + bytes.fromhex("000000 000000 bb6622"), data)
+        self.assertIn(b"tRNS\x00", data)
+        self.assertEqual(png_pixels(data)[2], bytes([0, 2, 2, 0, 0, 1, 1]) * 2)
+        # A custom composition can exhaust the palette. RGBA still carries every pixel.
+        wide = Canvas(256, 1)
+        wide.px[0] = [f"#{i:06x}" for i in range(256)]
+        self.assertEqual(wide.png(indexed=True), wide.png())
+
     def test_svg_paths_cover_exactly_the_drawn_pixels(self):
-        c = art.portrait(PACK, look_for("builder", "pair", ["Logic", "Tests"], ["Logic", "Tests"]))
-        cover = {}
-        for path in c.svg_paths():
-            color = re.search(r'fill="([^"]+)"', path).group(1)
-            for x, y, w, h in re.findall(r"M(\d+) (\d+)h(\d+)v(\d+)h-\d+z", path):
-                for yy in range(int(y), int(y) + int(h)):
-                    for xx in range(int(x), int(x) + int(w)):
-                        self.assertNotIn((xx, yy), cover)
-                        cover[(xx, yy)] = color
-        want = {(x, y): p for y, row in enumerate(c.px) for x, p in enumerate(row) if p}
-        self.assertEqual(cover, want)
+        look = look_for("builder", "pair", ["Logic", "Tests"], ["Logic", "Tests"])
+        for scene in (True, False):
+            c = art.portrait(PACK, look, scene=scene)
+            cover = {}
+            for path in c.svg_paths():
+                match = re.fullmatch(r'<path fill="(#[0-9a-f]{6})" d="([^"]+)"/>', path)
+                self.assertIsNotNone(match)
+                color, data = match.groups()
+                # Rasterize each orthogonal polygon independently from its vertical crossings.
+                for polygon in data.removesuffix("z").split("z"):
+                    shape = re.fullmatch(r"M(\d+) (\d+)((?:[hv]-?\d+)+)", polygon)
+                    self.assertIsNotNone(shape)
+                    x, y = int(shape[1]), int(shape[2])
+                    x0, y0 = x, y
+                    edges = {}
+                    for axis, amount in re.findall(r"([hv])(-?\d+)", shape[3]) + [("z", "0")]:
+                        if axis == "h":
+                            x += int(amount)
+                            continue
+                        end = y0 if axis == "z" else y + int(amount)
+                        for yy in range(min(y, end), max(y, end)):
+                            edges.setdefault(yy, []).append(x)
+                        y = end
+                    self.assertEqual((x, y), (x0, y0))
+                    for yy, xs in edges.items():
+                        xs.sort()
+                        self.assertEqual(len(xs) % 2, 0)
+                        for left, right in zip(xs[::2], xs[1::2]):
+                            for xx in range(left, right):
+                                self.assertNotIn((xx, yy), cover)
+                                cover[(xx, yy)] = color
+            want = {(x, y): p for y, row in enumerate(c.px) for x, p in enumerate(row) if p}
+            self.assertEqual(cover, want)
 
 
 class Packs(unittest.TestCase):
@@ -155,6 +195,20 @@ class Packs(unittest.TestCase):
             path = os.path.join(tmp, "pack.json")
             art.export_pack(path)
             self.assertEqual(load_pack(path), art.default_pack())
+
+    def test_one_replaceable_face_ramp_reaches_every_costume(self):
+        from tinkerprint.art._colors import SKIN_KEYS
+        pack = copy.deepcopy(PACK)
+        custom = ["#ebbc8a", "#ae7555", "#78514d", "#473747"]
+        pack["skin_colors"] = custom
+        check_pack(pack)
+        for set_name in SETS:
+            looks = [look for _, look, _ in class_looks(set_name)]
+            looks.append(look_for(set_name, None, [], []))
+            for look in looks:
+                ink = art.compose.palette(pack, look)
+                self.assertEqual([ink[k] for k in SKIN_KEYS], custom)
+                self.assertIn(custom[0], art.portrait(pack, look).colors(), look)
 
     def test_bad_packs_are_refused(self):
         def broken(fn):
@@ -170,6 +224,14 @@ class Packs(unittest.TestCase):
             lambda p: p["icons"].pop("founder"),
             lambda p: p["parts"].__setitem__("Bad Name", {"at": [0, 0], "rows": ["."]}),
             lambda p: p["ink"].__setitem__("A", "#000000"),
+            lambda p: p.update(skin_colors=["#cccccc"]),
+            lambda p: p.update(skin_colors=["#ffffff", "blue", "#888888", "#555555"]),
+            lambda p: p["parts"]["base"].update(palette={"@": "#000000"}),
+            lambda p: p["looks"]["Lore"].__setitem__("gear", "missing"),
+            lambda p: p["edges"].__setitem__("#112233", ["red", "#ffffff"]),
+            lambda p: p["parts"]["scope"].__setitem__("offset", "left"),
+            lambda p: p["parts"]["crook"].__setitem__("sleeve", "missing"),
+            lambda p: p["sets"]["builder"].__setitem__("studio", "missing"),
         ]
         for fn in cases:
             with self.assertRaises(PackError):
@@ -181,6 +243,20 @@ class Packs(unittest.TestCase):
         check_pack(p)
         look = look_for("builder", "specialist", ["Logic"], ["Logic"])
         self.assertNotEqual(art.portrait(p, look).svg(), art.portrait(PACK, look).svg())
+
+
+    def test_custom_part_names_and_pack_metadata_stay_out_of_the_gallery(self):
+        p = copy.deepcopy(PACK)
+        marker = "private-part-label"
+        p["name"] = marker
+        p["parts"][marker] = p["parts"].pop(p["familiars"]["claude"])
+        p["familiars"]["claude"] = marker
+        p["looks"][marker] = p["looks"]["Tools"]
+        check_pack(p)
+        with tempfile.TemporaryDirectory() as folder:
+            path = write_gallery(folder, p)[0]
+            with open(path, encoding="utf-8") as f:
+                self.assertNotIn(marker, f.read())
 
 
 class Chronicle(unittest.TestCase):
@@ -276,8 +352,8 @@ class Built(unittest.TestCase):
             with open(res["paths"]["portrait"], "rb") as f:
                 data = f.read()
             w, h, raw = png_pixels(data)
-            self.assertEqual((w, h), (256, 256))
-            self.assertLess(len(data), 4000)
+            self.assertEqual((w, h), (384, 384))
+            self.assertLess(len(data), 4_800)
 
     def test_sheet_draws_every_picture(self):
         for slug, res in self.out.items():
@@ -302,13 +378,13 @@ class Built(unittest.TestCase):
         self.assertIn(f"the {cls['close']['name']} costume", page)
 
     def test_page_sizes_stay_small(self):
-        """Budgets: sheet.html under 160 KB, card.svg under 24 KB, the gallery under 640 KB."""
+        """Budgets: sheet.html under 104 KB, card.svg under 16 KB, the gallery under 240 KB."""
         for res in self.out.values():
-            self.assertLess(os.path.getsize(res["paths"]["html"]), 160_000)
-            self.assertLess(os.path.getsize(res["paths"]["card"]), 24_000)
+            self.assertLess(os.path.getsize(res["paths"]["html"]), 104_000)
+            self.assertLess(os.path.getsize(res["paths"]["card"]), 16_000)
         with tempfile.TemporaryDirectory() as tmp:
             path = write_gallery(tmp)[0]
-            self.assertLess(os.path.getsize(path), 640_000)
+            self.assertLess(os.path.getsize(path), 240_000)
 
 
 if __name__ == "__main__":

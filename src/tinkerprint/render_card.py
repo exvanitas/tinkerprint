@@ -48,8 +48,7 @@ def visible(card: dict) -> dict:
     return v
 
 
-PX, PY, PS = 64, 52, 4  # portrait plate corner and pixel size
-TX = 64 + 32 * 4 + 16 + 24  # text right of the portrait
+PX, PY, TX = 64, 44, 232  # portrait frame and the text beside it
 
 
 def render_card(card: dict, pack: dict | None = None) -> str:
@@ -62,10 +61,15 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     out.append(f'<rect x="14" y="14" width="{W - 28}" height="{H - 28}" rx="20" fill="none" stroke="#3a3936"/>')
 
     # Portrait: pixel art from the allowlisted set, class, multiclass and rounded shares only.
-    out.append(f'<rect x="{PX}" y="{PY - 8}" width="{32 * PS + 16}" height="{32 * PS + 16}" rx="14" fill="#1f1f1d" '
+    pack = pack or art.default_pack()
+    resolution = pack["canvas"][0]
+    scale = round(128 / resolution)
+    padding = 4 if resolution == 48 else 8
+    frame = resolution * scale + 2 * padding
+    out.append(f'<rect x="{PX}" y="{PY}" width="{frame}" height="{frame}" rx="14" fill="#1f1f1d" '
                f'stroke="#3a3936"/>')
     out.append('<g shape-rendering="crispEdges">')
-    out += art.card_portrait_paths(card, PX + 8, PY, PS, pack)
+    out += art.card_portrait_paths(card, PX + padding, PY + padding, scale, pack)
     out.append("</g>")
     # Left column: who and what.
     out.append(_t(TX, 92, v["set"], 18, 600, "#9c9a92", spacing="3"))

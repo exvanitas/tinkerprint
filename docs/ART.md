@@ -1,125 +1,55 @@
 # Art
 
-Every picture tinkerprint draws is pixel art made in code from a pack of parts. The same sheet always gives the same pixels. Nothing is fetched, and nothing is random except a stream seeded from sheet fields.
+The Woodland Guild is a set of original 48 × 48 pixel portraits. Each trade has its own character. The Warden is a broad badger behind a pavise, the Cartographer is a kingfisher with a telescope, and the Lorekeeper is a raven reading an open book. The builder stands above a moonlit viaduct. The tinkerer stands on a plum-colored lakeshore. The hills, sky and ground use closely spaced dark values so the faces and tools carry the light.
 
-Run `tinkerprint gallery --out art` to see every part at once.
-
-## What it draws
-
-| Picture | Where | Made from |
-|---|---|---|
-| Portrait | sheet hero, card, `portrait.png` | the class |
-| Close-call costume | sheet hero | the class within 2 points |
-| Banner | top of the sheet | the stat mix, the class, the party |
-| Familiar | party cards, banner | the harness |
-| Icon | achievements, milestones | the achievement rule |
-| Trinket | stat cards, banner shelves | the stat |
-| Chronicle | sheet | one portrait per quarter, a campfire for a quiet stretch |
+Run `tinkerprint gallery --out art` for the 74 classes, close-call costumes, multiclass capes, both workshops and the small sprites. Add `--png` to write individual PNGs.
 
 ## How a portrait composes
 
-A portrait is a 32 by 32 grid. Layers go down in this order, then every clear pixel next to a drawn one becomes outline:
+The top stat selects the animal, coat, stance and shoulder position. The runner-up supplies a handheld tool, a second piece of equipment worn on the opposite shoulder, and the pose of the working arm. For example, a mouse with Logic wears a blue mantle and leans on a staff. With Art it carries a paint palette and raises a brush. A specialist with a single rounded stat uses its own trade for both.
 
-1. **Cape**, only for a multiclass: the cloth takes the multiclass's first stat, the hem its second.
-2. **Pack**, only for a generalist: a bedroll in the top stat's colors.
-3. **Base**: the shadowed face, eyes, body, legs and boots.
-4. **Body**: robe, armor, apron, smock, coat or tunic, by the top stat.
-5. **Hat**, by the top stat.
-6. **Held item**, by the runner-up. A specialist holds the next stat down, or its own stat's item when it has nothing else.
-7. **Hand** over the grip, unless the item covers it (shield, tome).
+A multiclass adds a windblown cloak behind the figure. Its fabric and woven border use the two multiclass stats. The generalist is a tortoise with a walking crook and a rolled blanket dyed in the leading stat. The unclassed tortoise rests its hand at its side.
 
-A pair wears its top stat and holds its runner-up, so a Spellblade heavy on Logic looks different from one heavy on Interface. The generalist wears a traveler's hat and tunic and carries a walking staff.
+Layers are the cloak or pack, body, shoulder equipment, sleeve, head, and tool. The hand goes over the grip unless the tool covers it. A one-pixel material contour finishes the figure. The light comes from the upper left. All fixed inks, stat ramps and contours in the default pack come from 61 swatches. Steel has short ivory reflections, leather catches an ochre edge, and cloth uses larger uninterrupted folds.
 
-Looks follow class shape only. Level, points, streaks and days never change a picture, so a portrait is never a status marker.
+Looks follow class shape alone. The sheet and card both rank shares rounded to 5%, breaking ties in the set's order. The card portrait reads only `set`, `class`, `multiclass` and the rounded stats. It contributes only paths with `fill` and `d` attributes to the card.
 
-The sheet and the card rank stats the same way: by share rounded to 5%, ties in the set's order. So the card's portrait always matches the sheet's.
+## Other pictures
 
-### Grid keys
-
-`.` is clear. Upper-case keys are ramps filled in per drawing:
-
-| Keys | Ramp |
+| Picture | Composition |
 |---|---|
-| `A B C` | outfit: the top stat, light to dark |
-| `X Y Z` | item: the runner-up |
-| `T U` | cape: the multiclass's first stat |
-| `V W` | hem: the multiclass's second stat |
+| Workshop | A 252 × 72 studio with a lantern over a pressed fern, a distant aqueduct or windmill, and a rug for the figure. Active trades stock the cabinet. Party members bring their familiars. |
+| Familiars | An owl, cat, jelly and fallback sprout slime. These also appear on the party cards. |
+| Achievement pins | Each rule and the milestone fallback get their own silhouette. |
+| Shelf miniatures | One object per stat, shared between the shelf and stat cards. |
+| Chronicle | Each quarter shows its class portrait. A kettle hangs over the fire in quiet stretches. Repeated portraits reuse SVG definitions. |
 
-Every other key is a fixed color from the pack's `ink`. A part may add its own `palette` for keys only it uses, like a familiar's fur.
+The counter-mode SHA-256 stream places stock and companions from the same sheet seed on every build. PNGs use the standard library and fixed compression. The default `portrait.png` is an 8× integer enlargement, 384 × 384. The card and sheet hero use 3× pixels. The chronicle uses 2×. Inline SVG on the sheet and gallery carries lossless pixel art at its requested display resolution. The card and the chronicle’s reusable portrait definitions draw orthogonal paths. Each path joins same-color runs across rows, including stepped edges.
 
-## How many
-
-Per set, a portrait varies by kind, top stat, item stat and cape:
-
-| Kind | Looks |
-|---|---|
-| Specialist | 8 outfits, 8 items, 31 capes (none, or 30 ordered pairs of the other stats) |
-| Pair | 28 pairs, 2 orders, 31 capes |
-| Generalist | 8 pack colors |
-| Unclassed | 1 |
-
-That is about 3,500 portraits per set and 7,000 across both, from 14 hats, 6 bodies, 14 held items and one cape. Add 4 familiars, 11 icons, 13 trinkets and a campfire. The banner arranges trinkets by share and seed, so banners rarely repeat.
-
-## Size budget
-
-Pictures are inline SVG: one `<path>` per color, built from runs merged into rectangles, with `shape-rendering: crispEdges`.
-
-| Output | Before art | With art | Budget (tested) |
-|---|---|---|---|
-| `sheet.html`, demo | 23 to 24 KB | 84 to 93 KB | under 160 KB |
-| `card.svg` | 6 KB | 9 to 10 KB | under 24 KB |
-| `portrait.png`, 256 px | none | under 2 KB | under 4 KB |
-| `gallery.html` | none | about 400 KB | under 640 KB |
-
-The banner is the largest piece, about 25 KB. A portrait is 3 to 4 KB. Chronicle chapters that share a look draw it once and reuse it.
-
-PNGs come from a small writer on `zlib` and `struct`: RGBA, filter 0, fixed compression. `build` writes `portrait.png` only when the card is on, from the card's fields alone. `gallery --png` writes every picture.
-
-## The card stays allowlisted
-
-The card's portrait reads only `set`, `class`, `multiclass` and the rounded `stats`. It draws `<path>` elements with `fill` and `d` and nothing else, so `audit` lists no new strings. The test suite checks that the card's portrait matches the sheet's and ignores every other field.
-
-## Replace the art
-
-A pack is one JSON file. Start from the built-in one:
+## Replace the pack
 
 ```
 tinkerprint gallery --export-pack mypack.json
-```
-
-Edit grids and colors, then look at the result and build with it:
-
-```
 tinkerprint gallery --art-pack mypack.json --out preview
 tinkerprint build --profile me.toml --art-pack mypack.json
 ```
 
-What a pack holds:
+The built-in heads, coats, tools, shoulder gear, pins and miniatures are literal character grids. Edit the corresponding row to move a highlight, change a sleeve or cut a notch in a feather. The landscape and workshop drawings are rasterized to the same grid format on export. A replacement pack contains only data. Each part has `at`, rectangular `rows`, and an optional local `palette`. A dot is clear. A grid key selects either a fixed ink or one of the following channels.
 
-- `ink`: fixed colors, one character each.
-- `stat_colors`: light, mid and dark for each of the 13 stats.
-- `sets`: plate, floor, wall and board colors for each set.
-- `looks`: the hat, body, item and trinket each stat uses.
-- `generalist`, `familiars`, `icons`: which part draws each.
-- `parts`: grids. Each has `at` (its corner on the canvas), `rows`, and optional `palette` and `cover`.
+| Keys | Meaning |
+|---|---|
+| `A B C F` | Top stat, from highlight to deep shadow |
+| `X Y Z H` | Equipment stat, in the same order |
+| `T U` | Cloak fabric |
+| `V W` | Cloak border |
+| `@ + : ~` | Face and paw, from highlight to shadow, in a version 2 pack with `skin_colors` |
 
-The loader refuses a pack with a color that is not `#rrggbb`, a key no palette defines, rows of uneven width, or a missing part. A pack can change pixels and nothing else. It never adds text to a sheet or card.
+Every built-in head and exposed paw uses the same `skin_colors` array of four hex colors. Replacing that one array changes the skin ramp throughout the set. The feathers, fur markings, horns and eye details have their own inks. Older packs that omit the array keep their original grid keys.
 
-## The alternative: a pre-made art pack
+A version 2 look references its body, head (`hat`), tool, trinket and shoulder gear. The gear's origin is relative to `shoulder`. The sleeve is registered to the costume's `grip` using the pack's reference `hand`. The tool and hand then move together by the tool's `offset`. The `edges` table maps an ink to its lit and shadow contour colors. Each set references its portrait scene and studio background.
 
-A hand-drawn or AI-made set of images could ship in place of the generator.
+The loader checks grid sizes, color values, keys, coordinates and part references. Pack metadata and part identifiers stay out of visible output. Earlier 32 × 32 version 1 packs retain their original composition rules.
 
-What it would improve:
+## Size budgets
 
-- Faces, hands and fabric at a detail 32 pixels cannot hold.
-- A distinct silhouette per class, where today pairs share an outfit and differ by item and accent.
-- Poses, a banner with depth and lighting, familiars with personality.
-
-What it would cost:
-
-- **Combinations.** 7,000 portraits cannot each be drawn. A pack would cover 37 classes per set and drop the item and cape variation, or ship layered parts that still need composing.
-- **Size.** Even small PNGs add up to megabytes in the package, against kilobytes of grids today. A sheet that embeds them grows too.
-- **License and provenance.** Every image needs a clear license for an MIT repo. AI output needs a model whose terms allow it, and a record of how it was made.
-- **Consistency.** Hand art for 74 classes drifts in style unless one person draws all of it.
-
-The middle path fits the pack format as it is: draw or generate the parts at 32 pixels, quantize them to a palette, and write them as grids. The composer, the tests and the allowlist stay the same.
+The art tests keep both invented demo sheets below 104,000 bytes, cards below 16,000 bytes and portrait PNGs below 4,800 bytes. The gallery limit is 240,000 bytes. The built-in gallery measures 215,843 bytes.

@@ -5,6 +5,7 @@ colors and runs are emitted in a fixed order and PNG compression uses fixed sett
 """
 from __future__ import annotations
 
+import base64
 import re
 import struct
 import zlib
@@ -66,74 +67,128 @@ class Canvas:
             self.px[y][x] = color
         return self
 
+    def material_edges(self, edges: dict, fallback: str) -> "Canvas":
+        """A one-pixel contour. Top and left edges borrow the lit material's line color."""
+        marks = []
+        for y, row in enumerate(self.px):
+            for x, value in enumerate(row):
+                if value is not None:
+                    continue
+                for dx, dy, side in ((0, -1, 1), (-1, 0, 1), (1, 0, 0), (0, 1, 0)):
+                    neighbor = self.get(x + dx, y + dy)
+                    if neighbor is not None:
+                        marks.append((x, y, edges.get(neighbor, (fallback, fallback))[side]))
+                        break
+        for x, y, color in marks:
+            self.set(x, y, color)
+        return self
+
     def colors(self) -> list:
         return sorted({c for row in self.px for c in row if c is not None})
 
     # ------------------------------------------------------------ SVG
 
     def svg_paths(self, scale: float = 1, ox: float = 0, oy: float = 0) -> list:
-        """One <path> per color, built from horizontal runs merged down into rectangles."""
-        rects: dict = {}
-        open_runs: dict = {}  # (x0, x1, color) -> [y0, h]
-        for y in range(self.h + 1):
-            row = self.px[y] if y < self.h else [None] * self.w
-            runs = []
+        """One compound path per ink. Each strip has one unbroken span per row."""
+        # Runs on successive rows can share an outline even when their ends move.
+        # At a fork only one branch continues the strip. The others begin new ones.
+        by_color = {}
+        previous = []
+        for y, row in enumerate(self.px):
+            current = []
+            first = 0
             x = 0
             while x < self.w:
-                c = row[x]
-                if c is None:
+                start, color = x, row[x]
+                x += 1
+                while x < self.w and row[x] == color:
                     x += 1
+                if color is None:
                     continue
-                x0 = x
-                while x < self.w and row[x] == c:
-                    x += 1
-                runs.append((x0, x, c))
-            now = {}
-            for r in runs:
-                if r in open_runs:
-                    y0, h = open_runs.pop(r)
-                    now[r] = [y0, h + 1]
-                else:
-                    now[r] = [y, 1]
-            for (x0, x1, c), (y0, h) in open_runs.items():
-                rects.setdefault(c, []).append((x0, y0, x1 - x0, h))
-            open_runs = now
+                while first < len(previous) and previous[first][1] <= start:
+                    first += 1
+                best = 0
+                strip = None
+                i = first
+                while i < len(previous) and previous[i][0] < x:
+                    left, right, ink, candidate = previous[i]
+                    overlap = min(right, x) - max(left, start)
+                    if ink == color and overlap > best and candidate[-1][0] < y:
+                        strip, best = candidate, overlap
+                    i += 1
+                if strip is None:
+                    strip = []
+                    by_color.setdefault(color, []).append(strip)
+                strip.append((y, start, x))
+                current.append((start, x, color, strip))
+            previous = current
+
         out = []
-        for c in sorted(rects):
-            d = "".join(f"M{_n(ox + x * scale)} {_n(oy + y * scale)}h{_n(w * scale)}v{_n(h * scale)}h{_n(-w * scale)}z"
-                        for x, y, w, h in sorted(rects[c], key=lambda r: (r[1], r[0])))
-            out.append(f'<path fill="{c}" d="{d}"/>')
+        for color, strips in sorted(by_color.items()):
+            data = "".join(_strip_path(strip, scale, ox, oy) for strip in strips)
+            out.append(f'<path fill="{color}" d="{data}"/>')
         return out
 
     def svg(self, scale: int = 1, label: str = "", cls: str = "px") -> str:
-        """A standalone inline SVG element."""
+        """A self-contained SVG for the HTML page, with native pixels and nearest-neighbor scaling."""
         aria = f' role="img" aria-label="{_attr(label)}"' if label else ' aria-hidden="true"'
+        if scale in (1, 2, 3, 4):
+            # Match the requested display resolution even in viewers that ignore image-rendering.
+            image = base64.b64encode(self.png(int(scale), indexed=True)).decode("ascii")
+            content = (f'<image width="{self.w}" height="{self.h}" style="image-rendering:pixelated" '
+                       f'href="data:image/png;base64,{image}"/>')
+        else:
+            content = "".join(self.svg_paths())
         return (f'<svg class="{cls}" viewBox="0 0 {self.w} {self.h}" width="{self.w * scale}" height="{self.h * scale}" '
-                f'shape-rendering="crispEdges"{aria}>' + "".join(self.svg_paths()) + "</svg>")
+                f'shape-rendering="crispEdges"{aria}>{content}</svg>')
 
     # ------------------------------------------------------------ PNG
 
-    def png(self, scale: int = 1, background: str | None = None) -> bytes:
-        """RGBA PNG through zlib and struct. Clear pixels stay clear unless a background is given."""
-        bg = _rgba(background) if background else b"\x00\x00\x00\x00"
-        cache: dict = {}
+    def png(self, scale: int = 1, background: str | None = None, *, indexed: bool = False) -> bytes:
+        """Write RGBA, or a lossless indexed PNG for compact inline artwork."""
+        header_type = 6  # RGBA
+        table = b""
+        pixels = {color: _rgba(color) for color in self.colors()}
+        clear = _rgba(background) if background else bytes(4)
+        if indexed and len(set(pixels.values()) | {clear}) <= 256:
+            header_type = 3
+            # Index zero carries the background or transparency. All other entries are opaque.
+            entries = [clear] + sorted(set(pixels.values()) - {clear})
+            index = {rgba: bytes([i]) for i, rgba in enumerate(entries)}
+            pixels = {color: index[rgba] for color, rgba in pixels.items()}
+            table = _chunk(b"PLTE", b"".join(rgba[:3] for rgba in entries))
+            if background is None:
+                table += _chunk(b"tRNS", b"\x00")
+            clear = bytes(1)
+        pixels[None] = clear
         raw = bytearray()
         for row in self.px:
-            line = bytearray()
-            for c in row:
-                if c is None:
-                    px = bg
-                else:
-                    px = cache.get(c)
-                    if px is None:
-                        px = cache[c] = _rgba(c)
-                line += px * scale
-            for _ in range(scale):
-                raw.append(0)
-                raw += line
+            scanline = b"\x00" + b"".join(pixels[color] * scale for color in row)
+            raw.extend(scanline * scale)
         w, h = self.w * scale, self.h * scale
-        return (b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+        header = struct.pack(">IIBBBBB", w, h, 8, header_type, 0, 0, 0)
+        return (b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", header) + table
                 + _chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + _chunk(b"IEND", b""))
+
+
+def _strip_path(strip, scale, ox, oy):
+    """Walk down the right bank, across the base, and up the left bank."""
+    top, left, right = strip[0]
+    path = [f"M{_n(ox + left * scale)} {_n(oy + top * scale)}h{_n((right - left) * scale)}"]
+    last_y = top
+    for y, _, end in strip:
+        if end != right:
+            path.append(f"v{_n((y - last_y) * scale)}h{_n((end - right) * scale)}")
+            last_y, right = y, end
+    bottom, left, _ = strip[-1]
+    path.append(f"v{_n((bottom + 1 - last_y) * scale)}h{_n((left - right) * scale)}")
+    last_y = bottom + 1
+    for y, start, _ in reversed(strip):
+        if start != left:
+            path.append(f"v{_n((y + 1 - last_y) * scale)}h{_n((start - left) * scale)}")
+            last_y, left = y + 1, start
+    path.append("z")
+    return "".join(path)
 
 
 def _chunk(kind: bytes, data: bytes) -> bytes:
