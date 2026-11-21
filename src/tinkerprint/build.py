@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 from .events import Event, Inputs
 from .profile import Profile
@@ -170,6 +170,14 @@ def alias_of(folder: str, profile: Profile) -> str:
     return ", ".join(sorted(set(names))) if names else "A repo outside the profile"
 
 
+def cutoff(profile: Profile, as_of: date | None) -> str | None:
+    """The instant an as-of date ends in the profile's time zone and rollover, as ISO text."""
+    if as_of is None:
+        return None
+    end = datetime.combine(as_of + timedelta(days=1), time(profile.rollover_hour), profile.tz)
+    return end.isoformat()
+
+
 def compute(profile: Profile, season=(None, None), as_of: date | None = None, home: str | None = None,
             inputs: Inputs | None = None):
     """Score. Writes only the harness cache. sheet.json depends on the events and the profile alone.
@@ -177,9 +185,10 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     home = data_home(home)
     check_data_home(home, profile)
     inputs = inputs if inputs is not None else gather(profile, home)
-    priors = scan_priors(profile.projects)
+    warnings = list(inputs.warnings)
+    priors = scan_priors(profile.projects, cutoff(profile, as_of), warnings)
     sheet, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
-    local["warnings"] = [f"{alias_of(top, profile)}: {msg}" for top, msg in inputs.warnings]
+    local["warnings"] = [f"{alias_of(top, profile)}: {msg}" for top, msg in warnings]
     return sheet, local
 
 

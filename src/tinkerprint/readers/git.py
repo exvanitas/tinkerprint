@@ -43,6 +43,19 @@ def _git(args, cwd) -> str | None:
     return r.stdout.decode("utf-8", "surrogateescape")
 
 
+def git_bytes(args, cwd) -> bytes | None:
+    """Raw stdout of a local git command, or None on failure."""
+    try:
+        r = subprocess.run(["git", *_NO_NET, "-C", cwd, *args], capture_output=True, env=_env(), check=False)
+    except OSError:
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def git_text(args, cwd) -> str | None:
+    return _git(args, cwd)
+
+
 def _match(patterns, value: str) -> bool:
     v = value.lower()
     return any(fnmatch.fnmatchcase(v, p.lower()) for p in patterns)

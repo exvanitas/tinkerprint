@@ -73,7 +73,7 @@ A set is a fixed list of eight stats in a fixed order. The profile picks the set
 Each changed file goes to one stat, by the first rule that matches:
 
 1. **Overrides** in the profile: a path glob or a whole project, with stat weights.
-2. **Project priors from manifests**: an extension manifest or a `bin` entry makes the project's code Tools. Training dependencies (torch, transformers, peft, jax) make its Python Models. Data dependencies (dbt, pandas, polars, duckdb, sqlalchemy migrations) make its scripts Data.
+2. **Project priors from manifests**: read per root. A git root reads its manifests from the newest commit on or before the as-of date, so the checkout never changes a sheet. A root outside git reads its working tree. An extension manifest or a `bin` entry makes the project's code Tools. Training dependencies (torch, transformers, peft, jax) make its Python Models. Data dependencies (dbt, pandas, polars, duckdb, sqlalchemy migrations) make its scripts Data.
 3. **Paths**: `test/`, `tests/`, `__tests__/`, `*.test.*`, `*.spec.*` are Tests. `.github/`, `deploy/`, `infra/`, `k8s/`, `Dockerfile` are Infra. `migrations/`, `schema/` are Data. `docs/` is Docs. `components/`, `views/`, `pages/`, `styles/` are Interface. `bin/`, `cli/`, `scripts/`, `tools/` are Tools.
 4. **Extensions**: `.tsx .jsx .vue .svelte .css .scss .html` are Interface. `.sql .ipynb` are Data. `.md .mdx .rst` are Docs. `.sh .ps1 .tf` are Infra. Other source code is Logic.
 5. Anything else (images, data dumps, lockfiles, generated output, agent notes like `CLAUDE.md`, `AGENTS.md`, briefs and plans) is **unclassified**.

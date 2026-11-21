@@ -88,104 +88,181 @@ def _dep_kind(names) -> str | None:
     return None
 
 
-def manifest_prior(folder: str) -> str | None:
+class WorkTree:
+    """Manifests read from the folder as it is on disk. Used for roots that are not in git."""
+
+    def __init__(self, base: str):
+        self.base = base
+
+    def read(self, rel: str):
+        try:
+            with open(os.path.join(self.base, rel), "rb") as f:
+                return f.read()
+        except OSError:
+            return None
+
+    def names(self, rel: str) -> list:
+        try:
+            return sorted(os.listdir(os.path.join(self.base, rel) if rel else self.base))
+        except OSError:
+            return []
+
+
+class GitTree:
+    """Manifests read from one commit's tree with `git show`, whatever is checked out."""
+
+    def __init__(self, top: str, rev: str, prefix: str):
+        self.top, self.rev, self.prefix = top, rev, prefix
+
+    def _path(self, rel: str) -> str:
+        return "/".join(x for x in (self.prefix, rel) if x and x != ".")
+
+    def read(self, rel: str):
+        from .readers.git import git_bytes
+        return git_bytes(["show", f"{self.rev}:{self._path(rel)}"], self.top)
+
+    def names(self, rel: str) -> list:
+        from .readers.git import git_bytes
+        folder = self._path(rel)
+        out = git_bytes(["ls-tree", "-z", "--name-only", self.rev, "--", (folder + "/") if folder else "."], self.top)
+        if not out:
+            return []
+        return sorted(os.path.basename(n.decode("utf-8", "replace")) for n in out.split(b"\0") if n)
+
+
+def _decode(data: bytes):
+    """Manifest text: UTF-8, UTF-8 with BOM, or UTF-16 with BOM. Anything else is None."""
+    try:
+        if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+            return data.decode("utf-16")
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+
+
+def manifest_prior(folder, rel: str = "", warn=None) -> str | None:
     """The prior a folder's manifests give its code: Tools, Models, Data or None.
 
-    An extension manifest or a bin entry gives Tools. Training dependencies give Models.
-    Data dependencies give Data. Tools wins over Models, Models over Data.
+    folder is a WorkTree, a GitTree or a plain path. An extension manifest or a bin entry gives
+    Tools. Training dependencies give Models. Data dependencies give Data. Tools wins over
+    Models, Models over Data. A manifest that cannot be decoded is skipped and reported to warn.
     """
+    tree = WorkTree(folder) if isinstance(folder, str) else folder
     tools = False
     deps: set = set()
 
-    pkg = os.path.join(folder, "package.json")
-    if os.path.isfile(pkg):
-        try:
-            with open(pkg, encoding="utf-8") as f:
-                d = json.load(f)
-            if isinstance(d, dict):
-                if d.get("bin"):
-                    tools = True
-                eng = d.get("engines")
-                if (isinstance(eng, dict) and "vscode" in eng) or d.get("contributes"):
-                    tools = True
-        except (OSError, ValueError):
-            pass
+    def text(name):
+        data = tree.read("/".join(x for x in (rel, name) if x))
+        if data is None:
+            return None
+        decoded = _decode(data)
+        if decoded is None and warn:
+            warn(f"skipped {name}: it is not UTF-8 or UTF-16 text.")
+        return decoded
 
-    man = os.path.join(folder, "manifest.json")
-    if os.path.isfile(man):
-        try:
-            with open(man, encoding="utf-8") as f:
-                d = json.load(f)
-            if isinstance(d, dict) and "manifest_version" in d:
-                tools = True
-        except (OSError, ValueError):
-            pass
+    d = _json(text("package.json"))
+    if isinstance(d, dict):
+        eng = d.get("engines")
+        if d.get("bin") or (isinstance(eng, dict) and "vscode" in eng) or d.get("contributes"):
+            tools = True
+    d = _json(text("manifest.json"))
+    if isinstance(d, dict) and "manifest_version" in d:
+        tools = True
 
-    py = os.path.join(folder, "pyproject.toml")
-    if os.path.isfile(py):
+    d = _toml(text("pyproject.toml"))
+    if d:
         try:
-            with open(py, "rb") as f:
-                d = tomllib.load(f)
             proj = d.get("project", {})
             poetry = d.get("tool", {}).get("poetry", {})
             if proj.get("scripts") or proj.get("gui-scripts") or poetry.get("scripts"):
                 tools = True
-            for s in proj.get("dependencies", []) or []:
-                deps.add(_dep_name(s))
+            for x in proj.get("dependencies", []) or []:
+                deps.add(_dep_name(x))
             for group in (proj.get("optional-dependencies") or {}).values():
-                for s in group:
-                    deps.add(_dep_name(s))
+                for x in group:
+                    deps.add(_dep_name(x))
             for k in (poetry.get("dependencies") or {}):
                 deps.add(_dep_name(k))
-        except (OSError, tomllib.TOMLDecodeError, AttributeError, TypeError):
+        except (AttributeError, TypeError):
             pass
 
-    try:
-        names = sorted(os.listdir(folder))
-    except OSError:
-        names = []
+    names = tree.names(rel)
     for name in names:
         if name.startswith("requirements") and name.endswith(".txt"):
-            try:
-                with open(os.path.join(folder, name), encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith(("#", "-")):
-                            deps.add(_dep_name(line))
-            except OSError:
-                pass
+            body = text(name) or ""
+            for line in body.splitlines():
+                line = line.strip()
+                if line and not line.startswith(("#", "-")):
+                    deps.add(_dep_name(line))
 
-    cargo = os.path.join(folder, "Cargo.toml")
-    if os.path.isfile(cargo):
-        try:
-            with open(cargo, "rb") as f:
-                if tomllib.load(f).get("bin"):
-                    tools = True
-        except (OSError, tomllib.TOMLDecodeError):
-            pass
+    d = _toml(text("Cargo.toml"))
+    if d and d.get("bin"):
+        tools = True
 
     if tools:
         return "Tools"
     kind = _dep_kind(deps)
     if kind:
         return kind
-    if os.path.isfile(os.path.join(folder, "dbt_project.yml")) or os.path.isfile(os.path.join(folder, "alembic.ini")):
+    if "dbt_project.yml" in names or "alembic.ini" in names:
         return "Data"
     return None
 
 
-def scan_priors(projects) -> dict:
+def _json(t):
+    if t is None:
+        return None
+    try:
+        return json.loads(t)
+    except ValueError:
+        return None
+
+
+def _toml(t):
+    if t is None:
+        return None
+    try:
+        return tomllib.loads(t)
+    except tomllib.TOMLDecodeError:
+        return None
+
+
+def root_tree(root: str, before: str | None):
+    """The tree a root's manifests come from: the newest commit on or before `before` (an ISO
+    instant) when the root is in git, else the working tree. Returns (tree or None, source)."""
+    from .readers.git import git_text, toplevel
+    real = canonical(root)
+    top = toplevel(real)
+    if not top:
+        return WorkTree(real), "working tree"
+    args = ["rev-list", "-1", "--all", "--date-order"]
+    if before:
+        args.append(f"--before={before}")
+    rev = (git_text(args, top) or "").strip()
+    if not rev:
+        return None, "git"
+    prefix = os.path.relpath(real, canonical(top))
+    return GitTree(top, rev, "" if prefix == "." else prefix.replace(os.sep, "/")), "git"
+
+
+def scan_priors(projects, before: str | None = None, warnings: list | None = None) -> dict:
     """Priors per project: {project name: {(real root, part path or ''): prior}}.
 
     Each root reads its own manifests, so two roots of one project never lend each other a prior.
+    A git root reads them from its newest commit on or before `before`, so the same history and
+    profile give the same priors whatever is checked out. Other roots read the working tree.
     """
     out = {}
     for p in projects:
         found = {}
         for root in p.roots:
             real = canonical(root)
+            tree, _ = root_tree(root, before)
+            if tree is None:
+                continue
             for folder_rel in [""] + [part.path for part in p.parts]:
-                prior = manifest_prior(os.path.join(real, folder_rel) if folder_rel else real)
+                warn = (lambda msg, r=real: warnings.append((r, msg))) if warnings is not None else None
+                prior = manifest_prior(tree, folder_rel, warn)
                 if prior:
                     found[(real, folder_rel)] = prior
         out[p.name] = found

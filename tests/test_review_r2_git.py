@@ -171,6 +171,9 @@ class GitItems(Tmp):
         cli = self.repo("cli", {"main.py": 2})
         with open(os.path.join(cli, "package.json"), "w") as f:
             f.write('{"name": "c", "bin": {"c": "main.py"}}')
+        for repo in (torch, cli):  # priors come from committed manifests (round 3, S2)
+            git(repo, "add", ".")
+            git(repo, "commit", "-qm", "manifest")
         for order in ([torch, cli], [cli, torch]):
             prof = write_profile(os.path.join(self.t, "p.toml"), [("A", order)])
             from tinkerprint.projects import scan_priors
