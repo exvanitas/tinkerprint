@@ -1,0 +1,68 @@
+# Example statsheet profile for an invented person, Juno Brightwater.
+# Copy it, change the names and roots, then run:
+#   statsheet build --profile my-profile.toml
+# Everything here stays on your machine. Roots never reach a sheet or a card.
+
+id = "juno-personal"          # names this profile's snapshots. Default: the file name.
+name = "Juno Brightwater"     # shown on the sheet and the card
+set = "tinkerer"              # builder (the default) or tinkerer
+timezone = "Europe/Dublin"    # IANA name, or an offset like "+01:00"
+rollover_hour = 4             # a day runs 04:00 to 04:00. Work at 1am counts toward the day before.
+work = false                  # true: no card unless [card] allow = true
+milestones = "milestones.txt" # optional. One "YYYY-MM-DD what happened" per line. Shown as written.
+
+[identity]
+# Commits count when you are the author or a Co-authored-by. Patterns are globs, case-insensitive.
+emails = ["juno@brightwater.example.test", "*@juno.example.test"]
+names = ["Juno Brightwater"]
+# Authors with [bot] in the name always drop. Add more here.
+bots = ["release-robot*"]
+
+[harnesses]
+claude = true                 # reads ~/.claude/projects
+codex = true                  # reads ~/.codex/sessions
+agy = false                   # experimental. Presence only.
+# claude_dir = "~/.claude/projects"
+# codex_dir = "~/.codex/sessions"
+# agy_db = "~/.gemini/antigravity-cli/conversation_summaries.db"
+
+[card]
+# allow = true                # only matters when work = true
+# show = ["dates", "projects"]  # exact dates and project names stay off the card unless listed here
+
+# A game. Code earns Systems and Interface from its files.
+# Art, Worlds, Lore and Community come only from hand tags like these.
+[[project]]
+name = "Tide Lantern"
+roots = ["~/code/tide-lantern", "~/worktrees/tide-lantern-next"]
+
+[[project.override]]
+glob = "art/**"
+stats = { Art = 1 }
+
+[[project.override]]
+glob = "levels/**"
+stats = { Worlds = 1 }
+
+[[project.override]]
+glob = "story/**"
+stats = { Lore = 1 }
+
+# A chat bot for a club. The whole project splits two to one.
+[[project]]
+name = "Club Bot"
+root = "~/code/clubbot"
+stats = { Community = 2, Systems = 1 }
+
+# A monorepo with parts. A day that touches every part still counts as one project.
+# A part keeps its own manifest: cli/package.json with a "bin" entry makes cli code Tools.
+[[project]]
+name = "Palette Kit"
+root = "~/code/palette-kit"
+
+[[project.part]]
+path = "cli"
+
+[[project.part]]
+path = "web"
+stats = { Interface = 1 }
