@@ -1,4 +1,4 @@
-# statsheet
+# tinkerprint
 
 Turn your git history and your coding-agent logs into an RPG character sheet.
 
@@ -12,7 +12,7 @@ Python 3.11 or newer. No other packages.
 
 ```
 pip install .
-statsheet demo --out statsheet-demo
+tinkerprint demo --out tinkerprint-demo
 ```
 
 The demo builds sheets for two invented people: a tinkerer with games, a bot and art tools, and a backend and web developer on the builder set. Open `sheet.html` in each folder.
@@ -20,12 +20,12 @@ The demo builds sheets for two invented people: a tinkerer with games, a bot and
 For your own sheet:
 
 ```
-statsheet init --out me.toml        # a commented starter profile
-statsheet build --profile me.toml   # sheet.html, card.svg, sheet.json
-statsheet audit --profile me.toml   # every string the share card holds
+tinkerprint init --out me.toml        # a commented starter profile
+tinkerprint build --profile me.toml   # sheet.html, card.svg, sheet.json
+tinkerprint audit --profile me.toml   # every string the share card holds
 ```
 
-`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to `~/.local/share/statsheet/sheets/<profile>/`. `python -m statsheet` works too. See `examples/profile.example.toml` for every profile option.
+`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to `~/.local/share/tinkerprint/sheets/<profile>/`. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
 
 ## What it reads
 
@@ -44,7 +44,7 @@ The full rules are in [METHOD.md](METHOD.md). Every sheet prints the method vers
 
 One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it never makes a share card unless you allow it.
 
-Each build saves a snapshot outside every repo, under `~/.local/share/statsheet/`. The next sheet opens with what changed since then.
+Each build saves a snapshot outside every repo, under `~/.local/share/tinkerprint/`. The next sheet opens with what changed since then.
 
 ## What it will not do
 

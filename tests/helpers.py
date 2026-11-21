@@ -6,9 +6,9 @@ SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from statsheet.events import Event, Inputs  # noqa: E402
-from statsheet.profile import parse_profile  # noqa: E402
-from statsheet.score import finish, score_core  # noqa: E402
+from tinkerprint.events import Event, Inputs  # noqa: E402
+from tinkerprint.profile import parse_profile  # noqa: E402
+from tinkerprint.score import finish, score_core  # noqa: E402
 
 
 def profile(projects, set="builder", tz="UTC", rollover=4, **extra):

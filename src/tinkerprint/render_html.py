@@ -131,7 +131,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 JS = """
 (function () {
   var btn = document.getElementById('themeBtn');
-  var key = 'statsheet-theme';
+  var key = 'tinkerprint-theme';
   function get() { try { return localStorage.getItem(key) || 'auto'; } catch (e) { return 'auto'; } }
   function put(v) { try { localStorage.setItem(key, v); } catch (e) {} }
   function apply(t) {
@@ -324,10 +324,10 @@ def render_html(sheet: dict, built_at: str = "") -> str:
     un_html = ""
     if un["sessions"] or un["edits"]:
         un_html = (f'<p class="lede">Outside every root: {plural(un["sessions"], "session")} in {plural(un["folders"], "folder")} and '
-                   f'{plural(un["edits"], "edited file")}. They are not scored. Run <code>statsheet build</code> in a terminal to list '
+                   f'{plural(un["edits"], "edited file")}. They are not scored. Run <code>tinkerprint build</code> in a terminal to list '
                    f'the folders, then add roots to the profile if they belong.</p>')
 
-    card_note = ("Card on. Run <code>statsheet audit</code> to see every string it holds."
+    card_note = ("Card on. Run <code>tinkerprint audit</code> to see every string it holds."
                  if sheet["card"].get("enabled") else e(sheet["card"].get("reason", "Card off.")))
     work = " · work profile" if prof.get("work") else ""
     as_of = f" · as of {day_label(season['as_of'])}" if season.get("as_of") else ""
@@ -339,13 +339,13 @@ def render_html(sheet: dict, built_at: str = "") -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="{CSP}">
-<title>{e(prof["name"])} · statsheet</title>
+<title>{e(prof["name"])} · tinkerprint</title>
 <style>{CSS}</style>
 </head>
 <body>
 <div class="wrap">
 <div class="top">
-  <div class="eyebrow">statsheet · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
+  <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
   <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
 </div>
 {_changes(sheet.get("changes"))}

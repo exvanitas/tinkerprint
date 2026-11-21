@@ -15,7 +15,7 @@ def data_home(override: str | None = None) -> str:
     if override:
         return os.path.abspath(os.path.expanduser(override))
     base = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
-    return os.path.join(base, "statsheet")
+    return os.path.join(base, "tinkerprint")
 
 
 def canonical(obj) -> str:

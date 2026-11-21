@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import helpers  # noqa: F401
 from helpers import commit, edit, profile, run, session
-from statsheet.events import Commit, Tag
+from tinkerprint.events import Commit, Tag
 
 
 def ids(sheet):

@@ -241,7 +241,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     core = {
         "format": SHEET_FORMAT,
         "method": METHOD_VERSION,
-        "tool": f"statsheet {__version__}",
+        "tool": f"tinkerprint {__version__}",
         "profile": {"name": profile.name, "set": profile.set, "work": profile.work,
                     "timezone": profile.timezone, "rollover_hour": profile.rollover_hour},
         "season": {"from": frm.isoformat() if frm else None, "to": to.isoformat() if to else None,

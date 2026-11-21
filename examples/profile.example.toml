@@ -1,6 +1,6 @@
-# Example statsheet profile for an invented person, Juno Brightwater.
+# Example tinkerprint profile for an invented person, Juno Brightwater.
 # Copy it, change the names and roots, then run:
-#   statsheet build --profile my-profile.toml
+#   tinkerprint build --profile my-profile.toml
 # Everything here stays on your machine. Roots never reach a sheet or a card.
 
 id = "juno-personal"          # names this profile's snapshots. Default: the file name.

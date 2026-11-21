@@ -4,7 +4,7 @@ Newest first. Every release gets a version, an entry here and a GitHub release.
 
 ## Unreleased
 
-- First build of the tool under the working name statsheet. Python 3.11, standard library only.
+- First build of tinkerprint. Python 3.11, standard library only.
 - Commands: `build`, `audit`, `init` and `demo`.
 - Readers for git, Claude Code, Codex and Antigravity. They keep times, folders, paths and counts. They never keep prompt, message or commit text.
 - Scoring follows METHOD.md version 1: one point per active day, log splits by project and stat, level, classes with a 2-point hold, party and achievements.

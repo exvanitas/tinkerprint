@@ -5,9 +5,9 @@ import unittest
 
 import helpers  # noqa: F401
 from helpers import profile
-from statsheet.classify import builder_stat, classify, is_skipped
-from statsheet.profile import ProfileError, parse_profile
-from statsheet.projects import glob_match, manifest_prior, scan_priors
+from tinkerprint.classify import builder_stat, classify, is_skipped
+from tinkerprint.profile import ProfileError, parse_profile
+from tinkerprint.projects import glob_match, manifest_prior, scan_priors
 
 
 class Rules(unittest.TestCase):
@@ -94,7 +94,7 @@ class ProfileValidation(unittest.TestCase):
             parse_profile({"project": []}, "/")
 
     def test_example_profile_loads(self):
-        from statsheet.profile import load_profile
+        from tinkerprint.profile import load_profile
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         prof = load_profile(os.path.join(here, "examples", "profile.example.toml"))
         self.assertGreaterEqual(len(prof.projects), 2)

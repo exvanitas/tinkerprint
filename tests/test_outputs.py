@@ -11,11 +11,11 @@ from contextlib import redirect_stdout
 from datetime import date
 
 import helpers  # noqa: F401
-from statsheet.audit import audit_lines
-from statsheet.build import build, compute
-from statsheet.demo import TOBI, WREN, make_person
-from statsheet.profile import load_profile
-from statsheet.render_card import card_strings
+from tinkerprint.audit import audit_lines
+from tinkerprint.build import build, compute
+from tinkerprint.demo import TOBI, WREN, make_person
+from tinkerprint.profile import load_profile
+from tinkerprint.render_card import card_strings
 
 SRC = helpers.SRC
 
@@ -130,7 +130,7 @@ class Built(unittest.TestCase):
         self.assertIn('class="radar"', page)
 
     def test_cli_audit_prints_card_strings(self):
-        from statsheet.cli import main
+        from tinkerprint.cli import main
         prof_path = os.path.join(self.world, "wren", "profile.toml")
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -145,7 +145,7 @@ class NoNetwork(unittest.TestCase):
     BANNED = {"urllib", "http", "socket", "requests", "ssl", "ftplib", "smtplib", "xmlrpc", "asyncio", "xml"}
 
     def test_no_network_imports_in_source(self):
-        for dirpath, _, files in os.walk(os.path.join(SRC, "statsheet")):
+        for dirpath, _, files in os.walk(os.path.join(SRC, "tinkerprint")):
             for name in files:
                 if not name.endswith(".py"):
                     continue
@@ -162,9 +162,9 @@ class NoNetwork(unittest.TestCase):
                         self.assertNotIn(m.split(".")[0], self.BANNED, f"{path} imports {m}")
 
     def test_no_network_modules_loaded_at_runtime(self):
-        code = ("import sys, pkgutil, importlib, statsheet\n"
-                "for m in pkgutil.walk_packages(statsheet.__path__, 'statsheet.'):\n"
-                "    if m.name != 'statsheet.__main__': importlib.import_module(m.name)\n"
+        code = ("import sys, pkgutil, importlib, tinkerprint\n"
+                "for m in pkgutil.walk_packages(tinkerprint.__path__, 'tinkerprint.'):\n"
+                "    if m.name != 'tinkerprint.__main__': importlib.import_module(m.name)\n"
                 "bad = sorted(n for n in sys.modules if n.split('.')[0] in ('socket','ssl','http','urllib','requests'))\n"
                 "print(','.join(bad))\n")
         out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,

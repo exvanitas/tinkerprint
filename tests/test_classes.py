@@ -2,7 +2,7 @@ import unittest
 
 import helpers  # noqa: F401
 from helpers import commit, profile, run
-from statsheet.classes import multiclass, raw_class, with_hysteresis
+from tinkerprint.classes import multiclass, raw_class, with_hysteresis
 
 B = "builder"
 

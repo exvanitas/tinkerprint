@@ -13,7 +13,7 @@ from .profile import ProfileError, load_profile
 from .snapshot import data_home
 from .timeutil import parse_day
 
-STARTER = '''# statsheet profile. Everything here stays on this machine.
+STARTER = '''# tinkerprint profile. Everything here stays on this machine.
 # One person can keep several profiles, for example a day job and personal projects.
 
 name = "Your Name"            # shown on the sheet and the card
@@ -120,7 +120,7 @@ def cmd_init(args) -> int:
         return 1
     with open(path, "w", encoding="utf-8") as f:
         f.write(STARTER.format(tz=_local_tz()))
-    print(f"Wrote {path}. Edit it, then run: statsheet build --profile {path}")
+    print(f"Wrote {path}. Edit it, then run: tinkerprint build --profile {path}")
     return 0
 
 
@@ -140,8 +140,8 @@ def cmd_demo(args) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="statsheet", description="An RPG stat sheet from your git history and coding-agent logs. Local only.")
-    p.add_argument("--version", action="version", version=f"statsheet {__version__}")
+    p = argparse.ArgumentParser(prog="tinkerprint", description="An RPG stat sheet from your git history and coding-agent logs. Local only.")
+    p.add_argument("--version", action="version", version=f"tinkerprint {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     b = sub.add_parser("build", help="build sheet.html, card.svg and sheet.json for a profile")
@@ -149,7 +149,7 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--season", help="FROM:TO dates, for example 2025-01-01:2025-06-30. Default: all history")
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
     b.add_argument("--out", help="output folder. Default: the data folder")
-    b.add_argument("--data-dir", help="cache and snapshot folder. Default: $XDG_DATA_HOME/statsheet")
+    b.add_argument("--data-dir", help="cache and snapshot folder. Default: $XDG_DATA_HOME/tinkerprint")
     b.add_argument("--list-unassigned", type=int, default=10, metavar="N", help="unassigned folders to list")
     b.set_defaults(func=cmd_build)
 
@@ -160,11 +160,11 @@ def parser() -> argparse.ArgumentParser:
     a.set_defaults(func=cmd_audit)
 
     i = sub.add_parser("init", help="write a commented starter profile")
-    i.add_argument("--out", default="statsheet.toml")
+    i.add_argument("--out", default="tinkerprint.toml")
     i.set_defaults(func=cmd_init)
 
     d = sub.add_parser("demo", help="build sheets for two invented people")
-    d.add_argument("--out", default="statsheet-demo")
+    d.add_argument("--out", default="tinkerprint-demo")
     d.set_defaults(func=cmd_demo)
     return p
 
@@ -174,7 +174,7 @@ def main(argv=None) -> int:
     try:
         return args.func(args)
     except (ProfileError, ValueError, OSError) as e:
-        print(f"statsheet: {e}", file=sys.stderr)
+        print(f"tinkerprint: {e}", file=sys.stderr)
         return 2
 
 

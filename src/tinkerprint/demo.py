@@ -1,4 +1,4 @@
-"""Synthetic people for `statsheet demo` and the tests.
+"""Synthetic people for `tinkerprint demo` and the tests.
 
 Everything here is invented: names, emails (example.test), projects, prompts and model ids.
 Repos are real git repos made with `git fast-import`. Harness logs follow the real formats.
@@ -446,7 +446,7 @@ def run_demo(out: str, people=PEOPLE, built_at: str = "demo build") -> list:
     from .build import build
     from .profile import load_profile
 
-    work = tempfile.mkdtemp(prefix="statsheet-demo-")
+    work = tempfile.mkdtemp(prefix="tinkerprint-demo-")
     results = []
     try:
         for person in people:

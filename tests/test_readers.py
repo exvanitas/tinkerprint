@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import helpers  # noqa: F401
-from statsheet.demo import RepoWriter, write_agy_db, write_claude_session, write_codex_session
-from statsheet.readers import agy, claude, codex
-from statsheet.readers.git import Identity, read_git
+from tinkerprint.demo import RepoWriter, write_agy_db, write_claude_session, write_codex_session
+from tinkerprint.readers import agy, claude, codex
+from tinkerprint.readers.git import Identity, read_git
 
 UTC = ZoneInfo("UTC")
 ME = ("Ida Fenwick", "ida@fenwick.example.test")
@@ -45,7 +45,7 @@ class GitReader(unittest.TestCase):
 
     def test_clones_dedupe_by_hash(self):
         import subprocess
-        from statsheet.demo import git_env
+        from tinkerprint.demo import git_env
         clone = os.path.join(self.tmp.name, "repo-two")
         subprocess.run(["git", "clone", "-q", self.root, clone], check=True, env=git_env())
         res = read_git([self.root, clone], Identity([ME[1]], []))
