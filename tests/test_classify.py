@@ -35,12 +35,18 @@ class Rules(unittest.TestCase):
             self.assertTrue(is_skipped(rel), rel)
         self.assertFalse(is_skipped("src/builder.py"))
 
-    def test_priors_relabel_logic_only(self):
+    def test_priors_come_before_paths_and_extensions(self):
+        # Review round 1, item 8: METHOD.md puts manifest priors right after overrides.
         self.assertEqual(builder_stat("src/cli.ts", "Tools"), "Tools")
+        self.assertEqual(builder_stat("components/app.tsx", "Tools"), "Tools")
+        self.assertEqual(builder_stat("tests/test_cli.py", "Tools"), "Tools")
+        self.assertEqual(builder_stat("docs/guide.md", "Tools"), "Docs")
         self.assertEqual(builder_stat("src/train.py", "Models"), "Models")
+        self.assertEqual(builder_stat("scripts/train.py", "Models"), "Models")
+        self.assertEqual(builder_stat("tests/test_train.py", "Models"), "Models")
         self.assertEqual(builder_stat("src/train.rs", "Models"), "Logic")
-        self.assertEqual(builder_stat("tests/test_train.py", "Models"), "Tests")
-        self.assertEqual(builder_stat("etl/load.py", "Data"), "Data")
+        self.assertEqual(builder_stat("scripts/load.py", "Data"), "Data")
+        self.assertEqual(builder_stat("scripts/load.sh", "Data"), "Tools")
 
     def test_overrides_win(self):
         prof = profile([("A", "/w/a", {"override": [{"glob": "**/*.png", "stats": {"Docs": 1}}],

@@ -120,16 +120,16 @@ def ext_stat(rel: str) -> str | None:
 def builder_stat(rel: str, prior: str | None) -> str | None:
     """Rules 2 to 5 for one file, as a builder stat or None for unclassified.
 
-    A manifest prior re-labels code that would otherwise be Logic: Tools for all of it,
-    Models and Data for its Python.
+    Rule 2, manifest priors, comes before paths and extensions: a Tools prior takes all of the
+    project's code, a Models or Data prior takes its Python. Other files fall through.
     """
     if _is_agent_note(rel):
         return None
-    stat = path_stat(rel) or ext_stat(rel)
-    if stat == "Logic" and prior:
-        if prior == "Tools" or ext_of(rel) in (".py", ".pyi"):
-            return prior
-    return stat
+    if prior == "Tools" and is_code(rel):
+        return "Tools"
+    if prior in ("Models", "Data") and ext_of(rel) in (".py", ".pyi"):
+        return prior
+    return path_stat(rel) or ext_stat(rel)
 
 
 def classify(rel: str, project, set_name: str, priors: dict):
