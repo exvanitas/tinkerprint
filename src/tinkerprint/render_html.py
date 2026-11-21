@@ -140,6 +140,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 @keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .portrait.flip svg.alt { animation: none; opacity: 0; } }
 .costume { font-size: 12px; color: var(--muted); margin-top: 4px; }
+svg.defs { position: absolute; width: 0; height: 0; }
 .chron { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
 .chap { flex: none; width: 132px; padding: 10px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; }
 .chap svg { width: 64px; height: 64px; border-radius: 6px; margin-bottom: 6px; }
@@ -305,6 +306,7 @@ def _chronicle(sheet: dict, pack: dict) -> str:
     set_name = sheet["profile"]["set"]
     cards = []
     cache: dict = {}
+    defs: list = []
     for i, ch in enumerate(chapters):
         if ch.get("rest"):
             fire = art.plate(pack, set_name)
@@ -316,7 +318,11 @@ def _chronicle(sheet: dict, pack: dict) -> str:
             continue
         look = art.chapter_look(ch, set_name)
         if look not in cache:
-            cache[look] = art.portrait(pack, look).svg(2, "", "px")
+            # Each look is drawn once in <defs>. Chapters that share it reuse it.
+            ref = f"look-{len(cache)}"
+            defs.append(f'<g id="{ref}">' + "".join(art.portrait(pack, look).svg_paths()) + "</g>")
+            cache[look] = (f'<svg class="px" viewBox="0 0 32 32" width="64" height="64" shape-rendering="crispEdges" '
+                           f'aria-hidden="true"><use href="#{ref}"/></svg>')
         c = ch.get("class")
         name = c["name"] if c else "Unclassed"
         close = f'<div class="n">close to {e(ch["close"])}</div>' if ch.get("close") else ""
@@ -326,6 +332,7 @@ def _chronicle(sheet: dict, pack: dict) -> str:
                      f'</article>')
     return ('<h2>Chronicle</h2><p class="lede">One chapter per calendar quarter, over all history. Each shows the class '
             'that quarter\'s points would give on their own. Quiet quarters rest at camp.</p>'
+            f'<svg class="defs" width="0" height="0" aria-hidden="true"><defs>{"".join(defs)}</defs></svg>'
             f'<div class="chron">{"".join(cards)}</div>')
 
 
