@@ -74,6 +74,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     unassigned_edits = set()          # files changed outside every root in season
     outside_bulk = Counter()          # commit -> added non-code files outside every root
     lines = []
+    latest = None
     for ev in sorted(inp.events):
         dt = parse_ts(ev.ts)
         if dt is None:
@@ -81,6 +82,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         d = day_of(dt, tz, ro)
         if not in_bounds(d):
             continue
+        latest = d if latest is None or d > latest else latest
         hit = resolver.resolve_root(ev.path)
         outside = hit is None or (ev.kind != "session" and not hit[2])
         if outside:
@@ -295,7 +297,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "inputs": {"commits": counted["commits"], "agent_edits": counted["edits"],
                    "sessions": len(mine)},
     }
-    local = {"shares": shares,
+    local = {"shares": shares, "latest_day": latest,
              "unassigned_folders": sorted(((f, len(v)) for f, v in out_sessions.items()), key=lambda kv: (-kv[1], kv[0])),
              "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
     core["card"] = card_fields(core, profile)

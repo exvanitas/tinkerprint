@@ -135,9 +135,12 @@ DESTINATIONS = ("", "cache", "history", "sheets", "last-build")
 
 
 def check_data_home(home: str, profile: Profile) -> None:
+    check_dirs(profile, [os.path.join(home, sub) if sub else home for sub in DESTINATIONS])
+
+
+def check_dirs(profile: Profile, dirs) -> None:
     roots = [r for p in profile.projects for r in p.roots]
-    for sub in DESTINATIONS:
-        dest = os.path.join(home, sub) if sub else home
+    for dest in dirs:
         why = inside_repo_or_root(dest, roots)
         if why:
             raise ValueError(f"data folder {dest} is refused: {why}. Use --data-dir or XDG_DATA_HOME to pick "
@@ -200,9 +203,13 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     Nothing reaches history unless every output was written.
     """
     home = data_home(home)
-    sheet, local = compute(profile, season, as_of, home, inputs)
-    stamp = as_of or today or date.today()
     hist = History(home, profile.id, season)
+    pointer = os.path.join(home, "last-build", profile.id + ".json")
+    # The guard checks the folders that actually receive writes, after symlinks.
+    check_dirs(profile, [hist.dir, os.path.dirname(pointer)])
+    sheet, local = compute(profile, season, as_of, home, inputs)
+    # A sheet saved without --as-of is dated so that it holds nothing after its date.
+    stamp = as_of or max(today or date.today(), local.get("latest_day") or date.min)
     prev_day, prev = hist.previous(stamp)
     changes = compare(sheet, prev, prev_day)
     os.makedirs(out_dir, exist_ok=True)
@@ -217,8 +224,9 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
         paths["card"] = card_path
     elif os.path.exists(card_path):
         os.remove(card_path)
+    os.makedirs(os.path.dirname(pointer), exist_ok=True)
+    _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
+    # History is published last: a build that failed anywhere earlier never becomes a comparison.
     hist.save(stamp, sheet)
-    os.makedirs(os.path.join(home, "last-build"), exist_ok=True)
-    _write(os.path.join(home, "last-build", profile.id + ".json"), pretty({"out": os.path.abspath(out_dir)}))
     return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
             "warnings": local.get("warnings", [])}

@@ -8,7 +8,7 @@ from datetime import datetime
 
 from . import __version__
 from .audit import audit_card
-from .build import build, default_out, last_out, parse_season
+from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
 from .datadir import data_home
 from .timeutil import parse_day
@@ -86,6 +86,8 @@ def cmd_build(args) -> int:
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
     out = args.out or default_out(home, profile)
+    if not args.out:
+        check_dirs(profile, [out])
     res = build(profile, out, season, as_of, home, built_at=_now())
     s = res["sheet"]
     cls = (s.get("class") or {}).get("name", "Unclassed")
