@@ -7,8 +7,8 @@ import sys
 from datetime import datetime
 
 from . import __version__
-from .audit import audit_lines
-from .build import build, compute, parse_season
+from .audit import audit_build
+from .build import build, parse_season
 from .profile import ProfileError, load_profile
 from .snapshot import data_home
 from .timeutil import parse_day
@@ -85,7 +85,7 @@ def cmd_build(args) -> int:
     season = parse_season(args.season)
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
-    out = args.out or os.path.join(home, "sheets", profile.id)
+    out = args.out or default_out(home, profile)
     res = build(profile, out, season, as_of, home, built_at=_now())
     s = res["sheet"]
     cls = (s.get("class") or {}).get("name", "Unclassed")
@@ -121,10 +121,14 @@ def unassigned_lines(local: dict, limit: int) -> list:
     return out
 
 
+def default_out(home: str, profile) -> str:
+    return os.path.join(home, "sheets", profile.id)
+
+
 def cmd_audit(args) -> int:
     profile = load_profile(args.profile)
-    sheet = compute(profile, parse_season(args.season), None, data_home(args.data_dir))[0]
-    print("\n".join(audit_lines(sheet, profile.id)))
+    out = args.out or default_out(data_home(args.data_dir), profile)
+    print("\n".join(audit_build(out, profile)))
     return 0
 
 
@@ -168,9 +172,9 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--list-unassigned", type=int, default=10, metavar="N", help="unassigned folders to list")
     b.set_defaults(func=cmd_build)
 
-    a = sub.add_parser("audit", help="print every string the share card would hold")
+    a = sub.add_parser("audit", help="print every string the built share card holds")
     a.add_argument("--profile", required=True)
-    a.add_argument("--season")
+    a.add_argument("--out", help="the build folder to audit. Default: the profile's folder in the data folder")
     a.add_argument("--data-dir")
     a.set_defaults(func=cmd_audit)
 

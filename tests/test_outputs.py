@@ -134,7 +134,7 @@ class Built(unittest.TestCase):
         prof_path = os.path.join(self.world, "wren", "profile.toml")
         buf = io.StringIO()
         with redirect_stdout(buf):
-            code = main(["audit", "--profile", prof_path, "--data-dir", os.path.join(self.tmp.name, "data", "wren")])
+            code = main(["audit", "--profile", prof_path, "--out", os.path.join(self.tmp.name, "out", "wren")])
         self.assertEqual(code, 0)
         self.assertIn("Wren Aldous", buf.getvalue())
         for word in self.distinctive("wren"):

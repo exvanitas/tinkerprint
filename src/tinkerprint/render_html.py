@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from html import escape
 
+from . import radar
 from .timeutil import day_label
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
@@ -166,38 +167,31 @@ def pts(x: float) -> str:
 def _radar(stats: list) -> str:
     cx, cy, r = 280, 262, 182
     n = len(stats)
-    peak = max([s["share"] for s in stats] + [0.0])
-    vmax = max(0.2, math.ceil(peak * 5 - 1e-9) / 5)
 
-    def ang(i):
-        return math.radians(-90 + i * 360 / n)
-
-    def pt(i, v):
-        return cx + math.cos(ang(i)) * r * v / vmax, cy + math.sin(ang(i)) * r * v / vmax
+    def pt(i, frac):
+        return radar.point(cx, cy, r, i, n, frac)
 
     out = ['<svg class="radar" viewBox="0 0 560 520" role="img" aria-label="Radar of stat shares">']
-    for k in range(1, 5):
-        ring = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, vmax * k / 4) for i in range(n)))
+    for ring_share in radar.RINGS:
+        fr = radar.radius(ring_share)
+        ring = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, fr) for i in range(n)))
         out.append(f'<polygon class="ring" points="{ring}"/>')
-        a = ang(0) + math.pi / n
-        lr = r * k / 4
-        out.append(f'<text class="tick" x="{cx + math.cos(a) * lr:.1f}" y="{cy + math.sin(a) * lr - 4:.1f}" '
-                   f'text-anchor="middle">{round(vmax * k / 4 * 100)}%</text>')
+        a = math.radians(-90) + math.pi / n
+        out.append(f'<text class="tick" x="{cx + math.cos(a) * r * fr:.1f}" y="{cy + math.sin(a) * r * fr - 4:.1f}" '
+                   f'text-anchor="middle">{round(ring_share * 100)}%</text>')
     for i in range(n):
-        x, y = pt(i, vmax)
+        x, y = pt(i, 1.0)
         out.append(f'<line class="spoke" x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}"/>')
-    area = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, s["share"]) for i, s in enumerate(stats)))
+    area = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, radar.radius(s["share"])) for i, s in enumerate(stats)))
     out.append(f'<polygon class="area" points="{area}"/>')
     for i, s in enumerate(stats):
-        x, y = pt(i, s["share"])
+        x, y = pt(i, radar.radius(s["share"]))
         out.append(f'<circle class="pt" cx="{x:.1f}" cy="{y:.1f}" r="4"><title>{e(s["key"])}: {pct(s["share"])}, '
                    f'{pts(s["points"])} points</title></circle>')
     for i, s in enumerate(stats):
-        x, y = pt(i, vmax * 1.13)
-        c = math.cos(ang(i))
-        anchor = "middle" if abs(c) < 0.2 else ("start" if c > 0 else "end")
+        x, y = pt(i, radar.LABEL_AT)
         cls = "lab" if s["points"] > 0 else "lab zero"
-        out.append(f'<text class="{cls}" x="{x:.1f}" y="{y + 5:.1f}" text-anchor="{anchor}">{e(s["key"])}</text>')
+        out.append(f'<text class="{cls}" x="{x:.1f}" y="{y + 5:.1f}" text-anchor="{radar.anchor(i, n)}">{e(s["key"])}</text>')
     out.append("</svg>")
     return "\n".join(out)
 
@@ -254,7 +248,9 @@ def render_html(sheet: dict, built_at: str = "") -> str:
     why = e(cls["why"]) if cls else "No classified points yet."
     if cls and cls.get("held"):
         why += " Held from the last sheet: the new class did not lead by more than 2 points."
-    if multi:
+    if multi and multi.get("held"):
+        why += f" Multiclass {e(multi['stats'][0])} and {e(multi['stats'][1])} held from the last sheet."
+    elif multi:
         why += f" Multiclass: {e(multi['stats'][0])} and {e(multi['stats'][1])} each hold 10% or more."
 
     lo = hist["level"] ** 2
@@ -269,7 +265,8 @@ def render_html(sheet: dict, built_at: str = "") -> str:
 
     if sheet["chart"] == "radar":
         chart = _radar(stats)
-        chart_note = "Eight spokes in the set's order, so two sheets of the same set overlay."
+        chart_note = ("Eight spokes in the set's order on a square-root scale that is the same on every sheet, "
+                      "so two sheets of the same set overlay.")
     else:
         chart = _bars(stats)
         chart_note = "Fewer than three stats have points, so the sheet shows ranked bars instead of a radar."

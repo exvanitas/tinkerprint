@@ -387,6 +387,7 @@ def card_fields(sheet: dict, profile) -> dict:
         "achievements": [{"title": a["title"], "when": day_label(a["date"]) if exact else month_label(a["date"])}
                          for a in sheet["achievements"]],
         "party": [m["name"] for m in sheet["party"]],
+        "chart": sheet["chart"],
     }
     if "projects" in profile.card_show:
         card["projects"] = [p["name"] for p in sheet["projects"][:3]]

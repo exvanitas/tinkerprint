@@ -1,6 +1,7 @@
 """Build pipeline: read sources, score, snapshot, render."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from datetime import date
@@ -19,8 +20,24 @@ from .timeutil import parse_day
 CACHE_VERSION = 2
 
 
+def _digest(path: str) -> str | None:
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
 def _cached(files: list, reader, cache_path: str) -> list:
-    """Read harness files through a cache keyed by path, size and mtime. The cache stays in the data folder."""
+    """Read harness files through a cache keyed on content. The cache stays in the data folder.
+
+    An entry is reused without rereading when size, mtime, ctime and inode all match. Any write
+    or restore of a file changes its ctime, which no ordinary tool can set back. Otherwise the
+    file's SHA-256 must match the stored one, or the file is read again.
+    """
     try:
         with open(cache_path, encoding="utf-8") as f:
             cache = json.load(f)
@@ -36,12 +53,21 @@ def _cached(files: list, reader, cache_path: str) -> list:
             st = os.stat(path)
         except OSError:
             continue
-        c = old.get(path)
-        if c and c.get("size") == st.st_size and c.get("mtime") == st.st_mtime_ns:
+        stamp = [st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino]
+        c = old.get(path) or {}
+        digest = c.get("sha256")
+        if c.get("stat") == stamp and digest:
             evs = [Event.from_dict(x) for x in c.get("events", [])]
         else:
-            evs = reader(path)
-        new[path] = {"size": st.st_size, "mtime": st.st_mtime_ns, "events": [e.to_dict() for e in evs]}
+            now = _digest(path)
+            if now is None:
+                continue
+            if now == digest:
+                evs = [Event.from_dict(x) for x in c.get("events", [])]
+            else:
+                evs = reader(path)
+            digest = now
+        new[path] = {"stat": stamp, "sha256": digest, "events": [e.to_dict() for e in evs]}
         events.extend(evs)
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
