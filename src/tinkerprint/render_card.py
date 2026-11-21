@@ -69,7 +69,7 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     out.append("</g>")
     # Left column: who and what.
     out.append(_t(TX, 92, v["set"], 18, 600, "#9c9a92", spacing="3"))
-    out.append(_t(TX, 156, v["name"], _fit(v["name"], 60, LEFT_WIDTH - (TX - 64)), 700))
+    out.append(_t(TX, 156, v["name"], name_size(v["name"]), 700))
     # Class names are never cut. Each line shrinks until it fits the left column.
     out.append(_t(64, 238, v["class"], _fit(v["class"], 34), 600, "#7fb0f0"))
     if v["multiclass"]:
@@ -143,6 +143,37 @@ def _bars(bars: list) -> list:
 
 
 LEFT_WIDTH = 540  # px from x=64 before the chart begins
+
+
+NAME_RIGHT = 560  # the name ends here, clear of the radar's top-left spoke label
+
+# Generous bold glyph widths in em, by class, so the widest system fonts still fit.
+_WIDE, _NARROW, _THIN = set("WMmw@"), set("ijlI.,'|!:;"), set("ftr")
+
+
+def text_em(text: str) -> float:
+    """The width of bold text in em: a fixed table, deterministic, on the wide side."""
+    em = 0.0
+    for ch in text:
+        if ch in _WIDE:
+            em += 1.05
+        elif ch in _NARROW:
+            em += 0.36
+        elif ch == " ":
+            em += 0.35
+        elif ch in _THIN:
+            em += 0.48
+        elif ch.islower():
+            em += 0.68
+        else:
+            em += 0.82
+    return em
+
+
+def name_size(name: str) -> int:
+    """The name's font size: 60 px, stepped down until the name fits between the portrait and
+    NAME_RIGHT. Deterministic, never cut beyond the card's 22-character clip."""
+    return max(12, min(60, int((NAME_RIGHT - TX) / max(1.0, text_em(name)))))
 
 
 def _fit(text: str, size: int, width: int = LEFT_WIDTH) -> int:

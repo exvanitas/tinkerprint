@@ -253,6 +253,24 @@ class Built(unittest.TestCase):
         card["class"] = "Warden"
         self.assertNotEqual(render_card(card), before)
 
+    def test_long_names_stay_clear_of_the_radar(self):
+        """The name's box ends at least 16 px before the radar's top-left label starts, at any length."""
+        from tinkerprint import radar
+        from tinkerprint.render_card import text_em
+        base = self.out["wren"]["sheet"]["card"]
+        n = len(base["stats"])
+        lx, _ = radar.point(850, 300, 190, n - 1, n, radar.LABEL_AT)
+        label_start = lx - 0.62 * 19 * max(len(s["stat"]) for s in base["stats"])
+        for name in ("Wren Aldous", "Wilhelmina Montgomery-Wolfe", "W" * 28, "Mm" * 11):
+            card = dict(base, name=name)
+            svg = render_card(card)
+            m = re.search(r'<text x="([\d.]+)" y="156.0" font-size="(\d+)" font-weight="700"[^>]*>([^<]+)</text>', svg)
+            self.assertIsNotNone(m, name)
+            x, size, text = float(m.group(1)), int(m.group(2)), m.group(3)
+            self.assertEqual(text, name[:22] if len(name) <= 22 else name[:21].rstrip() + "…")
+            end = x + size * text_em(text)
+            self.assertLessEqual(end + 16, label_start, (name, size, end, label_start))
+
     def test_portrait_png_is_written_and_valid(self):
         for res in self.out.values():
             with open(res["paths"]["portrait"], "rb") as f:
