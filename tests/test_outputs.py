@@ -141,7 +141,7 @@ class Built(unittest.TestCase):
 
 
 class NoNetwork(unittest.TestCase):
-    BANNED = {"urllib", "http", "socket", "requests", "ssl", "ftplib", "smtplib", "xmlrpc", "asyncio", "xml"}
+    BANNED = {"urllib", "http", "socket", "requests", "ssl", "ftplib", "smtplib", "xmlrpc", "asyncio", "xml"}  # pyexpat is fine
 
     def test_no_network_imports_in_source(self):
         for dirpath, _, files in os.walk(os.path.join(SRC, "tinkerprint")):

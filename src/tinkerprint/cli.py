@@ -124,9 +124,19 @@ def unassigned_lines(local: dict, limit: int) -> list:
 
 
 def cmd_audit(args) -> int:
-    profile = load_profile(args.profile)
-    home = data_home(args.data_dir)
-    out = args.out or last_out(home, profile) or default_out(home, profile)
+    try:
+        profile = load_profile(args.profile)
+    except (ProfileError, OSError) as e:
+        if not args.out:
+            raise
+        # An explicit card folder can be audited without its profile.
+        print(f"Profile not readable ({e}). Auditing {args.out} alone.")
+        profile = None
+    if args.out:
+        out = args.out
+    else:
+        home = data_home(args.data_dir)
+        out = last_out(home, profile) or default_out(home, profile)
     print("\n".join(audit_card(out, profile)))
     return 0
 
