@@ -6,6 +6,7 @@ import json
 import os
 from datetime import date, datetime, time, timedelta
 
+from . import art
 from .events import Event, Inputs
 from .profile import Profile
 from .projects import Resolver, canonical, scan_priors
@@ -197,7 +198,7 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
 
 def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | None = None,
           home: str | None = None, built_at: str = "", inputs: Inputs | None = None,
-          today: date | None = None) -> dict:
+          today: date | None = None, pack: dict | None = None) -> dict:
     """Score, compare with the newest earlier saved sheet, write the outputs, then save to history.
 
     Nothing reaches history unless every output was written.
@@ -217,13 +218,20 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
              "html": os.path.join(out_dir, "sheet.html")}
     _write(paths["json"], pretty(sheet))
     _write(paths["changes"], pretty(changes))
-    _write(paths["html"], render_html(sheet, built_at, changes))
+    pack = pack or art.default_pack()
+    _write(paths["html"], render_html(sheet, built_at, changes, pack))
     card_path = os.path.join(out_dir, "card.svg")
+    png_path = os.path.join(out_dir, "portrait.png")
     if sheet["card"].get("enabled"):
-        _write(card_path, render_card(sheet["card"]))
+        _write(card_path, render_card(sheet["card"], pack))
         paths["card"] = card_path
-    elif os.path.exists(card_path):
-        os.remove(card_path)
+        # The portrait as a PNG, from the card's allowlisted fields only.
+        _write(png_path, art.portrait(pack, art.card_look(sheet["card"])).png(8))
+        paths["portrait"] = png_path
+    else:
+        for path in (card_path, png_path):
+            if os.path.exists(path):
+                os.remove(path)
     os.makedirs(os.path.dirname(pointer), exist_ok=True)
     _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
     # History is published last: a build that failed anywhere earlier never becomes a comparison.

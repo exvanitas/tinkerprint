@@ -206,12 +206,12 @@ class Stream:
         return xs
 
 
-BANNER_W, BANNER_H = 192, 48
-SHELF_SLOTS = [(44 + 9 * i, 17) for i in range(4)] + [(130 + 9 * i, 11) for i in range(6)] + \
-              [(130 + 9 * i, 25) for i in range(6)]
+BANNER_W, BANNER_H = 224, 48
+SHELF_SLOTS = [(44 + 9 * i, 17) for i in range(4)] + [(158 + 9 * i, 11) for i in range(7)] + \
+              [(158 + 9 * i, 25) for i in range(7)]
 
 
-def shelf_counts(ranked_pcts: list, slots: int = 14) -> list:
+def shelf_counts(ranked_pcts: list, slots: int = 16) -> list:
     """How many trinkets each stat puts on the shelves: share of the slots, at least one each."""
     out = []
     for stat, p in ranked_pcts:
@@ -264,12 +264,10 @@ def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str
         c.rect(x + rng.below(6), 41 + 3 * rng.below(2), 1, 2, sp["board2"])
     # Window with a night sky.
     _window(c, pack, rng, 8, 7)
-    # Hanging lamp over the bench.
-    _lamp(c, pack, 60, sp)
     # Shelves and trinkets.
     _shelf(c, pack, 42, 18, 38, sp)
-    _shelf(c, pack, 128, 12, 56, sp)
-    _shelf(c, pack, 128, 26, 56, sp)
+    _shelf(c, pack, 156, 12, 65, sp)
+    _shelf(c, pack, 156, 26, 65, sp)
     stock = []
     for stat, n in shelf_counts(ranked_pcts):
         stock += [stat] * n
@@ -293,12 +291,13 @@ def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str
         c.set(x, 41, rug[2])
         c.set(x + 1, 43, rug[2])
     c.paste(figure(pack, look), 88, 13)
-    # Familiars on the floor, right of the figure.
+    _pennant(c, pack, 134, 5, rug, _ramp(pack, look.item) if look.item else rug)
+    # Familiars on the floor in front, right of the figure.
     x = 124
     for h in harnesses[:3]:
         f = familiar(pack, h)
-        c.paste(f, x, 42 - f.h + 1)
-        x += f.w - 1
+        c.paste(f, x, 46 - f.h + 1)
+        x += f.w + 1
     return c
 
 
@@ -320,18 +319,18 @@ def _window(c, pack, rng, x0, y0):
     c.rect(x0 - 3, y0 + h + 1, w + 6, 2, "#9a6a42")
 
 
-def _lamp(c, pack, x, sp):
-    for y in range(3, 8):
-        c.set(x, y, "#687389")
-    c.rect(x - 3, 8, 7, 1, "#4b566d")
-    c.rect(x - 2, 9, 5, 4, "#ffe68a")
-    c.rect(x - 1, 10, 3, 2, "#fffaf0")
-    c.rect(x - 3, 13, 7, 1, "#4b566d")
-    glow = mix(sp["wall"], "#ffe68a", 0.18)
-    for dx in range(-9, 10):
-        for dy in range(-1, 12):
-            if dx * dx + (dy - 5) ** 2 * 2 <= 70 and c.get(x + dx, 8 + dy) == sp["wall"]:
-                c.set(x + dx, 8 + dy, glow)
+def _pennant(c, pack, x, y, ramp, accent):
+    """A wall hanging in the top stat's colors with the runner-up's diamond."""
+    c.rect(x - 1, y, 14, 1, "#7d5432")
+    c.set(x + 6, y - 1, "#7d5432")
+    for j in range(14):
+        inset = max(0, j - 9)
+        c.rect(x + inset, y + 1 + j, 12 - 2 * inset, 1, ramp[1])
+        c.set(x + inset, y + 1 + j, ramp[0])
+        c.set(x + 11 - inset, y + 1 + j, ramp[2])
+    for j, w in enumerate((2, 4, 6, 4, 2)):
+        c.rect(x + 6 - w // 2, y + 4 + j, w, 1, accent[0] if j < 2 else accent[1])
+    c.rect(x, y + 1, 12, 1, "#f7cf5a")
 
 
 def _shelf(c, pack, x, y, w, sp):

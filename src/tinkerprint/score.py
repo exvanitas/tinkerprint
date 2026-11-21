@@ -12,7 +12,8 @@ from datetime import date
 
 from . import METHOD_VERSION, SHEET_FORMAT, __version__
 from .achievements import evaluate
-from .classes import class_key, multiclass, pick_class, ranked
+from .chronicle import chronicle
+from .classes import card_pct, class_key, multiclass, pick_class, ranked
 from .classify import classify, is_code, is_skipped, language_of
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
@@ -304,6 +305,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "party": party,
         "achievements": achievements,
         "milestones": ms,
+        "chronicle": chronicle(day_points, profile.set),
         "unassigned": {"sessions": len(un_sessions), "folders": len(un_folders), "edits": len(unassigned_edits)},
         "inputs": {"commits": counted["commits"], "agent_edits": counted["edits"],
                    "sessions": len(mine)},
@@ -389,7 +391,7 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
     for r in sheet["stats"]:
         full = shares.get(r["key"], r["share"]) if shares else r["share"]
         # Under 5% at full precision stays off the card. The rest round to the nearest 5%.
-        pct = 0 if full < 0.05 else int(round(full * 20)) * 5
+        pct = card_pct(full)
         stats.append({"stat": r["key"], "pct": pct})
     # The card's chart follows the rounded public shares, so it never reveals stats under 5%.
     public_chart = "radar" if sum(1 for x in stats if x["pct"] > 0) >= 3 else "bars"

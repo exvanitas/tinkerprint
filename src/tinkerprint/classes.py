@@ -15,6 +15,11 @@ MULTICLASS_AT = 0.10
 CLOSE = 0.02
 
 
+def card_pct(share: float) -> int:
+    """A share as the card shows it: under 5% is 0, the rest round to the nearest 5%."""
+    return 0 if share < 0.05 else int(round(share * 20)) * 5
+
+
 def ranked(shares: dict, set_name: str) -> list:
     """Stats by full-precision share, highest first. Equal shares go to the earlier stat in the set."""
     order = stats_of(set_name)

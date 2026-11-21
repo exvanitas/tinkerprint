@@ -16,7 +16,7 @@ PRESENTATION = {
     "xmlns", "viewBox", "width", "height", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry",
     "fill", "stroke", "stroke-width", "stroke-linejoin", "stroke-linecap", "fill-opacity", "stroke-opacity",
     "opacity", "font-family", "font-size", "font-weight", "text-anchor", "letter-spacing", "points", "d",
-    "transform", "role", "version", "preserveAspectRatio", "dominant-baseline",
+    "transform", "role", "version", "preserveAspectRatio", "dominant-baseline", "shape-rendering",
 }
 
 

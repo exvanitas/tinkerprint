@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from html import escape
 
-from . import radar
+from . import art, radar
 from .timeutil import day_label
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
@@ -127,6 +127,37 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .method b { color: var(--ink); }
 .foot { margin-top: 36px; font-size: 12px; color: var(--muted); }
 .empty { color: var(--muted); font-size: 14px; }
+.px { display: block; image-rendering: pixelated; }
+.banner { margin: 0 0 14px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-2); background: #16213d; }
+.banner svg { width: 100%; height: auto; }
+.nameplate { align-items: flex-start; }
+.nameplate .who { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.portrait { position: relative; flex: none; width: 128px; height: 128px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border-2); }
+.portrait svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.portrait.flip svg.alt { animation: costume 6s steps(1) infinite; }
+.portrait.flip:hover svg.alt { animation: none; opacity: 1; }
+@keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .portrait.flip svg.alt { animation: none; opacity: 0; } }
+.costume { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.chron { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
+.chap { flex: none; width: 132px; padding: 10px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; }
+.chap svg { width: 64px; height: 64px; border-radius: 6px; margin-bottom: 6px; }
+.chap .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.chap .c { font-weight: 600; font-size: 14px; line-height: 1.25; }
+.chap .n { font-size: 12px; color: var(--muted); }
+.chap.rest { background: var(--surface-2); }
+.chap.now { border-color: var(--me); }
+.trinket { flex: none; width: 40px; height: 40px; }
+.trinket svg { width: 100%; height: 100%; }
+.stat.zero .trinket { filter: grayscale(1); }
+.comp { grid-template-columns: auto 1fr auto; }
+.comp .fam { grid-row: 1 / span 2; width: 60px; height: 60px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.comp .fam svg { width: 100%; height: 100%; }
+.comp .big { grid-column: 3; }
+.ach { display: grid; grid-template-columns: 40px 1fr; gap: 0 12px; align-items: start; }
+.ach .ic svg { width: 40px; height: 40px; }
+.ms li .ic { display: inline-block; vertical-align: -4px; margin-right: 6px; }
 """
 
 JS = """
@@ -236,7 +267,71 @@ def _changes(ch: dict | None) -> str:
             f'<ul>{lis}</ul></section>')
 
 
-def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) -> str:
+
+def _art(sheet: dict, pack: dict) -> dict:
+    """Every picture on the sheet. All of it comes from sheet.json and the pack."""
+    set_name = sheet["profile"]["set"]
+    main, alt = art.sheet_looks(sheet)
+    cls = sheet.get("class")
+    name = cls["name"] if cls else "Unclassed"
+    a = {}
+    a["portrait"] = art.portrait(pack, main).svg(3, f"Portrait of a {name}", "px main")
+    a["costume"] = ""
+    a["flip"] = ""
+    if alt:
+        other = cls["close"]["name"]
+        a["portrait"] += art.portrait(pack, alt).svg(3, f"Portrait of a {other}", "px alt")
+        a["flip"] = " flip"
+        a["costume"] = f'<div class="costume">Close call: the portrait changes into the {e(other)} costume.</div>'
+    pcts = art.sheet_pcts(sheet)
+    ranked = [(s, pcts[s]) for s in art.art_rank(pcts, set_name)]
+    harnesses = [m["harness"] for m in sheet["party"]]
+    seed = "|".join([set_name, name] + [f"{s}={p}" for s, p in ranked] + harnesses)
+    a["banner"] = art.banner(pack, main, ranked, harnesses, seed).svg(
+        1, f"A workshop: shelves hold {', '.join(s for s, _ in ranked[:4]) or 'nothing yet'}", "px")
+    a["familiar"] = {m["harness"]: art.familiar(pack, m["harness"]).svg(3, f"{m['name']} familiar", "px")
+                     for m in sheet["party"]}
+    a["icon"] = {x["id"]: art.icon(pack, x["id"]).svg(2, "", "px") for x in sheet["achievements"]}
+    a["milestone"] = art.icon(pack, "milestone").svg(1, "", "px")
+    a["trinket"] = {r["key"]: art.trinket(pack, r["key"]).svg(4, "", "px") for r in sheet["stats"]}
+    a["chronicle"] = _chronicle(sheet, pack)
+    return a
+
+
+def _chronicle(sheet: dict, pack: dict) -> str:
+    chapters = sheet.get("chronicle") or []
+    if not chapters:
+        return ""
+    set_name = sheet["profile"]["set"]
+    cards = []
+    cache: dict = {}
+    for i, ch in enumerate(chapters):
+        if ch.get("rest"):
+            fire = art.plate(pack, set_name)
+            fire.paste(art.campfire(pack), 7, 13)
+            span = ch["label"] if ch["quarters"] == 1 else f'{ch["label"]} to {ch["label_to"]}'
+            cards.append(f'<article class="card chap rest">{fire.svg(2, "A campfire", "px")}'
+                         f'<div class="q">{e(span)}</div><div class="c">Resting at camp</div>'
+                         f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></article>')
+            continue
+        look = art.chapter_look(ch, set_name)
+        if look not in cache:
+            cache[look] = art.portrait(pack, look).svg(2, "", "px")
+        c = ch.get("class")
+        name = c["name"] if c else "Unclassed"
+        close = f'<div class="n">close to {e(ch["close"])}</div>' if ch.get("close") else ""
+        now = " now" if i == len(chapters) - 1 else ""
+        cards.append(f'<article class="card chap{now}">{cache[look]}<div class="q">{e(ch["label"])}</div>'
+                     f'<div class="c">{e(name)}</div>{close}<div class="n">{plural(ch["active_days"], "active day")}</div>'
+                     f'</article>')
+    return ('<h2>Chronicle</h2><p class="lede">One chapter per calendar quarter, over all history. Each shows the class '
+            'that quarter\'s points would give on their own. Quiet quarters rest at camp.</p>'
+            f'<div class="chron">{"".join(cards)}</div>')
+
+
+def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pack: dict | None = None) -> str:
+    pack = pack or art.default_pack()
+    pix = _art(sheet, pack)
     prof = sheet["profile"]
     hist = sheet["history"]
     tot = sheet["season_totals"]
@@ -284,7 +379,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) ->
                 else '<p class="empty">No points this season.</p>')
         zero = "" if s["points"] > 0 else " zero"
         cards.append(
-            f'<article class="card stat{zero}"><header><span class="code">{e(s["key"][:3].upper())}</span>'
+            f'<article class="card stat{zero}"><header><span class="trinket">{pix["trinket"][s["key"]]}</span>'
             f'<h3>{e(s["key"])}</h3><div class="pts">{pct(s["share"])}<small>{pts(s["points"])} pts</small></div>'
             f'</header><p class="def">{e(s["description"])}</p>'
             f'<span class="bar"><i style="width:{s["share"] * 100:.1f}%"></i></span>{body}</article>')
@@ -293,7 +388,8 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) ->
     for m in sheet["party"]:
         models = "".join(f"<span>{e(x)}</span>" for x in m["models"][:6])
         party.append(
-            f'<article class="card comp"><div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div>'
+            f'<article class="card comp"><div class="fam">{pix["familiar"][m["harness"]]}</div>'
+            f'<div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div>'
             f'<div class="big">{m["days_together"]}<small>days together</small></div>'
             f'<div class="facts"><span>{plural(m["sessions"], "session")}</span><span>{m["edit_sessions"]} edited</span>'
             f'<span>{m["review_sessions"]} reviewed</span><span>{m["other_sessions"]} other</span></div>'
@@ -305,10 +401,12 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) ->
     for a in sheet["achievements"]:
         count = f" ×{a['count']}" if a.get("count", 1) > 1 else ""
         detail = f'<div class="src">{e(a["detail"])}</div>' if a.get("detail") else ""
-        achs.append(f'<article class="card ach"><div class="t">{e(a["title"])}{count}</div>'
-                    f'<div class="d">{day_label(a["date"])}</div><div class="x">{e(a["rule"])}</div>{detail}</article>')
+        achs.append(f'<article class="card ach"><div class="ic">{pix["icon"][a["id"]]}</div><div>'
+                    f'<div class="t">{e(a["title"])}{count}</div>'
+                    f'<div class="d">{day_label(a["date"])}</div><div class="x">{e(a["rule"])}</div>{detail}</div></article>')
     ach_html = "".join(achs) or '<p class="empty">None yet.</p>'
-    ms = "".join(f'<li><span>{day_label(m["date"])}</span><span>{e(m["text"])}</span></li>' for m in sheet["milestones"])
+    ms = "".join(f'<li><span>{day_label(m["date"])}</span><span><span class="ic">{pix["milestone"]}</span>{e(m["text"])}</span></li>'
+                 for m in sheet["milestones"])
     ms_html = f'<h2>Milestones</h2><p class="lede">Written by hand in the profile\'s milestones file.</p><ul class="ms">{ms}</ul>' if ms else ""
 
     proj_rows = "".join(f'<tr><td>{e(p["name"])}</td><td class="num">{p["days"]}</td>'
@@ -345,18 +443,22 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) ->
   <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
   <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
 </div>
+<div class="banner">{pix["banner"]}</div>
 {_changes(changes)}
 <section class="hero">
   <div class="card framed">
     <div class="tagline">Character</div>
     <div class="nameplate">
-      <div>
-        <h1>{e(prof["name"])}</h1>
-        <div class="cls">{cls_html}</div>
-        <div class="cls-why">{why}</div>
+      <div class="who">
+        <div class="portrait{pix["flip"]}">{pix["portrait"]}</div>
+        <div>
+          <h1>{e(prof["name"])}</h1>
+          <div class="cls">{cls_html}</div>
+        </div>
       </div>
       <div class="lvl"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
     </div>
+    <div class="cls-why">{why}</div>{pix["costume"]}
     <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
     <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
     <dl class="vitals">{vit}</dl>
@@ -368,6 +470,8 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) ->
     <details><summary>Stats as a table</summary><div class="scroll-x"><table><thead><tr><th>Stat</th><th class="num">Points</th><th class="num">Share</th></tr></thead><tbody>{table_rows}</tbody></table></div></details>
   </div>
 </section>
+
+{pix["chronicle"]}
 
 <h2>Stats</h2>
 <p class="lede">Each active day is one point. It splits across the day's projects, then across each project's stats, by the log of files changed. Shares are of classified points.</p>

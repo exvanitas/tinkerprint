@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 
 from . import __version__
+from .art import export_pack, load_pack
 from .audit import audit_card
 from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
@@ -88,12 +89,13 @@ def cmd_build(args) -> int:
     out = args.out or default_out(home, profile)
     if not args.out:
         check_dirs(profile, [out])
-    res = build(profile, out, season, as_of, home, built_at=_now())
+    pack = load_pack(args.art_pack) if args.art_pack else None
+    res = build(profile, out, season, as_of, home, built_at=_now(), pack=pack)
     s = res["sheet"]
     cls = (s.get("class") or {}).get("name", "Unclassed")
     print(f"{profile.name}: level {s['history']['level']}, {cls}, {s['season_totals']['active_days']} active days "
           f"in {s['season']['label'].lower()}.")
-    for k in ("html", "card", "json"):
+    for k in ("html", "card", "portrait", "json"):
         if k in res["paths"]:
             print(f"  {k:<5} {res['paths'][k]}")
     if not s["card"].get("enabled"):
@@ -170,6 +172,19 @@ def cmd_demo(args) -> int:
     return 0
 
 
+def cmd_gallery(args) -> int:
+    from .gallery import write_gallery
+    if args.export_pack:
+        export_pack(args.export_pack)
+        print(f"  pack  {args.export_pack}")
+        return 0
+    pack = load_pack(args.art_pack) if args.art_pack else None
+    paths = write_gallery(args.out, pack, png=args.png)
+    for p in paths:
+        print(f"  {p}")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="tinkerprint", description="An RPG stat sheet from your git history and coding-agent logs. Local only.")
     p.add_argument("--version", action="version", version=f"tinkerprint {__version__}")
@@ -182,6 +197,7 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--out", help="output folder. Default: the data folder")
     b.add_argument("--data-dir", help="cache and history folder. Default: $XDG_DATA_HOME/tinkerprint")
     b.add_argument("--list-unassigned", type=int, default=10, metavar="N", help="unassigned folders to list")
+    b.add_argument("--art-pack", metavar="PACK.json", help="draw with this art pack. Default: the built-in pack")
     b.set_defaults(func=cmd_build)
 
     a = sub.add_parser("audit", help="print every text string in the built card.svg")
@@ -197,6 +213,13 @@ def parser() -> argparse.ArgumentParser:
     d = sub.add_parser("demo", help="build sheets for two invented people")
     d.add_argument("--out", default="tinkerprint-demo")
     d.set_defaults(func=cmd_demo)
+
+    g = sub.add_parser("gallery", help="write one page with every portrait, familiar, icon and a few banners")
+    g.add_argument("--out", default="tinkerprint-gallery")
+    g.add_argument("--art-pack", metavar="PACK.json", help="show this art pack instead of the built-in one")
+    g.add_argument("--png", action="store_true", help="also write every picture as a PNG")
+    g.add_argument("--export-pack", metavar="PACK.json", help="write the built-in pack as JSON to start your own")
+    g.set_defaults(func=cmd_gallery)
     return p
 
 

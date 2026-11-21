@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from html import escape
 
-from . import radar
+from . import art, radar
 
 W, H = 1200, 630
 FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
@@ -48,7 +48,11 @@ def visible(card: dict) -> dict:
     return v
 
 
-def render_card(card: dict) -> str:
+PX, PY, PS = 64, 52, 4  # portrait plate corner and pixel size
+TX = 64 + 32 * 4 + 16 + 24  # text right of the portrait
+
+
+def render_card(card: dict, pack: dict | None = None) -> str:
     if not card.get("enabled"):
         raise ValueError("card is off for this profile")
     v = visible(card)
@@ -57,19 +61,25 @@ def render_card(card: dict) -> str:
     out.append(f'<rect width="{W}" height="{H}" rx="28" fill="#141413"/>')
     out.append(f'<rect x="14" y="14" width="{W - 28}" height="{H - 28}" rx="20" fill="none" stroke="#3a3936"/>')
 
+    # Portrait: pixel art from the allowlisted set, class, multiclass and rounded shares only.
+    out.append(f'<rect x="{PX}" y="{PY - 8}" width="{32 * PS + 16}" height="{32 * PS + 16}" rx="14" fill="#1f1f1d" '
+               f'stroke="#3a3936"/>')
+    out.append('<g shape-rendering="crispEdges">')
+    out += art.card_portrait_paths(card, PX + 8, PY, PS, pack)
+    out.append("</g>")
     # Left column: who and what.
-    out.append(_t(64, 96, v["set"], 18, 600, "#9c9a92", spacing="3"))
-    out.append(_t(64, 168, v["name"], 60, 700))
+    out.append(_t(TX, 92, v["set"], 18, 600, "#9c9a92", spacing="3"))
+    out.append(_t(TX, 156, v["name"], _fit(v["name"], 60, LEFT_WIDTH - (TX - 64)), 700))
     # Class names are never cut. Each line shrinks until it fits the left column.
-    out.append(_t(64, 214, v["class"], _fit(v["class"], 34), 600, "#7fb0f0"))
+    out.append(_t(64, 238, v["class"], _fit(v["class"], 34), 600, "#7fb0f0"))
     if v["multiclass"]:
-        out.append(_t(64, 246, v["multiclass"], _fit(v["multiclass"], 24), 500, "#9fc3f2"))
+        out.append(_t(64, 268, v["multiclass"], _fit(v["multiclass"], 24), 500, "#9fc3f2"))
 
-    out.append('<rect x="64" y="270" width="150" height="104" rx="14" fill="#1f1f1d" stroke="#3a3936"/>')
-    out.append(_t(139, 336, v["level"], 56, 700, anchor="middle"))
-    out.append(_t(139, 362, "LEVEL", 14, 600, "#9c9a92", anchor="middle", spacing="3"))
+    out.append('<rect x="64" y="288" width="150" height="96" rx="14" fill="#1f1f1d" stroke="#3a3936"/>')
+    out.append(_t(139, 348, v["level"], 56, 700, anchor="middle"))
+    out.append(_t(139, 372, "LEVEL", 14, 600, "#9c9a92", anchor="middle", spacing="3"))
 
-    y = 300
+    y = 312
     for stat, pct in v["stats"]:
         out.append(_t(246, y, stat, 22, 600))
         out.append(_t(470, y, pct, 22, 600, "#9c9a92", anchor="end"))
@@ -135,9 +145,9 @@ def _bars(bars: list) -> list:
 LEFT_WIDTH = 540  # px from x=64 before the chart begins
 
 
-def _fit(text: str, size: int) -> int:
-    """A font size at which text fits the left column, at about 0.6 em per character."""
-    return max(12, min(size, int(LEFT_WIDTH / (0.6 * max(1, len(text))))))
+def _fit(text: str, size: int, width: int = LEFT_WIDTH) -> int:
+    """A font size at which text fits the given width, at about 0.6 em per character."""
+    return max(12, min(size, int(width / (0.6 * max(1, len(text))))))
 
 
 def card_strings(card: dict) -> list:

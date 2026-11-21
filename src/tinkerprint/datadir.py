@@ -55,12 +55,12 @@ def inside_repo_or_root(path: str, roots=()) -> str | None:
         probe = parent
 
 
-def _write(path: str, text: str) -> None:
+def _write(path: str, text: str | bytes) -> None:
     """Write through a unique temporary file in the same folder, then rename into place."""
     folder = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=folder)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with (os.fdopen(fd, "wb") if isinstance(text, bytes) else os.fdopen(fd, "w", encoding="utf-8")) as f:
             f.write(text)
         os.replace(tmp, path)
     except BaseException:
