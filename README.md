@@ -1,6 +1,6 @@
 # tinkerprint
 
-Turn your git history and your coding-agent logs into an RPG character sheet.
+Turn your git history and your coding-agent logs into an RPG stat sheet.
 
 Stats on a radar, a class from your two strongest stats, a level, a few dated achievements, and a party: the agents that worked beside you. It runs on your machine and reads only what is already there. Nothing is uploaded.
 
