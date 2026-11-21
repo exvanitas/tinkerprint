@@ -22,7 +22,7 @@ For your own sheet:
 ```
 tinkerprint init --out me.toml        # a commented starter profile
 tinkerprint build --profile me.toml   # sheet.html, card.svg, sheet.json
-tinkerprint audit --profile me.toml   # every string the share card holds
+tinkerprint audit --profile me.toml   # every string the built share card holds
 ```
 
 `build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to `~/.local/share/tinkerprint/sheets/<profile>/`. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
