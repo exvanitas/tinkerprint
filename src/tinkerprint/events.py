@@ -58,4 +58,5 @@ class Inputs:
     events: list = field(default_factory=list)
     commits: list = field(default_factory=list)
     tags: list = field(default_factory=list)
-    warnings: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)  # local only: printed by the CLI, never on a sheet
+    root_ids: dict = field(default_factory=dict)   # profile root -> identity shared by its clones

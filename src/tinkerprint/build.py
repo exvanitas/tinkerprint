@@ -7,7 +7,7 @@ from datetime import date
 
 from .events import Event, Inputs
 from .profile import Profile
-from .projects import scan_priors
+from .projects import Resolver, scan_priors
 from .readers import agy, claude, codex
 from .readers.git import Identity, read_git
 from .render_card import render_card
@@ -54,7 +54,8 @@ def _cached(files: list, reader, cache_path: str) -> list:
 def gather(profile: Profile, home: str) -> Inputs:
     ident = Identity(profile.emails, profile.names, profile.bots)
     roots = sorted({r for p in profile.projects for r in p.roots})
-    g = read_git(roots, ident)
+    resolver = Resolver(profile.projects)
+    g = read_git(roots, ident, in_roots=lambda p: resolver.resolve(p) is not None)
     events = list(g.events)
     cache = os.path.join(home, "cache")
     if profile.claude and os.path.isdir(profile.claude_dir):
@@ -64,7 +65,8 @@ def gather(profile: Profile, home: str) -> Inputs:
         events += _cached(codex.rollout_files(profile.codex_dir), codex.read_file, os.path.join(cache, "codex.json"))
     if profile.agy:
         events += agy.read_db(profile.agy_db)
-    return Inputs(events=sorted(set(events)), commits=g.commits, tags=g.tags, warnings=g.warnings)
+    return Inputs(events=sorted(set(events)), commits=g.commits, tags=g.tags, warnings=g.warnings,
+                  root_ids=g.root_ids)
 
 
 def read_milestones(path: str | None) -> list:
@@ -109,10 +111,11 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     inputs = inputs if inputs is not None else gather(profile, home)
     priors = scan_priors(profile.projects)
     core, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
+    local["warnings"] = list(inputs.warnings)
     store = SnapshotStore(home, profile.id, season, profile.set)
     key = core_key(core)
     prev_key, prev = store.predecessor(key)
-    sheet = finish(core, prev, profile)
+    sheet = finish(core, prev, profile, local["shares"])
     return sheet, local, key, store, prev_key
 
 
@@ -130,4 +133,4 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
         paths["card"] = card_path
     elif os.path.exists(card_path):
         os.remove(card_path)
-    return {"sheet": sheet, "local": local, "paths": paths}
+    return {"sheet": sheet, "local": local, "paths": paths, "warnings": local.get("warnings", [])}
