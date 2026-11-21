@@ -25,7 +25,7 @@ from tinkerprint.classes import pick_class
 from tinkerprint.demo import TOBI, WREN, make_person
 from tinkerprint.gallery import class_looks, write_gallery
 from tinkerprint.profile import load_profile
-from tinkerprint.render_card import render_card
+from tinkerprint.render_card import NAME_Y, render_card
 from tinkerprint.render_html import render_html
 from tinkerprint.sets import PAIR, SETS, SPECIALIST
 
@@ -340,12 +340,33 @@ class Built(unittest.TestCase):
         for name in ("Wren Aldous", "Wilhelmina Montgomery-Wolfe", "W" * 28, "Mm" * 11):
             card = dict(base, name=name)
             svg = render_card(card)
-            m = re.search(r'<text x="([\d.]+)" y="156.0" font-size="(\d+)" font-weight="700"[^>]*>([^<]+)</text>', svg)
+            m = re.search(rf'<text x="([\d.]+)" y="{NAME_Y:.1f}" font-size="(\d+)" font-weight="700"[^>]*>([^<]+)</text>', svg)
             self.assertIsNotNone(m, name)
             x, size, text = float(m.group(1)), int(m.group(2)), m.group(3)
             self.assertEqual(text, name[:22] if len(name) <= 22 else name[:21].rstrip() + "…")
             end = x + size * text_em(text)
             self.assertLessEqual(end + 16, label_start, (name, size, end, label_start))
+
+    def test_card_footer_keeps_party_and_projects_apart(self):
+        """Party and allowed project names share a baseline but never a column, even when both are long."""
+        from html import unescape
+        from tinkerprint.render_card import W, text_em
+        base = copy.deepcopy(self.out["wren"]["sheet"]["card"])
+        self.assertEqual(len(base["party"]), 3)
+        for projects in (["WOODLAND WORKSHOP MAPS", "MOUNTAIN WORKSHOP MAPS", "RIVER WORKSHOP MAPS"],
+                         ["Moth Lantern", "Palette Press"], ["W" * 70]):
+            svg = render_card(dict(base, projects=projects))
+            party = re.search(r'<text x="([\d.]+)" y="([\d.]+)" font-size="(\d+)"[^>]*>(PARTY[^<]*)</text>', svg)
+            proj = re.search(r'<text x="([\d.]+)" y="([\d.]+)" font-size="(\d+)"[^>]*text-anchor="end"[^>]*>'
+                             r'([^<]*(?:WORKSHOP|Moth|WWW)[^<]*)</text>', svg)
+            self.assertIsNotNone(party, projects)
+            self.assertIsNotNone(proj, projects)
+            px, psize, ptext = float(party.group(1)), int(party.group(3)), unescape(party.group(4))
+            party_end = px + psize * text_em(ptext) + len(ptext)
+            jx, jsize, jtext = float(proj.group(1)), int(proj.group(3)), unescape(proj.group(4))
+            self.assertEqual(jx, W - 64)
+            proj_start = jx - jsize * text_em(jtext)
+            self.assertLessEqual(party_end + 16, proj_start, (projects, party_end, proj_start))
 
     def test_portrait_png_is_written_and_valid(self):
         for res in self.out.values():
@@ -447,6 +468,35 @@ class Built(unittest.TestCase):
         art_of = lambda svg: re.search(r'<g shape-rendering="crispEdges">(.*?)</g>', svg).group(1)
         self.assertNotEqual(art_of(odd), art_of(none))
         self.assertNotEqual(art_of(one), art_of(three))
+
+    def test_close_call_swaps_layers_instead_of_stacking_them(self):
+        """While the other costume shows, the first figure is hidden, so no tool from it peeks through."""
+        sheet = json.loads(json.dumps(self.out["tobi"]["sheet"]))
+        sheet["class"]["close"] = {"kind": "pair", "stats": ["Logic", "Tests"], "name": "Paladin"}
+        page = render_html(sheet)
+        css = re.sub(r"\s+", " ", page)
+        self.assertIn("@keyframes costume-a { 0% { opacity: 1; } 50% { opacity: 0; } }", css)
+        self.assertIn("@keyframes costume-b { 0% { opacity: 0; } 50% { opacity: 1; } }", css)
+        self.assertIn(".portrait.flip svg.main { animation: costume-a 6s steps(1) infinite; }", css)
+        self.assertIn(".portrait.flip svg.alt { animation: costume-b 6s steps(1) infinite; }", css)
+        self.assertIn('id="costumeBtn" type="button"', page)
+        self.assertIn('data-b="Paladin"', page)
+
+    def test_secondary_text_and_light_bars_hold_contrast(self):
+        from tinkerprint.render_html import CSS, LIGHT_TRACK, _deep, _luminance
+
+        def ratio(a, b):
+            la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
+            return (la + 0.05) / (lb + 0.05)
+
+        blocks = re.findall(r"--page: (#\w{6});.*?--surface: (#\w{6}); --surface-2: (#\w{6});.*?--muted: (#\w{6});",
+                            CSS, re.S)
+        self.assertEqual(len(blocks), 3)
+        for page, surface, surface2, muted in blocks:
+            for bg in (page, surface, surface2):
+                self.assertGreaterEqual(ratio(muted, bg), 4.5, (muted, bg))
+        for stat in PACK["stat_colors"]:
+            self.assertGreaterEqual(ratio(_deep(art.stat_ramp(PACK, stat)), LIGHT_TRACK), 3, stat)
 
     def test_page_sizes_stay_small(self):
         """Budgets: sheet.html under 104 KB, card.svg under 30 KB, the gallery under 240 KB."""

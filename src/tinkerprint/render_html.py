@@ -1,10 +1,10 @@
 """sheet.html: the private sheet. One file, no network, a content policy that blocks every request."""
 from __future__ import annotations
 
-import math
 from html import escape
 
 from . import art, radar
+from .art.pixels import mix
 from .timeutil import day_label
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
@@ -13,7 +13,7 @@ CSS = """
 :root {
   color-scheme: light;
   --page: #efe6d4; --glow: rgba(226,150,60,.20); --surface: #fbf6ec; --surface-2: #f3ebdc; --ink: #24190f; --ink-2: #5b4a39;
-  --muted: #86766a; --grid: #e2d6c1; --axis: #cbbca2; --border: rgba(70,45,20,.13); --border-2: rgba(70,45,20,.24);
+  --muted: #736253; --ring: #b5a283; --grid: #e2d6c1; --axis: #cbbca2; --border: rgba(70,45,20,.13); --border-2: rgba(70,45,20,.24);
   --lantern: #c27a26; --lantern-ink: #93500e; --lantern-wash: rgba(214,140,50,.17); --frame: #3a2a1e;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", P052, "URW Palladio L", Georgia, serif;
@@ -23,14 +23,14 @@ CSS = """
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --page: #121117; --glow: rgba(235,160,70,.11); --surface: #1b1a21; --surface-2: #24222b; --ink: #f3eadb; --ink-2: #c9bda8;
-    --muted: #918774; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
+    --muted: #998f7d; --ring: #57525f; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
     --lantern: #eba84f; --lantern-ink: #f2bb6c; --lantern-wash: rgba(235,168,79,.17); --frame: #0b0a0e;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --page: #121117; --glow: rgba(235,160,70,.11); --surface: #1b1a21; --surface-2: #24222b; --ink: #f3eadb; --ink-2: #c9bda8;
-  --muted: #918774; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
+  --muted: #998f7d; --ring: #57525f; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
   --lantern: #eba84f; --lantern-ink: #f2bb6c; --lantern-wash: rgba(235,168,79,.17); --frame: #0b0a0e;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stat { --hue-fill: var(--hue-1); } }
@@ -65,40 +65,53 @@ code { font-family: var(--mono); font-size: .92em; }
 .portrait { position: absolute; }
 .portrait svg { width: 100%; height: auto; }
 .portrait svg.alt { position: absolute; inset: 0; }
-.portrait.flip svg.alt { animation: costume 6s steps(1) infinite; }
-.portrait.flip:hover svg.alt { animation: none; opacity: 1; }
-@keyframes costume { 0% { opacity: 0; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .portrait.flip svg.alt { animation: none; opacity: 0; } }
-.plaque { position: relative; display: grid; gap: 14px 24px; align-items: center;
-  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 380px); grid-template-areas: "seal who xp";
-  padding: 18px 24px 20px; border-top: 3px solid var(--lantern); }
-.seal { grid-area: seal; width: 92px; height: 92px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+/* A close call swaps the costume: the two layers trade places, never both at once. */
+.portrait.flip svg.main { animation: costume-a 6s steps(1) infinite; }
+.portrait.flip svg.alt { animation: costume-b 6s steps(1) infinite; }
+@keyframes costume-a { 0% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes costume-b { 0% { opacity: 0; } 50% { opacity: 1; } }
+.portrait.flip:hover svg.main, .portrait.flip.worn svg.main { animation: none; opacity: 0; }
+.portrait.flip:hover svg.alt, .portrait.flip.worn svg.alt { animation: none; opacity: 1; }
+.portrait.flip.held svg.main { animation: none; opacity: 1; }
+.portrait.flip.held svg.alt { animation: none; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .portrait.flip svg.main { animation: none; opacity: 1; }
+  .portrait.flip svg.alt { animation: none; opacity: 0; }
+}
+.plaque { position: relative; display: grid; gap: 16px 28px; align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 430px); grid-template-areas: "who xp";
+  padding: 20px 24px 22px; border-top: 3px solid var(--lantern); }
+.seal { width: 76px; height: 76px; flex: none; border-radius: 50%; display: grid; place-content: center; text-align: center;
   background: radial-gradient(circle at 38% 30%, #fbe2a4, #e0a447 55%, #b8731f); color: #2b1606;
-  border: 3px solid #6e4214; box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--border-2), 0 0 26px var(--lantern-wash); }
-.seal .n { font: 700 40px/1 var(--serif); }
-.seal .l { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+  border: 3px solid #6e4214; box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--border-2), 0 0 22px var(--lantern-wash); }
+.seal .n { font: 700 32px/1 var(--serif); }
+.seal .l { font-size: 9px; letter-spacing: .2em; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+.lv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; }
 .who { grid-area: who; min-width: 0; }
 .who h1 { font: 700 42px/1.05 var(--serif); margin: 0; overflow-wrap: anywhere; letter-spacing: -.01em; }
 .cls { font: 600 21px/1.25 var(--serif); color: var(--lantern-ink); margin-top: 4px; }
 .cls .multi { color: var(--ink-2); font-weight: 500; }
-.cls-why, .costume { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.cls-why { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.costume { margin-top: 8px; font: inherit; font-size: 12px; color: var(--lantern-ink); background: var(--lantern-wash); border: 1px solid var(--border-2); border-radius: 999px; padding: 3px 12px; cursor: pointer; }
+.jump { display: inline-block; margin-top: 8px; margin-right: 10px; font-size: 12px; color: var(--lantern-ink); }
 .xp { grid-area: xp; min-width: 0; }
 .next { margin: 0 0 6px; font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; }
 .xp .bar { height: 10px; border-radius: 5px; }
-.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 12px 0 0; }
+.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 14px 0 0; }
+.vitals.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .vitals div { border-top: 1px solid var(--border); padding-top: 5px; min-width: 0; }
 .vitals dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .vitals dd { margin: 0; font-weight: 700; font-size: 17px; line-height: 1.2; }
 .vitals dd small { font-weight: 400; color: var(--ink-2); font-size: 12px; display: block; }
 @media (max-width: 860px) {
-  .plaque { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "seal who" "xp xp"; }
+  .plaque { grid-template-columns: minmax(0, 1fr); grid-template-areas: "who" "xp"; }
 }
 @media (max-width: 560px) {
   .set { width: var(--zoom); margin-left: var(--crop); }
   .hero { border-width: 2px; border-radius: 12px; }
   .plaque { padding: 14px; gap: 12px 14px; }
-  .seal { width: 68px; height: 68px; border-width: 2px; }
-  .seal .n { font-size: 30px; }
+  .seal { width: 64px; height: 64px; border-width: 2px; }
+  .seal .n { font-size: 27px; }
   .seal .l { font-size: 8px; }
   .who h1 { font-size: 30px; }
   .cls { font-size: 18px; }
@@ -107,19 +120,20 @@ code { font-family: var(--mono); font-size: .92em; }
 
 /* The build: radar beside the stat cards. */
 .build { display: grid; gap: 14px; grid-template-columns: minmax(0, 450px) minmax(0, 1fr); align-items: start; }
-@media (max-width: 900px) { .build { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1007px) { .build { grid-template-columns: minmax(0, 1fr); } }
 .radar-card { position: sticky; top: 12px; }
-@media (max-width: 900px) { .radar-card { position: relative; top: 0; } }
+@media (max-width: 1007px) { .radar-card { position: relative; top: 0; } }
 .radar-card h3 { margin: 0; font: 600 18px/1.25 var(--serif); }
 .radar-card .sub { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
-svg.radar { width: 100%; height: auto; display: block; margin: 6px auto 0; overflow: visible; }
-svg.radar .ring { fill: none; stroke: var(--grid); stroke-width: 1; }
-svg.radar .spoke { stroke: var(--axis); stroke-width: 1; }
+svg.radar { width: 100%; max-width: 560px; height: auto; display: block; margin: 6px auto 0; overflow: visible; }
+svg.radar .ring { fill: none; stroke: var(--ring); stroke-width: 1.25; }
+svg.radar .spoke { stroke: var(--ring); stroke-width: 1; }
 svg.radar .area { fill: var(--lantern-wash); stroke: var(--lantern); stroke-width: 2.5; stroke-linejoin: round; }
 svg.radar .pt { stroke: var(--surface); stroke-width: 2.5; }
-svg.radar .lab { fill: var(--ink); font-size: 19px; font-weight: 600; }
+svg.radar .lab { fill: var(--ink); font-size: 23px; font-weight: 600; }
+@media (max-width: 560px) { svg.radar .lab { font-size: 29px; } }
 svg.radar .lab.zero { fill: var(--muted); font-weight: 400; }
-svg.radar .tick { fill: var(--muted); font-size: 12px; }
+.key { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .bars { display: grid; gap: 8px; margin-top: 12px; }
 .bars .row { display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 13px; }
 .bars .row .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -140,7 +154,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .stat .pts small { display: block; font: 400 11px/1.4 var(--sans); color: var(--muted); }
 .stat .def { color: var(--ink-2); font-size: 13px; margin: 10px 0; }
 .stat .bar i { background: var(--hue-fill); }
-.ev { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; }
+.ev { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.ev-h { display: flex; justify-content: space-between; margin-top: 12px; padding-bottom: 2px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .ev li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px dashed var(--border); }
 .ev li span:first-child { overflow-wrap: anywhere; }
 .ev li span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -224,6 +239,16 @@ JS = """
   }
   var t = get(); apply(t);
   btn.addEventListener('click', function () { t = t === 'auto' ? 'light' : t === 'light' ? 'dark' : 'auto'; put(t); apply(t); });
+  // The close-call costume: each press wears the other one and stops the automatic swap.
+  var cb = document.getElementById('costumeBtn'), fig = document.querySelector('.portrait.flip');
+  if (cb && fig) cb.addEventListener('click', function () {
+    var worn = !fig.classList.contains('worn');
+    fig.classList.toggle('worn', worn); fig.classList.toggle('held', !worn);
+    cb.textContent = 'Close call: try the ' + (worn ? cb.dataset.a : cb.dataset.b) + ' costume';
+  });
+  // The chronicle opens on its latest chapter; the page itself does not move.
+  var chron = document.querySelector('.chron');
+  if (chron) chron.scrollLeft = chron.scrollWidth;
 })();
 """
 
@@ -255,14 +280,12 @@ def _radar(stats: list, hues: dict | None = None) -> str:
     def pt(i, frac):
         return radar.point(cx, cy, r, i, n, frac)
 
-    out = ['<svg class="radar" viewBox="-40 0 640 520" role="img" aria-label="Radar of stat shares">']
+    # Wide enough for 9-letter labels at the phone's larger label size.
+    out = ['<svg class="radar" viewBox="-100 0 760 520" role="img" aria-label="Radar of stat shares">']
     for ring_share in radar.RINGS:
         fr = radar.radius(ring_share)
         ring = " ".join(f"{x:.1f},{y:.1f}" for x, y in (pt(i, fr) for i in range(n)))
         out.append(f'<polygon class="ring" points="{ring}"/>')
-        a = math.radians(-90) + math.pi / n
-        out.append(f'<text class="tick" x="{cx + math.cos(a) * r * fr:.1f}" y="{cy + math.sin(a) * r * fr - 4:.1f}" '
-                   f'text-anchor="middle">{round(ring_share * 100)}%</text>')
     for i in range(n):
         x, y = pt(i, 1.0)
         out.append(f'<line class="spoke" x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}"/>')
@@ -278,6 +301,8 @@ def _radar(stats: list, hues: dict | None = None) -> str:
         cls = "lab" if s["points"] > 0 else "lab zero"
         out.append(f'<text class="{cls}" x="{x:.1f}" y="{y + 6:.1f}" text-anchor="{radar.anchor(i, n)}">{e(s["key"])}</text>')
     out.append("</svg>")
+    rings = ", ".join(f"{round(x * 100)}%" for x in radar.RINGS[:-1]) + f" and {round(radar.RINGS[-1] * 100)}%"
+    out.append(f'<p class="key">Rings, from the center out: {rings} of the season\'s points.</p>')
     return "\n".join(out)
 
 
@@ -317,7 +342,7 @@ def _changes(ch: dict | None) -> str:
     for t in ch.get("achievements_new", []):
         items.append(f"New achievement: {e(t)}.")
     lis = "".join(f"<li>{i}</li>" for i in items)
-    return (f'<h2>What changed</h2><p class="lede">Since the sheet as of {day_label(ch["against"])}.</p>'
+    return (f'<h2 id="changed">What changed</h2><p class="lede">Since the sheet as of {day_label(ch["against"])}.</p>'
             f'<section class="card changes"><ul>{lis}</ul></section>')
 
 
@@ -358,8 +383,8 @@ def _art(sheet: dict, pack: dict) -> dict:
     a = {}
     a["costume"] = ""
     if alt:
-        a["costume"] = (f'<div class="costume">Close call: the portrait changes into the '
-                        f'{e(cls["close"]["name"])} costume.</div>')
+        a["costume"] = (f'<button class="costume" id="costumeBtn" type="button" data-a="{e(name)}" '
+                        f'data-b="{e(cls["close"]["name"])}">Close call: try the {e(cls["close"]["name"])} costume</button>')
     pcts = art.sheet_pcts(sheet)
     ranked = [(s, pcts[s]) for s in art.art_rank(pcts, set_name)]
     harnesses = [m["harness"] for m in sheet["party"]]
@@ -392,7 +417,8 @@ def _chronicle(sheet: dict, pack: dict) -> str:
             flame = art.campfire(pack)
             fire.paste(flame, (fire.w - flame.w) // 2, fire.h - flame.h - 3)
             span = ch["label"] if ch["quarters"] == 1 else f'{ch["label"]} to {ch["label_to"]}'
-            cards.append(f'<li class="chap rest{now}"><div class="q">{e(span)}</div>'
+            latest = ' · <span class="tag">Latest</span>' if now else ""
+            cards.append(f'<li class="chap rest{now}"><div class="q">{e(span)}{latest}</div>'
                          f'<div class="pic">{fire.svg(scale, "A campfire", "px")}</div><div class="c">Resting at camp</div>'
                          f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></li>')
             continue
@@ -406,7 +432,8 @@ def _chronicle(sheet: dict, pack: dict) -> str:
         c = ch.get("class")
         name = c["name"] if c else "Unclassed"
         close = f'<div class="n">close to {e(ch["close"])}</div>' if ch.get("close") else ""
-        cards.append(f'<li class="chap{now}"><div class="q">{e(ch["label"])}</div><div class="pic">{cache[look]}</div>'
+        latest = ' · <span class="tag">Latest</span>' if now else ""
+        cards.append(f'<li class="chap{now}"><div class="q">{e(ch["label"])}{latest}</div><div class="pic">{cache[look]}</div>'
                      f'<div class="c">{e(name)}</div>{close}<div class="n">{plural(ch["active_days"], "active day")}</div>'
                      f'</li>')
     return ('<h2>Chronicle</h2><p class="lede">One chapter per calendar quarter, over all history. Each shows the class '
@@ -417,6 +444,26 @@ def _chronicle(sheet: dict, pack: dict) -> str:
 
 def _wash(color: str, alpha: str = "2e") -> str:
     return color + alpha
+
+
+def _luminance(color: str) -> float:
+    c = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+LIGHT_TRACK = "#e2d6c1"  # --grid in the light theme: the empty part of a bar
+
+
+def _deep(ramp: list) -> str:
+    """The stat's shade for bars on the light page: its ramp's third color, deepened toward its
+    darkest until it holds 3:1 against the bar's track."""
+    track = _luminance(LIGHT_TRACK)
+    for step in range(21):
+        c = mix(ramp[2], ramp[3], step / 20)
+        if (track + 0.05) / (_luminance(c) + 0.05) >= 3:
+            return c
+    return ramp[3]
 
 
 def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pack: dict | None = None) -> str:
@@ -440,9 +487,12 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 
     lo = hist["level"] ** 2
     need = hist["next_level_at"] - hist["points"]
-    vitals = [
-        ("Active days", f'{tot["active_days"]}<small>in this season</small>'),
-        ("Level points", f'{hist["points"]}<small>all history</small>'),
+    # On an all-history sheet the season's active days are the level points: say it once.
+    whole = season.get("from") is None and season.get("to") is None and tot["active_days"] == hist["points"]
+    days = ([("Active days", f'{tot["active_days"]}<small>all history, one level point each</small>')] if whole else
+            [("Active days", f'{tot["active_days"]}<small>in this season</small>'),
+             ("Level points", f'{hist["points"]}<small>all history</small>')])
+    vitals = days + [
         ("Projects", f'{len(sheet["projects"])}<small>with points this season</small>'),
         ("Unclassified", f'{pct(tot["unclassified_share"])}<small>of season points, kept out of stats</small>'),
     ]
@@ -472,9 +522,10 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
         more = len(s["projects"]) - 5
         if more > 0:
             projs += f'<li><span>{more} more</span><span></span></li>'
-        body = f'<ul class="ev" aria-label="Projects behind it">{projs}</ul>' if projs else ""
+        body = (f'<div class="ev-h" aria-hidden="true"><span>Project</span><span>Points</span></div>'
+                f'<ul class="ev" aria-label="Projects behind it">{projs}</ul>' if projs else "")
         cards.append(
-            f'<article class="card stat" style="--hue-1:{hue[1]};--hue-2:{hue[2]};--hue-wash:{_wash(hue[1])}">'
+            f'<article class="card stat" style="--hue-1:{hue[1]};--hue-2:{_deep(hue)};--hue-wash:{_wash(hue[1])}">'
             f'<header><span class="trinket">{pix["trinket"][s["key"]]}</span>'
             f'<h3>{e(s["key"])}</h3><div class="pts">{pct(s["share"])}<small>{pts(s["points"])} pts</small></div>'
             f'</header><p class="def">{e(s["description"])}</p>'
@@ -526,6 +577,9 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     as_of = f" · as of {day_label(season['as_of'])}" if season.get("as_of") else ""
     built = f"Built {e(built_at)}. " if built_at else ""
     scene = pix["scene"]
+    jump = ""
+    if changes and changes.get("against"):
+        jump = f'<a class="jump" href="#changed">What changed since {day_label(changes["against"])}</a>'
 
     return f"""<!doctype html>
 <html lang="en">
@@ -545,16 +599,20 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <section class="hero">
   <div class="banner"><div class="set" style="{scene["style"]}">{scene["html"]}</div></div>
   <div class="plaque">
-    <div class="seal"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
     <div class="who">
       <h1>{e(prof["name"])}</h1>
       <div class="cls">{cls_html}</div>
-      <div class="cls-why">{why}</div>{pix["costume"]}
+      <div class="cls-why">{why}</div>{pix["costume"]}{jump}
     </div>
     <div class="xp">
-      <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
-      <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
-      <dl class="vitals">{vit}</dl>
+      <div class="lv">
+        <div class="seal"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
+        <div>
+          <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
+          <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
+        </div>
+      </div>
+      <dl class="vitals n{len(vitals)}">{vit}</dl>
     </div>
   </div>
 </section>

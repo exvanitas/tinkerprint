@@ -56,7 +56,7 @@ The full rules are in [METHOD.md](METHOD.md). Every sheet prints the method vers
 
 One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it never makes a share card unless you allow it.
 
-Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The page opens with what changed since then. `sheet.json` never depends on that history: the same logs and profile give the same file.
+Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The sheet shows what changed since then, with a link to it under your name. `sheet.json` never depends on that history: the same logs and profile give the same file.
 
 ## What it will not do
 

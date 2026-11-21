@@ -51,7 +51,10 @@ def visible(card: dict) -> dict:
     return v
 
 
-PX, PY, TX = 64, 186, 64  # portrait frame; the name runs from TX across the top
+PX, PY, TX = 64, 204, 64  # portrait frame; the name runs from TX across the top
+NAME_Y, CLASS_Y = 128, 180  # baselines of the name and of the class line under it
+FOOT_Y = H - 50  # baseline of the party and project lines
+RADAR_LEFT = 640  # the radar's column starts here
 SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', P052, Georgia, serif"
 # Lantern palette, shared with the sheet's dark theme.
 BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a3542", "#f3eadb", "#c9bda8",
@@ -94,8 +97,10 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     out.append(f'<rect x="{W // 2 - 60}" y="14" width="120" height="3" fill="{LANTERN}"/>')
 
     # Who: set, then the name across the top of the left column.
-    out.append(_t(TX, 92, v["set"], 18, 700, LANTERN, spacing="3"))
-    out.append(_t(TX, 156, v["name"], name_size(v["name"]), 700, INK, family=SERIF))
+    out.append(_t(TX, 70, v["set"], 16, 700, LANTERN, spacing="3"))
+    out.append(_t(TX, NAME_Y, v["name"], name_size(v["name"]), 700, INK, family=SERIF))
+    # The class gets its own line, large enough to read on a thumbnail. Never cut: it shrinks to fit.
+    out.append(_t(TX, CLASS_Y, v["class"], class_size(v["class"]), 600, LANTERN2, family=SERIF))
 
     # Portrait: pixel art from the allowlisted set, class, multiclass and rounded shares only.
     resolution = pack["canvas"][0]
@@ -118,14 +123,13 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     out.append(_t(sx, sy + 9, v["level"], 34 if len(v["level"]) < 3 else 26, 700, "#2b1606", anchor="middle", family=SERIF))
     out.append(_t(sx, sy + 25, "LEVEL", 10, 700, "#2b1606", anchor="middle", spacing="2"))
 
-    # Class beside the portrait. Class names are never cut: each line shrinks to fit.
+    # Beside the portrait: the multiclass, then the top shares, each with a bar in its stat's colors.
     cx0 = PX + frame + 58
     room = COL_RIGHT - cx0
-    out.append(_t(cx0, PY + 34, v["class"], _fit(v["class"], 32, room), 600, LANTERN2, family=SERIF))
+    y = PY + 30
     if v["multiclass"]:
-        out.append(_t(cx0, PY + 64, v["multiclass"], _fit(v["multiclass"], 22, room), 500, INK2, family=SERIF))
-    # Top shares, each with a bar in its stat's colors.
-    y = PY + 100
+        out.append(_t(cx0, y, v["multiclass"], _fit(v["multiclass"], 24, room), 500, INK2, family=SERIF))
+        y += 46
     for stat, pct in v["stats"]:
         hue = art.stat_ramp(pack, stat)
         out.append(_t(cx0, y, stat, 18, 600, INK))
@@ -136,17 +140,18 @@ def render_card(card: dict, pack: dict | None = None) -> str:
         y += 31
 
     if v["achievements"]:
-        out.append(_t(64, 426, "ACHIEVEMENTS", 13, 700, MUTED, spacing="3"))
-        y = 454
+        out.append(_t(64, 436, "ACHIEVEMENTS", 13, 700, MUTED, spacing="3"))
+        y = 462
         for title, when in v["achievements"]:
             out.append(f'<rect x="64" y="{y - 11}" width="7" height="7" fill="{LANTERN}" transform="rotate(45 67.5 {y - 7.5})"/>')
             out.append(_t(84, y, title, 19, 600, INK))
             out.append(_t(COL_RIGHT, y, when, 16, 400, MUTED, anchor="end"))
-            y += 26
+            y += 25
+    # Party on the left, projects in the radar's column: each sized to stay on its own side.
     if v["party"]:
-        out.append(_t(fx + 6, H - 50, v["party"], 15, 700, MUTED, spacing="1"))
+        out.append(_t(fx + 6, FOOT_Y, v["party"], party_size(v["party"], fx + 6), 700, MUTED, spacing="1"))
     if v["projects"]:
-        out.append(_t(W - 64, H - 52, v["projects"], 16, 400, MUTED, anchor="end"))
+        out.append(_t(W - 64, FOOT_Y, v["projects"], projects_size(v["projects"]), 400, MUTED, anchor="end"))
 
     if v["chart"] == "radar":
         out += _radar(v["spokes"], pack)
@@ -227,6 +232,21 @@ def name_size(name: str) -> int:
     """The name's font size: 60 px, stepped down until the name fits between the portrait and
     NAME_RIGHT. Deterministic, never cut beyond the card's 22-character clip."""
     return max(12, min(60, int((NAME_RIGHT - TX) / max(1.0, text_em(name)))))
+
+
+def class_size(text: str) -> int:
+    """The class line: up to 44 px, stepped down until it fits between TX and NAME_RIGHT."""
+    return max(12, min(44, int((NAME_RIGHT - TX) / max(1.0, text_em(text)))))
+
+
+def party_size(text: str, x: float) -> int:
+    """The party line ends 20 px before the radar's column. Letter spacing adds 1 px a glyph."""
+    return max(7, min(15, int((RADAR_LEFT - 20 - x - len(text)) / max(1.0, text_em(text)))))
+
+
+def projects_size(text: str) -> int:
+    """The projects line stays inside the radar's column, right-aligned to the margin."""
+    return max(7, min(16, int((W - 64 - RADAR_LEFT) / max(1.0, text_em(text)))))
 
 
 def _fit(text: str, size: int, width: int = LEFT_WIDTH) -> int:

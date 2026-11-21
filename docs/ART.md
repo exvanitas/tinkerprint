@@ -16,7 +16,7 @@ Looks follow class shape alone. The sheet and card both rank shares rounded to 5
 
 ## On the sheet
 
-The hero is the workshop with the figure layered on its rug. `banner(..., with_figure=False)` draws the studio alone and `banner_figure_box` says where the figure goes, so a close call can swap the costume without redrawing the room. Each stat card is tinted with its stat's ramp from `stat_ramp`. The share card draws its bars and radar dots from the same ramps.
+The hero is the workshop with the figure layered on its rug. `banner(..., with_figure=False)` draws the studio alone and `banner_figure_box` says where the figure goes, so a close call can swap the costume without redrawing the room. Each stat card is tinted with its stat's ramp from `stat_ramp`. On the light page its bar deepens toward the ramp's darkest color until it holds 3:1 against the track. The share card draws its bars and radar dots from the same ramps.
 
 ## Other pictures
 
