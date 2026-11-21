@@ -16,6 +16,8 @@ from ._common import bucket as _bucket
 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
+# Cheap prefilter: most bytes in a transcript sit on line types the reader never needs.
+_WANTED = tuple(f'"type":"{t}"'.encode() for t in LINE_TYPES) + tuple(f'"type": "{t}"'.encode() for t in LINE_TYPES)
 
 
 def transcript_files(base: str) -> list:
@@ -33,13 +35,15 @@ def read_file(path: str) -> list:
     errors = set()
     model = ""
     try:
-        f = open(path, encoding="utf-8", errors="replace")
+        f = open(path, "rb")
     except OSError:
         return []
     with f:
         for line in f:
+            if not any(w in line for w in _WANTED):
+                continue
             try:
-                d = json.loads(line)
+                d = json.loads(line.decode("utf-8", "replace"))
             except ValueError:
                 continue
             if not isinstance(d, dict) or d.get("type") not in LINE_TYPES:

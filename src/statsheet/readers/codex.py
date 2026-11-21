@@ -16,6 +16,8 @@ from ..events import Event
 from ..timeutil import iso, parse_ts
 from ._common import bucket as _bucket
 
+_TS = re.compile(rb'^\{"timestamp":\s*"([^"]+)"')
+_NEEDED = (b"session_meta", b"turn_context", b"*** ", b"FileChange")
 _PATCH = re.compile(r"^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+?)\s*$", re.M)
 
 
@@ -61,13 +63,20 @@ def read_file(path: str) -> list:
     buckets: dict = {}
     edits = []
     try:
-        f = open(path, encoding="utf-8", errors="replace")
+        f = open(path, "rb")
     except OSError:
         return []
     with f:
         for line in f:
+            if not any(w in line for w in _NEEDED):
+                # Presence only: the time sits first on every rollout line.
+                m = _TS.match(line)
+                dt = parse_ts(m.group(1).decode("ascii", "replace")) if m else None
+                if dt is not None:
+                    _bucket(buckets, dt, model)
+                continue
             try:
-                d = json.loads(line)
+                d = json.loads(line.decode("utf-8", "replace"))
             except ValueError:
                 continue
             if not isinstance(d, dict):
