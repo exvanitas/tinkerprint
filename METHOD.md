@@ -1,6 +1,6 @@
 # Method
 
-Method version 1. Every sheet prints the method version that made it. A change to any rule below bumps it.
+Method version 2. Every sheet prints the method version that made it. A change to any rule below bumps it.
 
 ## What a sheet says
 
@@ -98,7 +98,9 @@ Within the season:
 - No stat holds more than 20%: a **generalist** class.
 - Otherwise the **pair** of the top two, if the runner-up holds 10% or more. If not, the specialist class.
 - A **multiclass** shows only when the third and fourth stats each hold 10% or more.
-- With a previous sheet, a class changes only when the new class leads by more than 2 points of share. Exact ties go to the earlier stat in the set's order.
+- **Close calls**: when the runner-up sits within 2 points of share of the winner, the sheet names both, winner first: "Artificer, close to Alchemist". A pair's runner-up swaps its second stat for the third. A specialist's runner-up is the second stat as a specialist. A multiclass's runner-up swaps its fourth stat for the fifth. A generalist has none.
+- Shares are compared at full precision. Exact ties go to the earlier stat in the set's order.
+- No rule looks at an earlier sheet. The same events and profile always give the same class.
 
 Class names belong to the set: 28 pair names, 8 specialist names and one generalist name.
 
@@ -125,18 +127,18 @@ Generic rules over events and git, the same for everyone. Each states its rule a
 | Necromancer | you returned to a repo after 180 quiet days |
 | Polyglot | 5 or more languages past 1,000 added lines |
 | Full party | three harnesses on the same day |
-| New class | your class changed since the last sheet |
 | Season's turn | four seasons with at least 10 active days each |
 
 A profile may add a milestones file (one dated line per milestone) for releases, launches or anything else the person keeps. Milestones show as the person wrote them and need no rule.
 
 ## Outputs
 
-- `sheet.json`: versioned, everything the pages draw. Saved as a snapshot per run.
+- `sheet.json`: versioned, everything the pages draw. It depends on the events and the profile alone.
+- `changes.json`: what changed since an earlier sheet (see below). Kept apart so `sheet.json` never depends on history.
 - `sheet.html`: the private sheet. One file, no network: fonts inlined, a content policy that blocks every request.
 - `card.svg`: the share card, built from an allowlist only: name, set, class, level, stat shares rounded to 5%, achievement titles with month dates, and the party's harness names. Hours, weekdays, exact dates, streak ranges, project names and token totals stay off unless the profile turns them on. A profile marked `work = true` never goes on a card unless it says so.
-- `audit`: prints every string a card would contain.
-- **What changed**: with a previous snapshot, the sheet opens with points since then, level-ups, class drift and party changes.
+- `audit`: prints every text string in the `card.svg` on disk, in document order. It reads nothing else.
+- **What changed**: each successful build saves its sheet to a history kept per profile file and season, named by its as-of date (the `--as-of` date, or the build day). A build compares against the newest saved sheet with an earlier as-of date and names that date. The comparison covers points since then, level-ups, a new class, share drift, party changes and new achievements. A build with an earlier as-of date never compares against a later sheet.
 
 ## Privacy
 

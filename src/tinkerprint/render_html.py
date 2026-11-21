@@ -207,32 +207,34 @@ def _bars(stats: list) -> str:
 
 
 def _changes(ch: dict | None) -> str:
-    if not ch:
+    """The what-changed panel, from changes.json. It names the sheet it compared against."""
+    if not ch or not ch.get("against"):
         return ""
     items = []
-    since = f" since {day_label(ch['since_last_day'])}" if ch.get("since_last_day") else ""
-    items.append(f"{ch['points_since']:+d} {'point' if abs(ch['points_since']) == 1 else 'points'}{since}.")
+    n = ch["points_since"]
+    items.append(f"{n:+d} {'point' if abs(n) == 1 else 'points'}.")
     if ch.get("level_from") is not None and ch["level_to"] != ch["level_from"]:
         items.append(f"Level {ch['level_from']} to level {ch['level_to']}.")
-    if ch.get("class_from") and ch["class_from"] != ch.get("class_to"):
-        items.append(f"Class changed: {e(ch['class_from'])} to {e(ch['class_to'])}.")
+    if ch.get("new_class"):
+        items.append(f"New class: {e(ch['class_from'])} to {e(ch['class_to'])}.")
     elif ch.get("class_to"):
-        items.append(f"Class held: {e(ch['class_to'])}.")
+        items.append(f"Same class: {e(ch['class_to'])}.")
     for d in ch.get("drift", [])[:4]:
         items.append(f"{e(d['stat'])} {pct(d['from'])} to {pct(d['to'])}.")
-    for n in ch.get("party_joined", []):
-        items.append(f"{e(n)} joined the party.")
-    for n in ch.get("party_left", []):
-        items.append(f"{e(n)} left the party.")
+    for name in ch.get("party_joined", []):
+        items.append(f"{e(name)} joined the party.")
+    for name in ch.get("party_left", []):
+        items.append(f"{e(name)} left the party.")
     for p in ch.get("party_sessions", []):
         items.append(f"{e(p['name'])}: {p['sessions_since']:+d} sessions.")
     for t in ch.get("achievements_new", []):
         items.append(f"New achievement: {e(t)}.")
     lis = "".join(f"<li>{i}</li>" for i in items)
-    return f'<section class="card changes"><h3>What changed</h3><ul>{lis}</ul></section>'
+    return (f'<section class="card changes"><h3>What changed since the sheet as of {day_label(ch["against"])}</h3>'
+            f'<ul>{lis}</ul></section>')
 
 
-def render_html(sheet: dict, built_at: str = "") -> str:
+def render_html(sheet: dict, built_at: str = "", changes: dict | None = None) -> str:
     prof = sheet["profile"]
     hist = sheet["history"]
     tot = sheet["season_totals"]
@@ -242,15 +244,11 @@ def render_html(sheet: dict, built_at: str = "") -> str:
     multi = sheet.get("multiclass")
     set_title = prof["set"].capitalize()
 
-    cls_html = e(cls["name"]) if cls else "Unclassed"
+    cls_html = e(cls["display"]) if cls else "Unclassed"
     if multi:
-        cls_html += f' <span class="multi">/ {e(multi["name"])}</span>'
+        cls_html += f' <span class="multi">/ {e(multi["display"])}</span>'
     why = e(cls["why"]) if cls else "No classified points yet."
-    if cls and cls.get("held"):
-        why += " Held from the last sheet: the new class did not lead by more than 2 points."
-    if multi and multi.get("held"):
-        why += f" Multiclass {e(multi['stats'][0])} and {e(multi['stats'][1])} held from the last sheet."
-    elif multi:
+    if multi:
         why += f" Multiclass: {e(multi['stats'][0])} and {e(multi['stats'][1])} each hold 10% or more."
 
     lo = hist["level"] ** 2
@@ -345,7 +343,7 @@ def render_html(sheet: dict, built_at: str = "") -> str:
   <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
   <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
 </div>
-{_changes(sheet.get("changes"))}
+{_changes(changes)}
 <section class="hero">
   <div class="card framed">
     <div class="tagline">Character</div>
@@ -391,7 +389,7 @@ def render_html(sheet: dict, built_at: str = "") -> str:
 <p><b>Method version {sheet["method"]}.</b> Same inputs and profile give the same sheet. No model scores anything.</p>
 <p><b>Points.</b> One active day is one point. Level is the square root of all-history points, rounded down. Class and radar cover the season.</p>
 <p><b>Days</b> run from {prof["rollover_hour"]:02d}:00 to {prof["rollover_hour"]:02d}:00 in {e(prof["timezone"])}.</p>
-<p><b>Class.</b> A stat at 50% or more makes a specialist. No stat over 20% makes a generalist. Otherwise the top two make a pair when the runner-up holds 10%. A class changes only when the new one leads by more than 2 points.</p>
+<p><b>Class.</b> A stat at 50% or more makes a specialist. No stat over 20% makes a generalist. Otherwise the top two make a pair when the runner-up holds 10%. When the next pair or stat sits within 2 points, the sheet names it too.</p>
 <p><b>What this is not.</b> A sheet never claims skill, productivity, seniority, hours worked, or who did how much of the work.</p>
 <p><b>Share card.</b> {card_note}</p>
 </div>

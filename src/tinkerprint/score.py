@@ -1,7 +1,7 @@
 """Scoring: events + profile + set -> sheet. Pure: no file system, no clock, no randomness.
 
-`score_core` computes everything that does not depend on a previous sheet. `finish` adds the
-parts that do (class hysteresis, New class, What changed) and the card's allowlisted fields.
+The sheet depends on the events and the profile alone. `compare` builds "what changed" against an
+earlier saved sheet, and that result never enters sheet.json.
 """
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from collections import Counter, defaultdict
 from datetime import date
 
 from . import METHOD_VERSION, SHEET_FORMAT, __version__
-from .achievements import evaluate, make
-from .classes import class_key, multiclass, multiclass_with_hysteresis, ranked, raw_class, with_hysteresis
+from .achievements import evaluate
+from .classes import class_key, multiclass, pick_class, ranked
 from .classify import classify, is_code, is_skipped, language_of
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
@@ -210,7 +210,9 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
                          sorted(stat_proj[s].items(), key=lambda kv: (-round(kv[1], ND), kv[0])) if _r(v) > 0],
         })
 
-    cls = raw_class(shares, profile.set)
+    cls = pick_class(shares, profile.set)
+    if cls:
+        cls["why"] = _class_why(cls, shares)
     lit = sum(1 for s in stats if stat_pts[s] > 0)
 
     # 6. Party and unassigned presence. Only observations inside the profile's roots count,
@@ -276,7 +278,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         },
         "stats": stat_rows,
         "chart": "radar" if lit >= 3 else "bars",
-        "class_raw": cls,
+        "class": cls,
         "multiclass": multiclass(shares, profile.set, cls),
         "projects": projects,
         "party": party,
@@ -290,6 +292,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     local = {"shares": shares,
              "unassigned_folders": sorted(un_folders.items(), key=lambda kv: (-kv[1], kv[0])),
              "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
+    core["card"] = card_fields(core, profile)
     return core, local
 
 
@@ -300,43 +303,26 @@ def _class_why(cls: dict | None, shares: dict) -> str:
     if cls["kind"] == "generalist":
         return "No stat holds more than 20%."
     if cls["kind"] == "specialist":
-        return f"{cls['stats'][0]} holds {pct(cls['stats'][0])}."
+        why = f"{cls['stats'][0]} holds {pct(cls['stats'][0])}."
+        if cls.get("close"):
+            other = cls["close"]["stats"][0]
+            why += f" {other} {pct(other)} is within 2 points."
+        return why
     a, b = cls["stats"]
-    return f"{a} {pct(a)} and {b} {pct(b)}."
+    why = f"{a} {pct(a)} and {b} {pct(b)}."
+    close = cls.get("close")
+    if close:
+        other = [s for s in close["stats"] if s not in cls["stats"]]
+        if other:
+            why += f" {other[0]} {pct(other[0])} is within 2 points."
+    return why
 
 
-def finish(core: dict, prev: dict | None, profile, shares: dict | None = None) -> dict:
-    """Add the parts that depend on the previous sheet, then the card's allowlisted fields.
-
-    shares: full-precision season shares from score_core's local result. Ranking, thresholds
-    and holds use them. The sheet's rounded shares are for display.
-    """
-    sheet = dict(core)
-    if shares is None:
-        shares = {r["key"]: r["share"] for r in core["stats"]}
-    same = bool(prev) and prev.get("profile", {}).get("set") == profile.set and prev.get("method") == core["method"]
-    prev_cls = prev.get("class") if same else None
-    cls, held = with_hysteresis(core["class_raw"], prev_cls, shares, profile.set)
-    if cls:
-        cls = dict(cls, why=_class_why(cls, shares), held=held)
-    sheet["class"] = cls
-    multi, multi_held = multiclass_with_hysteresis(
-        multiclass(shares, profile.set, cls) if cls else None, prev.get("multiclass") if same else None,
-        same, shares, profile.set, cls)
-    sheet["multiclass"] = dict(multi, held=multi_held) if multi else None
-    achievements = list(core["achievements"])
-    if same and prev_cls and cls and class_key(prev_cls) != class_key(cls):
-        when = core["season_totals"]["last_day"] or core["history"]["last_day"]
-        if when:
-            achievements.append(make("new-class", when, f"{prev_cls.get('name')} to {cls['name']}"))
-            achievements.sort(key=lambda a: (a["date"], a["id"]))
-    sheet["achievements"] = achievements
-    sheet["changes"] = _changes(sheet, prev) if same else None
-    sheet["card"] = card_fields(sheet, profile)
-    return sheet
-
-
-def _changes(sheet: dict, prev: dict) -> dict:
+def compare(sheet: dict, prev: dict | None, prev_as_of: str | None) -> dict:
+    """What changed since an earlier sheet of the same profile and season. Never part of sheet.json."""
+    if not prev or prev.get("method") != sheet.get("method") or \
+            prev.get("profile", {}).get("set") != sheet["profile"]["set"]:
+        return {"against": None}
     ph, h = prev.get("history", {}), sheet["history"]
     pshares = {r["key"]: r.get("share", 0.0) for r in prev.get("stats", [])}
     drift = []
@@ -350,12 +336,13 @@ def _changes(sheet: dict, prev: dict) -> dict:
     pa = {a["id"] for a in prev.get("achievements", [])}
     pc, cc = prev.get("class") or {}, sheet.get("class") or {}
     return {
-        "since_last_day": ph.get("last_day"),
+        "against": prev_as_of,
         "points_since": h["points"] - int(ph.get("points", 0)),
         "level_from": ph.get("level"),
         "level_to": h["level"],
         "class_from": pc.get("name"),
         "class_to": cc.get("name"),
+        "new_class": bool(pc) and bool(cc) and class_key(pc) != class_key(cc),
         "drift": drift,
         "party_joined": [HARNESS_NAMES[k] for k in sorted(set(cp) - set(pp))],
         "party_left": [HARNESS_NAMES[k] for k in sorted(set(pp) - set(cp)) if k in HARNESS_NAMES],
@@ -380,8 +367,8 @@ def card_fields(sheet: dict, profile) -> dict:
         "enabled": True,
         "name": profile.name,
         "set": profile.set.capitalize(),
-        "class": cls.get("name") or "Unclassed",
-        "multiclass": multi.get("name") or "",
+        "class": cls.get("display") or "Unclassed",
+        "multiclass": multi.get("display") or "",
         "level": sheet["history"]["level"],
         "stats": stats,
         "achievements": [{"title": a["title"], "when": day_label(a["date"]) if exact else month_label(a["date"])}

@@ -11,7 +11,7 @@ from contextlib import redirect_stdout
 from datetime import date
 
 import helpers  # noqa: F401
-from tinkerprint.audit import audit_lines
+from tinkerprint.audit import audit_card, svg_strings
 from tinkerprint.build import build, compute
 from tinkerprint.demo import TOBI, WREN, make_person
 from tinkerprint.profile import load_profile
@@ -49,7 +49,7 @@ class Built(unittest.TestCase):
         for slug, res in self.out.items():
             with open(res["paths"]["card"], encoding="utf-8") as f:
                 svg = f.read()
-            lines = "\n".join(audit_lines(res["sheet"], self.profiles[slug].id))
+            lines = "\n".join(audit_card(os.path.dirname(res["paths"]["card"]), self.profiles[slug]))
             for word in self.distinctive(slug):
                 self.assertNotIn(word, svg, (slug, word))
                 self.assertNotIn(word, lines, (slug, word))
@@ -98,10 +98,9 @@ class Built(unittest.TestCase):
             with open(first["paths"]["json"], "rb") as a, open(second["paths"]["json"], "rb") as b:
                 self.assertEqual(a.read(), b.read())
 
-    def test_what_changed_comes_from_the_previous_snapshot(self):
-        ch = self.out["tobi"]["sheet"]["changes"]
-        self.assertIsNotNone(ch)
-        self.assertEqual(ch["since_last_day"], "2026-09-15")
+    def test_what_changed_comes_from_the_earlier_sheet(self):
+        ch = self.out["tobi"]["changes"]
+        self.assertEqual(ch["against"], "2026-09-15")
         self.assertGreater(ch["points_since"], 0)
 
     def test_builder_demo_lights_five_stats(self):
@@ -125,7 +124,7 @@ class Built(unittest.TestCase):
             page = f.read()
         self.assertIn("default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:", page)
         self.assertNotRegex(page, r"(?i)(src|href)=\"https?:")
-        self.assertIn("Method version 1", page)
+        self.assertIn("Method version 2", page)
         self.assertIn("What changed", page)
         self.assertIn('class="radar"', page)
 

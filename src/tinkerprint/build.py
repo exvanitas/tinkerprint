@@ -1,4 +1,4 @@
-"""Build pipeline: read sources, score, snapshot, render."""
+"""Build pipeline: read sources, score, render, then save the sheet to history."""
 from __future__ import annotations
 
 import hashlib
@@ -13,8 +13,9 @@ from .readers import agy, claude, codex
 from .readers.git import Identity, read_git
 from .render_card import render_card
 from .render_html import render_html
-from .score import finish, score_core
-from .snapshot import SnapshotStore, _write, core_key, data_home, inside_repo_or_root, pretty
+from .history import History
+from .score import compare, score_core
+from .datadir import _write, data_home, inside_repo_or_root, pretty
 from .timeutil import parse_day
 
 CACHE_VERSION = 2
@@ -126,37 +127,72 @@ def parse_season(s: str | None):
     return (frm, to)
 
 
+DESTINATIONS = ("", "cache", "history", "sheets", "last-build")
+
+
+def check_data_home(home: str, profile: Profile) -> None:
+    roots = [r for p in profile.projects for r in p.roots]
+    for sub in DESTINATIONS:
+        dest = os.path.join(home, sub) if sub else home
+        why = inside_repo_or_root(dest, roots)
+        if why:
+            raise ValueError(f"data folder {dest} is refused: {why}. Use --data-dir or XDG_DATA_HOME to pick "
+                             "a folder outside every repo")
+
+
+def default_out(home: str, profile: Profile) -> str:
+    return os.path.join(home, "sheets", profile.id)
+
+
+def last_out(home: str, profile: Profile) -> str | None:
+    try:
+        with open(os.path.join(home, "last-build", profile.id + ".json"), encoding="utf-8") as f:
+            out = json.load(f).get("out")
+        return out if isinstance(out, str) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def compute(profile: Profile, season=(None, None), as_of: date | None = None, home: str | None = None,
             inputs: Inputs | None = None):
-    """Score. Writes only the harness cache. Returns (sheet, local, key, store, prev_key)."""
+    """Score. Writes only the harness cache. sheet.json depends on the events and the profile alone.
+    Returns (sheet, local)."""
     home = data_home(home)
-    why = inside_repo_or_root(home, [r for p in profile.projects for r in p.roots])
-    if why:
-        raise ValueError(f"data folder {home} is refused: {why}. Use --data-dir or XDG_DATA_HOME to pick "
-                         "a folder outside every repo")
+    check_data_home(home, profile)
     inputs = inputs if inputs is not None else gather(profile, home)
     priors = scan_priors(profile.projects)
-    core, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
+    sheet, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
     local["warnings"] = list(inputs.warnings)
-    store = SnapshotStore(home, profile.id, season, profile.set)
-    key = core_key(core)
-    prev_key, prev = store.predecessor(key)
-    sheet = finish(core, prev, profile, local["shares"])
-    return sheet, local, key, store, prev_key
+    return sheet, local
 
 
 def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | None = None,
-          home: str | None = None, built_at: str = "", inputs: Inputs | None = None) -> dict:
-    sheet, local, key, store, prev_key = compute(profile, season, as_of, home, inputs)
-    store.save(key, sheet, prev_key)
+          home: str | None = None, built_at: str = "", inputs: Inputs | None = None,
+          today: date | None = None) -> dict:
+    """Score, compare with the newest earlier saved sheet, write the outputs, then save to history.
+
+    Nothing reaches history unless every output was written.
+    """
+    home = data_home(home)
+    sheet, local = compute(profile, season, as_of, home, inputs)
+    stamp = as_of or today or date.today()
+    hist = History(home, profile.id, season)
+    prev_day, prev = hist.previous(stamp)
+    changes = compare(sheet, prev, prev_day)
     os.makedirs(out_dir, exist_ok=True)
-    paths = {"json": os.path.join(out_dir, "sheet.json"), "html": os.path.join(out_dir, "sheet.html")}
+    paths = {"json": os.path.join(out_dir, "sheet.json"), "changes": os.path.join(out_dir, "changes.json"),
+             "html": os.path.join(out_dir, "sheet.html")}
     _write(paths["json"], pretty(sheet))
-    _write(paths["html"], render_html(sheet, built_at))
+    _write(paths["changes"], pretty(changes))
+    _write(paths["html"], render_html(sheet, built_at, changes))
     card_path = os.path.join(out_dir, "card.svg")
     if sheet["card"].get("enabled"):
         _write(card_path, render_card(sheet["card"]))
         paths["card"] = card_path
     elif os.path.exists(card_path):
         os.remove(card_path)
-    return {"sheet": sheet, "local": local, "paths": paths, "warnings": local.get("warnings", [])}
+    hist.save(stamp, sheet)
+    os.makedirs(os.path.join(home, "last-build"), exist_ok=True)
+    _write(os.path.join(home, "last-build", profile.id + ".json"), pretty({"out": os.path.abspath(out_dir)}))
+    return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
+            "warnings": local.get("warnings", [])}

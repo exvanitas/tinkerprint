@@ -47,18 +47,13 @@ class Item16PartyStaysInsideRootsAndSeason(unittest.TestCase):
         self.assertEqual(sheet["party"][0]["models"], ["m-new"])
 
 
-class Item18MulticlassHold(unittest.TestCase):
-    def test_secondary_class_waits_for_two_points(self):
-        def sheet_for(tests, docs, prev=None):
-            w = f"{{ Logic = 35, Interface = 25, Data = 16, Tests = {tests}, Docs = {docs} }}"
-            import tomllib
-            prof = profile([("A", "/w/a", {"stats": tomllib.loads("s = " + w)["s"]})])
-            return run(prof, [commit(TS, "/w/a/x.py")], prev=prev)[0]
-        first = sheet_for(12.5, 11.5)
-        self.assertEqual(first["multiclass"]["stats"], ["Data", "Tests"])
-        second = sheet_for(11.5, 12.5, prev=first)
-        self.assertEqual(second["multiclass"]["stats"], ["Data", "Tests"])
-        self.assertTrue(second["multiclass"]["held"])
+class Item18MulticlassFollowsTheCloseRule(unittest.TestCase):
+    # Round 2 replaced the 2-point hold with naming a close runner-up, for the multiclass too.
+    def test_close_secondary_pair_is_named(self):
+        prof = profile([("A", "/w/a", {"stats": {"Logic": 35, "Interface": 25, "Data": 16, "Tests": 11.5,
+                                                 "Docs": 12.5}})])
+        sheet = run(prof, [commit(TS, "/w/a/x.py")])[0]
+        self.assertEqual(sheet["multiclass"]["display"], "Chronicler, close to Assayer")
 
 
 class Item20FullPrecisionRanking(unittest.TestCase):

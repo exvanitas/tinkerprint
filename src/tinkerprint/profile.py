@@ -183,7 +183,7 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
 
     milestones = data.get("milestones")
     return Profile(
-        id=_slug(str(data.get("id") or default_id)),
+        id=_slug(default_id),  # storage key: from the profile file path, never from the file content
         name=str(data.get("name", "Unnamed")),
         set=set_name,
         timezone=tz,
@@ -213,7 +213,7 @@ def load_profile(path: str) -> Profile:
             data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
             raise ProfileError(f"{os.path.basename(path)}: {e}") from e
-    # Two profile files never share snapshots by accident: the default id carries a hash of the path.
+    # Two profile files never share history or output folders: the key carries a hash of the real path.
     stem = os.path.splitext(os.path.basename(path))[0]
     tag = hashlib.sha256(path.encode("utf-8")).hexdigest()[:8]
     return parse_profile(data, os.path.dirname(path), default_id=f"{stem}-{tag}")

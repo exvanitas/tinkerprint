@@ -22,10 +22,10 @@ For your own sheet:
 ```
 tinkerprint init --out me.toml        # a commented starter profile
 tinkerprint build --profile me.toml   # sheet.html, card.svg, sheet.json
-tinkerprint audit --profile me.toml   # every string the built share card holds
+tinkerprint audit --profile me.toml   # every text string in the built card.svg
 ```
 
-`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to `~/.local/share/tinkerprint/sheets/<profile>/`. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
+`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json`, `sheet.html` and `card.svg`. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
 
 ## What it reads
 
@@ -44,7 +44,7 @@ The full rules are in [METHOD.md](METHOD.md). Every sheet prints the method vers
 
 One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it never makes a share card unless you allow it.
 
-Each build saves a snapshot outside every repo, under `~/.local/share/tinkerprint/`. The next sheet opens with what changed since then.
+Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The page opens with what changed since then. `sheet.json` never depends on that history: the same logs and profile give the same file.
 
 ## What it will not do
 

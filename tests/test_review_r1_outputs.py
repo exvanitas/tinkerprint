@@ -90,7 +90,7 @@ class Item22AuditDescribesTheBuiltCard(unittest.TestCase):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 main(["audit", "--profile", prof_path, "--data-dir", data])
-            self.assertRegex(buf.getvalue(), r"level\s+1\n")
+            self.assertIn("\n  1\n", buf.getvalue())
 
     def test_audit_lists_only_what_the_card_draws(self):
         prof = profile([("A", "/w/a", None)])

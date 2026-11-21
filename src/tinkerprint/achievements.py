@@ -15,7 +15,6 @@ RULES = {
     "necromancer": ("Necromancer", "You returned to a repo after 180 quiet days."),
     "polyglot": ("Polyglot", "Five or more languages past 1,000 added lines each."),
     "full-party": ("Full party", "Three harnesses on the same day."),
-    "new-class": ("New class", "Your class changed since the last sheet."),
     "seasons-turn": ("Season's turn", "Four quarters in a row with 10 or more active days each."),
 }
 ORDER = list(RULES)

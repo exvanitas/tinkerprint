@@ -445,7 +445,7 @@ def make_person(base: str, person: DemoPerson) -> str:
 
 def run_demo(out: str, people=PEOPLE, built_at: str = "demo build") -> list:
     """Build both invented people's sheets into out/<slug>/. A first build as of six weeks earlier
-    gives the second one a previous snapshot, so the What changed panel has something to say."""
+    gives the second one an earlier saved sheet, so the What changed panel has something to say."""
     from .build import build
     from .profile import load_profile
 

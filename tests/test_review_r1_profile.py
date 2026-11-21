@@ -68,17 +68,9 @@ class Item04ProfilesKeepTheirOwnSnapshots(Tmp):
         self.assertNotEqual(work.id, personal.id)
         home = os.path.join(self.t, "data")
         self.assertEqual(build(work, os.path.join(self.t, "o1"), home=home)["sheet"]["class"]["name"], "Sage")
-        sheet = build(personal, os.path.join(self.t, "o2"), home=home)["sheet"]
-        self.assertEqual(sheet["class"]["name"], "Illusionist")
-        self.assertIsNone(sheet["changes"])
-
-    def test_snapshot_from_another_profile_is_refused(self):
-        from tinkerprint.snapshot import SnapshotStore
-        home = os.path.join(self.t, "data")
-        a = SnapshotStore(home, "same-id", (None, None), "builder")
-        a.save("k1", {"x": 1}, None)
-        b = SnapshotStore(home, "same-id", (None, None), "tinkerer")
-        self.assertEqual(b.predecessor("k2"), (None, None))
+        res = build(personal, os.path.join(self.t, "o2"), home=home)
+        self.assertEqual(res["sheet"]["class"]["name"], "Illusionist")
+        self.assertIsNone(res["changes"]["against"])
 
 
 class Item05RebuildIsByteIdentical(Tmp):

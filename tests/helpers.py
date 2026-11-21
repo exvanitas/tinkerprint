@@ -8,7 +8,7 @@ if SRC not in sys.path:
 
 from tinkerprint.events import Event, Inputs  # noqa: E402
 from tinkerprint.profile import parse_profile  # noqa: E402
-from tinkerprint.score import finish, score_core  # noqa: E402
+from tinkerprint.score import score_core  # noqa: E402
 
 
 def profile(projects, set="builder", tz="UTC", rollover=4, **extra):
@@ -37,7 +37,7 @@ def session(ts, folder, sid="s1", harness="claude", origin="", model="model-x"):
 def run(prof, events, commits=(), tags=(), priors=None, season=(None, None), prev=None, as_of=None, milestones=()):
     core, local = score_core(Inputs(events=list(events), commits=list(commits), tags=list(tags)), prof,
                              priors or {}, season, as_of, milestones)
-    return finish(core, prev, prof, local["shares"]), local
+    return core, local
 
 
 def stat(sheet, key):

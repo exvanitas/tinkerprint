@@ -7,10 +7,10 @@ import sys
 from datetime import datetime
 
 from . import __version__
-from .audit import audit_build
-from .build import build, parse_season
+from .audit import audit_card
+from .build import build, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
-from .snapshot import data_home
+from .datadir import data_home
 from .timeutil import parse_day
 
 STARTER = '''# tinkerprint profile. Everything here stays on this machine.
@@ -121,14 +121,11 @@ def unassigned_lines(local: dict, limit: int) -> list:
     return out
 
 
-def default_out(home: str, profile) -> str:
-    return os.path.join(home, "sheets", profile.id)
-
-
 def cmd_audit(args) -> int:
     profile = load_profile(args.profile)
-    out = args.out or default_out(data_home(args.data_dir), profile)
-    print("\n".join(audit_build(out, profile)))
+    home = data_home(args.data_dir)
+    out = args.out or last_out(home, profile) or default_out(home, profile)
+    print("\n".join(audit_card(out, profile)))
     return 0
 
 
@@ -168,13 +165,13 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--season", help="FROM:TO dates, for example 2025-01-01:2025-06-30. Default: all history")
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
     b.add_argument("--out", help="output folder. Default: the data folder")
-    b.add_argument("--data-dir", help="cache and snapshot folder. Default: $XDG_DATA_HOME/tinkerprint")
+    b.add_argument("--data-dir", help="cache and history folder. Default: $XDG_DATA_HOME/tinkerprint")
     b.add_argument("--list-unassigned", type=int, default=10, metavar="N", help="unassigned folders to list")
     b.set_defaults(func=cmd_build)
 
-    a = sub.add_parser("audit", help="print every string the built share card holds")
+    a = sub.add_parser("audit", help="print every text string in the built card.svg")
     a.add_argument("--profile", required=True)
-    a.add_argument("--out", help="the build folder to audit. Default: the profile's folder in the data folder")
+    a.add_argument("--out", help="the build folder to audit. Default: this profile's last build")
     a.add_argument("--data-dir")
     a.set_defaults(func=cmd_audit)
 
