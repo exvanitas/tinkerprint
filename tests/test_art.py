@@ -1,7 +1,6 @@
 """Generated art: every class draws, pictures are byte-identical, the card's art reads only its
 allowlist, packs are checked, the chronicle follows the class rules, and pages stay small."""
 import copy
-import hashlib
 import json
 import os
 import re
