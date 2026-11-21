@@ -215,9 +215,11 @@ def _changes(ch: dict | None) -> str:
     items.append(f"{n:+d} {'point' if abs(n) == 1 else 'points'}.")
     if ch.get("level_from") is not None and ch["level_to"] != ch["level_from"]:
         items.append(f"Level {ch['level_from']} to level {ch['level_to']}.")
-    if ch.get("new_class"):
+    if ch.get("set_changed"):
+        items.append(f"Set changed from {e(ch.get('set_from') or 'another set')}. Class and shares are not compared.")
+    elif ch.get("new_class"):
         items.append(f"New class: {e(ch['class_from'])} to {e(ch['class_to'])}.")
-    elif ch.get("class_to"):
+    else:
         items.append(f"Same class: {e(ch['class_to'])}.")
     for d in ch.get("drift", [])[:4]:
         items.append(f"{e(d['stat'])} {pct(d['from'])} to {pct(d['to'])}.")

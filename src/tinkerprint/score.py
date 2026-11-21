@@ -336,30 +336,38 @@ def _class_why(cls: dict | None, shares: dict) -> str:
 
 
 def compare(sheet: dict, prev: dict | None, prev_as_of: str | None) -> dict:
-    """What changed since an earlier sheet of the same profile and season. Never part of sheet.json."""
-    if not prev or prev.get("method") != sheet.get("method") or \
-            prev.get("profile", {}).get("set") != sheet["profile"]["set"]:
+    """What changed since an earlier sheet of the same profile and season. Never part of sheet.json.
+
+    Points, level, party and achievements always compare. Class and share drift compare only
+    within one set. Unclassed to classed is a new class.
+    """
+    if not prev or prev.get("method") != sheet.get("method"):
         return {"against": None}
+    set_changed = prev.get("profile", {}).get("set") != sheet["profile"]["set"]
     ph, h = prev.get("history", {}), sheet["history"]
-    pshares = {r["key"]: r.get("share", 0.0) for r in prev.get("stats", [])}
     drift = []
-    for r in sheet["stats"]:
-        delta = _r(r["share"] - pshares.get(r["key"], 0.0))
-        if abs(delta) >= 0.01:
-            drift.append({"stat": r["key"], "from": _r(pshares.get(r["key"], 0.0)), "to": r["share"], "delta": delta})
-    drift.sort(key=lambda x: -abs(x["delta"]))
+    if not set_changed:
+        pshares = {r["key"]: r.get("share", 0.0) for r in prev.get("stats", [])}
+        for r in sheet["stats"]:
+            delta = _r(r["share"] - pshares.get(r["key"], 0.0))
+            if abs(delta) >= 0.01:
+                drift.append({"stat": r["key"], "from": _r(pshares.get(r["key"], 0.0)), "to": r["share"],
+                              "delta": delta})
+        drift.sort(key=lambda x: -abs(x["delta"]))
     pp = {m["harness"]: m for m in prev.get("party", [])}
     cp = {m["harness"]: m for m in sheet["party"]}
     pa = {a["id"] for a in prev.get("achievements", [])}
-    pc, cc = prev.get("class") or {}, sheet.get("class") or {}
+    pc, cc = prev.get("class"), sheet.get("class")
     return {
         "against": prev_as_of,
+        "set_changed": set_changed,
+        "set_from": prev.get("profile", {}).get("set"),
         "points_since": h["points"] - int(ph.get("points", 0)),
         "level_from": ph.get("level"),
         "level_to": h["level"],
-        "class_from": pc.get("name"),
-        "class_to": cc.get("name"),
-        "new_class": bool(pc) and bool(cc) and class_key(pc) != class_key(cc),
+        "class_from": (pc or {}).get("name") or "Unclassed",
+        "class_to": (cc or {}).get("name") or "Unclassed",
+        "new_class": not set_changed and class_key(pc) != class_key(cc),
         "drift": drift,
         "party_joined": [HARNESS_NAMES[k] for k in sorted(set(cp) - set(pp))],
         "party_left": [HARNESS_NAMES[k] for k in sorted(set(pp) - set(cp)) if k in HARNESS_NAMES],
