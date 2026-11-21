@@ -133,12 +133,21 @@ Generic rules over events and git, the same for everyone. Each states its rule a
 
 A profile may add a milestones file (one dated line per milestone) for releases, launches or anything else the person keeps. Milestones show as the person wrote them and need no rule.
 
+## Chronicle
+
+One chapter per calendar quarter, from the first active day to the last, over all history up to the as-of date. A chapter shows its active days and the class its own points would give under the rules above, with a close runner-up named the same way. A chapter with only unclassified points has no class. Runs of quarters with no active day collapse into one rest. The chronicle reads the per-day points that scoring already made and adds no rule about points.
+
+## Art
+
+Pictures follow class shape only: the class, its stats ranked by share rounded to 5%, the multiclass and the party's harnesses. Level, points and streaks never change a picture. The rules for composing them are in [docs/ART.md](docs/ART.md).
+
 ## Outputs
 
 - `sheet.json`: versioned, everything the pages draw. It depends on the events and the profile alone.
 - `changes.json`: what changed since an earlier sheet (see below). Kept apart so `sheet.json` never depends on history.
 - `sheet.html`: the private sheet. One file, no network: fonts inlined, a content policy that blocks every request.
-- `card.svg`: the share card, built from an allowlist only: name, set, class, level, stat shares rounded to 5%, achievement titles with month dates, and the party's harness names. Hours, weekdays, exact dates, streak ranges, project names and token totals stay off unless the profile turns them on. A profile marked `work = true` never goes on a card unless it says so. The card's chart follows its rounded shares: fewer than three nonzero rounded shares draw ranked bars, so no stat under 5% shows through.
+- `card.svg`: the share card, built from an allowlist only: name, set, class, level, stat shares rounded to 5%, achievement titles with month dates, and the party's harness names. Its portrait comes from the set, class, multiclass and rounded shares, and draws no text. Hours, weekdays, exact dates, streak ranges, project names and token totals stay off unless the profile turns them on. A profile marked `work = true` never goes on a card unless it says so. The card's chart follows its rounded shares: fewer than three nonzero rounded shares draw ranked bars, so no stat under 5% shows through.
+- `portrait.png`: the card's portrait as a PNG, written only when the card is on, from the card's fields alone.
 - `audit`: prints every text string in the `card.svg` on disk, in document order. It reads nothing else.
 - **What changed**: each successful build saves its sheet to a history kept per profile file and season, named by its as-of date (the `--as-of` date, or the build day). A build compares against the newest saved sheet with an earlier as-of date and names that date. The comparison covers points since then, level-ups, a new class, share drift, party changes and new achievements. A build with an earlier as-of date never compares against a later sheet.
 

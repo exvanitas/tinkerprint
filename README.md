@@ -2,19 +2,19 @@
 
 Turn your git history and your coding-agent logs into an RPG stat sheet.
 
-Stats on a radar, a class from your two strongest stats, a level, a few dated achievements, and a party: the agents that worked beside you. It runs on your machine and reads only what is already there. Nothing is uploaded.
+Stats on a radar, a class from your two strongest stats with a pixel portrait to match, a level, a few dated achievements, a chronicle of your classes by quarter, and a party: the agents that worked beside you. It runs on your machine and reads only what is already there. Nothing is uploaded.
 
 ## What it makes
 
 A private sheet, one HTML file per profile. Here are the demo's two invented people, a developer on the builder set and a tinkerer on the tinkerer set:
 
-![Sheet for Tobi Marsh, an invented developer: class, level and a radar of the builder set](docs/tobi.png)
+![Sheet for Tobi Marsh, an invented developer: workshop banner, pixel portrait, class, level and a radar of the builder set](docs/tobi.png)
 
 ![Sheet for Wren Aldous, an invented tinkerer, in the dark theme](docs/wren.png)
 
 And a share card that carries only what you allow:
 
-![Share card for Tobi Marsh: class, level, rounded shares, achievements and party](docs/card.png)
+![Share card for Tobi Marsh: pixel portrait, class, level, rounded shares, achievements and party](docs/card.png)
 
 ## Try it
 
@@ -35,7 +35,9 @@ tinkerprint build --profile me.toml   # sheet.html, card.svg, sheet.json
 tinkerprint audit --profile me.toml   # every text string in the built card.svg
 ```
 
-`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json`, `sheet.html` and `card.svg`. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
+`tinkerprint gallery --out art` writes one page with every class portrait of both sets, every familiar, icon and a few banners. The art is pixel art made in code from a pack of parts, and `--art-pack` swaps the pack. See [docs/ART.md](docs/ART.md).
+
+`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json`, `sheet.html` and `card.svg`, plus `portrait.png` when the card is on. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
 
 ## What it reads
 
