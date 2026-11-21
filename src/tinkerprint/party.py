@@ -8,29 +8,29 @@ HARNESS_ORDER = ("claude", "codex", "agy")
 
 
 def build_party(sessions: dict, in_season) -> list:
-    """sessions: {(harness, session id): {"days": set, "edit_days": set, "origin": str, "models": Counter}}.
+    """sessions: {(harness, session id): {"obs": [(day, model, edited)], "origin": str}}.
 
-    Only sessions inside the profile reach here. in_season(day) filters days.
+    Observations are already limited to the profile's roots. in_season(day) filters each one,
+    so days and models from outside the season never reach the party.
     """
     members = {}
     for (harness, sid), s in sorted(sessions.items()):
-        days = {d for d in s["days"] if in_season(d)}
-        if not days:
+        obs = [o for o in s["obs"] if in_season(o[0])]
+        if not obs:
             continue
         m = members.setdefault(harness, {"days": set(), "sessions": 0, "edit": 0, "review": 0, "other": 0,
                                          "models": Counter()})
-        m["days"] |= days
+        m["days"] |= {d for d, _, _ in obs}
         m["sessions"] += 1
-        edited = any(in_season(d) for d in s["edit_days"])
-        if edited:
+        if any(edited for _, _, edited in obs):
             m["edit"] += 1
         elif "exec" in (s.get("origin") or ""):
             m["review"] += 1
         else:
             m["other"] += 1
-        for model, n in s["models"].items():
+        for _, model, _ in obs:
             if model:
-                m["models"][model] += n
+                m["models"][model] += 1
     out = []
     for h in HARNESS_ORDER:
         if h not in members:

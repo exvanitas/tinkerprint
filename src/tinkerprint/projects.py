@@ -23,14 +23,19 @@ class Resolver:
         self.projects = list(projects)
 
     def resolve(self, path: str):
+        hit = self.resolve_root(path)
+        return (hit[0], hit[2]) if hit else None
+
+    def resolve_root(self, path: str):
+        """(project, matched root, path relative to it), or None."""
         if not path or not os.path.isabs(path):
             return None  # relative paths have no known folder: unassigned
         path = os.path.normpath(path)
         for root, proj in self._roots:
             if path == root:
-                return proj, ""
+                return proj, root, ""
             if path.startswith(root + "/") or root == "/":
-                return proj, path[len(root):].lstrip("/")
+                return proj, root, path[len(root):].lstrip("/")
         return None
 
 

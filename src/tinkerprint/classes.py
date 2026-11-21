@@ -101,3 +101,40 @@ def with_hysteresis(new: dict | None, prev: dict | None, shares: dict, set_name:
     if qualifies(kept, shares, set_name, HYSTERESIS):
         return kept, True
     return new, False
+
+
+def multiclass_qualifies(multi: dict | None, shares: dict, set_name: str, main: dict | None, slack: float) -> bool:
+    """Whether shares still support a multiclass (or its absence, when multi is None) within slack."""
+    if not main or main["kind"] == "generalist":
+        return multi is None
+    order = stats_of(set_name)
+    vals = {s: shares.get(s, 0.0) for s in order}
+    eps = slack + _TINY
+    r = ranked(vals, set_name)
+    if multi is None:
+        return min(vals[r[2]], vals[r[3]]) < MULTICLASS_AT + eps
+    stats = [s for s in multi.get("stats", []) if s in vals]
+    if len(stats) != 2 or set(stats) & set(main["stats"]):
+        return False
+    a, b = stats
+    lo, hi = min(vals[a], vals[b]), max(vals[a], vals[b])
+    others = [v for k, v in vals.items() if k not in (a, b)]
+    return (lo >= MULTICLASS_AT - eps and sum(1 for v in others if v > lo + eps) <= 2
+            and sum(1 for v in others if v >= hi - eps) >= 2)
+
+
+def multiclass_with_hysteresis(new: dict | None, prev: dict | None, had_prev: bool, shares: dict, set_name: str,
+                               main: dict | None) -> tuple:
+    """The multiclass follows the same 2-point hold as the class. Returns (multiclass, held)."""
+    if not had_prev:
+        return new, False
+    nk = tuple(new["stats"]) if new else None
+    pk = tuple(prev["stats"]) if prev else None
+    if nk == pk:
+        return new, False
+    if multiclass_qualifies(prev, shares, set_name, main, HYSTERESIS):
+        if prev is None:
+            return None, True
+        a, b = sorted(prev["stats"], key=stats_of(set_name).index)
+        return {"stats": [a, b], "name": pair_name(set_name, a, b)}, True
+    return new, False

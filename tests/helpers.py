@@ -37,7 +37,7 @@ def session(ts, folder, sid="s1", harness="claude", origin="", model="model-x"):
 def run(prof, events, commits=(), tags=(), priors=None, season=(None, None), prev=None, as_of=None, milestones=()):
     core, local = score_core(Inputs(events=list(events), commits=list(commits), tags=list(tags)), prof,
                              priors or {}, season, as_of, milestones)
-    return finish(core, prev, prof), local
+    return finish(core, prev, prof, local["shares"]), local
 
 
 def stat(sheet, key):

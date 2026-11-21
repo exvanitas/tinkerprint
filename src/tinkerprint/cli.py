@@ -96,14 +96,29 @@ def cmd_build(args) -> int:
             print(f"  {k:<5} {res['paths'][k]}")
     if not s["card"].get("enabled"):
         print("  card  off: " + s["card"].get("reason", ""))
-    un = res["local"]["unassigned_folders"]
-    if un:
-        print(f"Unassigned: {sum(n for _, n in un)} sessions in {len(un)} folders outside every root. Not scored.")
-        for folder, n in un[: args.list_unassigned]:
-            print(f"  {n:>4}  {folder}")
-        if len(un) > args.list_unassigned:
-            print(f"  ... {len(un) - args.list_unassigned} more. Use --list-unassigned N to see them.")
+    for line in unassigned_lines(res["local"], args.list_unassigned):
+        print(line)
+    for w in res.get("warnings", []):
+        print("Warning: " + w)
     return 0
+
+
+def unassigned_lines(local: dict, limit: int) -> list:
+    """Terminal-only listing of folders outside every root: sessions, then edited files."""
+    out = []
+    un = local.get("unassigned_folders", [])
+    if un:
+        out.append(f"Unassigned: {sum(n for _, n in un)} sessions in {len(un)} folders outside every root. Not scored.")
+        out += [f"  {n:>4}  {folder}" for folder, n in un[:limit]]
+        if len(un) > limit:
+            out.append(f"  ... {len(un) - limit} more. Use --list-unassigned N to see them.")
+    edits = local.get("unassigned_edit_folders", [])
+    if edits:
+        out.append(f"Unassigned edits: files changed in {len(edits)} folders outside every root. Not scored.")
+        out += [f"        {folder}" for folder in edits[:limit]]
+        if len(edits) > limit:
+            out.append(f"  ... {len(edits) - limit} more. Use --list-unassigned N to see them.")
+    return out
 
 
 def cmd_audit(args) -> int:

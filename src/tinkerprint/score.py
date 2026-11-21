@@ -12,7 +12,7 @@ from datetime import date
 
 from . import METHOD_VERSION, SHEET_FORMAT, __version__
 from .achievements import evaluate, make
-from .classes import class_key, multiclass, ranked, raw_class, with_hysteresis
+from .classes import class_key, multiclass, multiclass_with_hysteresis, ranked, raw_class, with_hysteresis
 from .classify import classify, is_code, is_skipped, language_of
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
@@ -55,15 +55,17 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     def in_season(d: date) -> bool:
         return in_bounds(d) and (frm is None or d >= frm) and (to is None or d <= to)
 
-    # 1. File touches, deduplicated by (day, project, file). Sessions grouped for the party.
-    touches: dict = defaultdict(dict)      # (day, project) -> {key: weights}
-    commit_files: dict = defaultdict(list)  # (commit, project) -> [(day, rel, status)]
-    sessions: dict = {}
-    unassigned_sessions: dict = {}
+    root_ids = getattr(inp, "root_ids", {}) or {}
+
+    def file_key(root: str, rel: str):
+        # Clones of one repo share an identity, so their copies of a file are one file.
+        return (root_ids.get(root, root), rel)
+
+    # 1. Resolve every event once. Sessions keep dated observations for the party.
+    resolved = []
+    sessions: dict = {}   # (harness, session) -> {"obs": [(day, model, edited)], "out": [(day, folder)], "origin"}
     unassigned_edits = set()
     lines = []
-    counted = Counter()
-
     for ev in sorted(inp.events):
         dt = parse_ts(ev.ts)
         if dt is None:
@@ -71,97 +73,100 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         d = day_of(dt, tz, ro)
         if not in_bounds(d):
             continue
-        hit = resolver.resolve(ev.path)
-        if ev.kind == "session":
-            key = (ev.harness, ev.session)
-            target = sessions if (hit or key in sessions) else unassigned_sessions
-            s = target.setdefault(key, {"days": set(), "edit_days": set(), "origin": ev.origin,
-                                        "models": Counter(), "folder": ev.path})
-            s["days"].add(d)
-            if ev.model:
-                s["models"][ev.model] += 1
+        hit = resolver.resolve_root(ev.path)
+        if ev.kind in ("session", "edit"):
+            s = sessions.setdefault((ev.harness, ev.session), {"obs": [], "out": [], "origin": ev.origin})
+            if hit is None or (ev.kind == "edit" and not hit[2]):
+                s["out"].append((d, ev.path if ev.kind == "session" else os.path.dirname(ev.path)))
+                if ev.kind == "edit" and in_season(d):
+                    unassigned_edits.add(ev.path)
+                continue
+            s["obs"].append((d, ev.model, ev.kind == "edit"))
+            if ev.kind == "session":
+                continue
+        elif hit is None:
             continue
-        if hit is None:
-            if ev.kind == "edit":
-                unassigned_edits.add(ev.path)
-            continue
-        proj, rel = hit
+        proj, root, rel = hit
         if not rel:
             continue
+        resolved.append((ev, d, proj, root, rel))
+
+    # 2. Bulk imports: a commit adding more than 200 non-code files counts them once, as one file
+    # spread over its projects with the average weights of those files, unclassified share kept.
+    bulk_rows = defaultdict(list)
+    for ev, d, proj, root, rel in resolved:
+        if ev.kind == "commit" and ev.status == "A" and not is_code(rel) and not is_skipped(rel):
+            bulk_rows[ev.commit].append((d, proj, root, rel))
+    bulk = {h: rows for h, rows in bulk_rows.items() if len(rows) > BULK_LIMIT}
+    in_bulk = {(h, proj.name, root, rel) for h, rows in bulk.items() for _, proj, root, rel in rows}
+
+    touches: dict = defaultdict(dict)  # (day, project) -> {file key: (weights, mass)}
+    commits_seen = set()
+    counted = Counter()
+    for ev, d, proj, root, rel in resolved:
         if ev.kind == "edit":
-            key = (ev.harness, ev.session)
-            s = sessions.get(key) or unassigned_sessions.pop(key, None) or {
-                "days": set(), "edit_days": set(), "origin": ev.origin, "models": Counter(), "folder": ev.path}
-            sessions[key] = s
-            s["days"].add(d)
-            s["edit_days"].add(d)
-            if ev.model:
-                s["models"][ev.model] += 1
             counted["edits"] += 1
         elif ev.kind == "commit":
-            commit_files[(ev.commit, proj.name)].append((d, rel, ev.status))
+            commits_seen.add(ev.commit)
             if not is_skipped(rel):
                 lang = language_of(rel)
                 if lang and ev.added:
                     lines.append((d, lang, ev.added))
+            if (ev.commit, proj.name, root, rel) in in_bulk:
+                continue
         w = classify(rel, proj, profile.set, priors)
         if w is None:
             continue
-        touches[(d, proj.name)][rel] = w
-
-    # 2. Bulk imports: a commit adding more than 200 non-code files counts them once.
-    for (h, pname), rows in sorted(commit_files.items()):
-        bulk = [(d, rel) for d, rel, st in rows if st == "A" and not is_code(rel) and not is_skipped(rel)]
-        if len(bulk) <= BULK_LIMIT:
-            continue
-        proj = by_name[pname]
-        total: Counter = Counter()
-        for d, rel in bulk:
-            for s, x in (classify(rel, proj, profile.set, priors) or {}).items():
-                total[s] += x
-        d0 = bulk[0][0]
-        files = touches.get((d0, pname), {})
-        for d, rel in bulk:
-            touches.get((d, pname), {}).pop(rel, None)
-        best = sorted(total.items(), key=lambda kv: (-kv[1], kv[0] == "", str(kv[0])))[0][0]
-        files["bulk:" + h] = {best: 1.0}
-        touches[(d0, pname)] = files
+        touches[(d, proj.name)][file_key(root, rel)] = (w, 1.0)
+    for h, rows in sorted(bulk.items()):
+        per_proj = defaultdict(list)
+        for d, proj, root, rel in rows:
+            w = classify(rel, proj, profile.set, priors)
+            if w is not None:
+                per_proj[(d, proj.name)].append(w)
+        total = sum(len(v) for v in per_proj.values())
+        for (d, pname), ws in sorted(per_proj.items()):
+            avg = defaultdict(float)
+            for w in ws:
+                for k, x in w.items():
+                    avg[k] += x / len(ws)
+            touches[(d, pname)][("bulk", h)] = (dict(avg), len(ws) / total)
     touches = {k: v for k, v in touches.items() if v}
-    counted["commits"] = len({h for h, _ in commit_files})
+    counted["commits"] = len(commits_seen)
 
     # 3. Tinkerer: Data and Tests count with the project's main code stat.
     main_stat = {}
     if profile.set == "tinkerer":
         seen: dict = {}
         for (d, pname), files in touches.items():
-            for key, w in files.items():
-                seen[(pname, key)] = w
+            for key, wm in files.items():
+                seen[(pname, key)] = wm
         tally = defaultdict(Counter)
-        for (pname, key), w in seen.items():
+        for (pname, key), (w, mass) in seen.items():
             for s, x in w.items():
                 if s in TINKERER_CODE_STATS:
-                    tally[pname][s] += x
+                    tally[pname][s] += x * mass
         for p in profile.projects:
             t = tally.get(p.name)
-            main_stat[p.name] = (sorted(TINKERER_CODE_STATS, key=lambda s: (-round(t[s], 9), stats.index(s)))[0]
+            main_stat[p.name] = (sorted(TINKERER_CODE_STATS, key=lambda s: (-t[s], stats.index(s)))[0]
                                  if t and sum(t.values()) > 0 else "Systems")
 
     # 4. One point per active day, split by log(1 + files) per project, then per stat.
-    days: dict = defaultdict(dict)  # day -> project -> {stat or "": points}
+    days: dict = defaultdict(dict)  # day -> project -> files
     for (d, pname), files in sorted(touches.items()):
         days[d][pname] = files
     day_points: dict = {}
     for d in sorted(days):
         projs = days[d]
-        pw = {p: math.log1p(len(f)) for p, f in projs.items()}
+        pw = {p: math.log1p(sum(m for _, m in f.values())) for p, f in projs.items()}
         total = sum(pw.values())
         out = {}
         for pname in sorted(projs):
             share = pw[pname] / total
             per = defaultdict(float)
-            for w in projs[pname].values():
+            for w, mass in projs[pname].values():
                 for s, x in w.items():
-                    per[main_stat.get(pname, "Systems") if s is None else s] += x
+                    per[main_stat.get(pname, "Systems") if s is None else s] += x * mass
             sw = {s: math.log1p(n) for s, n in per.items() if n > 0}
             st = sum(sw.values())
             out[pname] = {s: share * v / st for s, v in sorted(sw.items(), key=lambda kv: str(kv[0]))}
@@ -205,18 +210,23 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
                          sorted(stat_proj[s].items(), key=lambda kv: (-round(kv[1], ND), kv[0])) if _r(v) > 0],
         })
 
-    cls = raw_class(shares_r, profile.set)
+    cls = raw_class(shares, profile.set)
     lit = sum(1 for s in stats if stat_pts[s] > 0)
 
-    # 6. Party and unassigned presence.
-    party = build_party(sessions, in_season)
+    # 6. Party and unassigned presence. Only observations inside the profile's roots count,
+    # and the season filters each observation, not each session.
+    mine = {k: v for k, v in sessions.items() if v["obs"]}
+    party = build_party(mine, in_season)
     harness_days = defaultdict(set)
-    for (h, _), s in sessions.items():
-        harness_days[h] |= s["days"]
+    for (h, _), s in mine.items():
+        harness_days[h] |= {d for d, _, _ in s["obs"]}
     un_folders = Counter()
-    for (h, _), s in unassigned_sessions.items():
-        if any(in_season(d) for d in s["days"]):
-            un_folders[s["folder"]] += 1
+    for key, s in sessions.items():
+        if key in mine:
+            continue
+        seen = sorted({f for d, f in s["out"] if in_season(d)})
+        if seen:
+            un_folders[seen[0] or "(no folder)"] += 1
 
     # 7. Achievements over all history up to as_of.
     def repo_name(top: str) -> str:
@@ -267,7 +277,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "stats": stat_rows,
         "chart": "radar" if lit >= 3 else "bars",
         "class_raw": cls,
-        "multiclass": multiclass(shares_r, profile.set, cls),
+        "multiclass": multiclass(shares, profile.set, cls),
         "projects": projects,
         "party": party,
         "achievements": achievements,
@@ -275,9 +285,10 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "unassigned": {"sessions": sum(un_folders.values()), "folders": len(un_folders),
                        "edits": len(unassigned_edits)},
         "inputs": {"commits": counted["commits"], "agent_edits": counted["edits"],
-                   "sessions": len(sessions)},
+                   "sessions": len(mine)},
     }
-    local = {"unassigned_folders": sorted(un_folders.items(), key=lambda kv: (-kv[1], kv[0])),
+    local = {"shares": shares,
+             "unassigned_folders": sorted(un_folders.items(), key=lambda kv: (-kv[1], kv[0])),
              "unassigned_edit_folders": sorted({os.path.dirname(p) for p in unassigned_edits})}
     return core, local
 
@@ -294,16 +305,25 @@ def _class_why(cls: dict | None, shares: dict) -> str:
     return f"{a} {pct(a)} and {b} {pct(b)}."
 
 
-def finish(core: dict, prev: dict | None, profile) -> dict:
-    """Add the parts that depend on the previous sheet, then the card's allowlisted fields."""
+def finish(core: dict, prev: dict | None, profile, shares: dict | None = None) -> dict:
+    """Add the parts that depend on the previous sheet, then the card's allowlisted fields.
+
+    shares: full-precision season shares from score_core's local result. Ranking, thresholds
+    and holds use them. The sheet's rounded shares are for display.
+    """
     sheet = dict(core)
-    shares = {r["key"]: r["share"] for r in core["stats"]}
+    if shares is None:
+        shares = {r["key"]: r["share"] for r in core["stats"]}
     same = bool(prev) and prev.get("profile", {}).get("set") == profile.set and prev.get("method") == core["method"]
     prev_cls = prev.get("class") if same else None
     cls, held = with_hysteresis(core["class_raw"], prev_cls, shares, profile.set)
     if cls:
         cls = dict(cls, why=_class_why(cls, shares), held=held)
     sheet["class"] = cls
+    multi, multi_held = multiclass_with_hysteresis(
+        multiclass(shares, profile.set, cls) if cls else None, prev.get("multiclass") if same else None,
+        same, shares, profile.set, cls)
+    sheet["multiclass"] = dict(multi, held=multi_held) if multi else None
     achievements = list(core["achievements"])
     if same and prev_cls and cls and class_key(prev_cls) != class_key(cls):
         when = core["season_totals"]["last_day"] or core["history"]["last_day"]
