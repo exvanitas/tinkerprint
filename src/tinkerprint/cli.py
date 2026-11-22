@@ -105,8 +105,11 @@ def starter(name: str = "", email: str = "", tz: str = "UTC", tz_guessed: bool =
 
 
 def _profile_path(args, quiet: bool = False) -> str | None:
-    """--profile, else ./tinkerprint.toml when it exists, else None."""
-    if args.profile:
+    """--profile, else ./tinkerprint.toml when it exists, else None. An empty --profile, as an
+    unset shell variable gives, is an error, never the same as leaving it out."""
+    if args.profile is not None:
+        if not args.profile.strip():
+            raise ProfileError("--profile is empty. Pass the path of a profile file, or leave --profile out")
         return args.profile
     if os.path.isfile(DEFAULT_PROFILE):
         if not quiet:
@@ -275,7 +278,7 @@ def cmd_audit(args) -> int:
                 raise
             # An explicit card folder can be audited without its profile. A profile asked for by
             # name that cannot be read fails the audit: its settings were never checked.
-            unread = bool(args.profile)
+            unread = args.profile is not None
             more = " The audit fails, since the card cannot be checked against it." if unread else ""
             print(f"Profile not readable ({e}). Auditing {args.out} alone.{more}")
     if args.out:

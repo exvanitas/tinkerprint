@@ -166,13 +166,15 @@ def portrait_png(card: dict, pack: dict) -> bytes:
 
 def portrait_plate(card: dict, pack: dict):
     """The portrait: the figure in front of their own room, from allowlisted card fields only.
-    The name seeds the room's view and any trait the profile left to chance."""
-    return keepsake.plate(pack, art.card_look(card), str(card.get("name", "")), **look.options(look.of_card(card)))
+    The name, clipped as the card shows it, seeds the room's view and any trait the profile left
+    to chance."""
+    return keepsake.plate(pack, art.card_look(card), look.public_name(card.get("name", "")),
+                          **look.options(look.of_card(card)))
 
 
 def portrait_gif(card: dict, pack: dict) -> bytes:
     """portrait.gif: the plate's idle loop at the scale of portrait.png, from allowlisted card fields only."""
-    frames = keepsake.plate_frames(pack, art.card_look(card), str(card.get("name", "")),
+    frames = keepsake.plate_frames(pack, art.card_look(card), look.public_name(card.get("name", "")),
                                    **look.options(look.of_card(card)))
     return keepsake.encode(frames, keepsake.DELAYS_MS, PORTRAIT_SCALE)
 

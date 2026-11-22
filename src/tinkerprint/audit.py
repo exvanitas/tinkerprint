@@ -12,9 +12,11 @@ after the image data. portrait.png is checked the same way. portrait.gif must ho
 only (no comment, plain-text or other application extension) and be, byte for byte, the loop the
 card fields draw.
 
-Given the profile, audit also checks that the saved card follows the profile's current [card] and
-[look] settings: the name or handle, show, hide, enabled and the look. A card built under other
-settings is not certified until it is built again.
+Before any redraw, the saved card fields must fit what a card may show: a build month, known stat
+names with shares rounded to 5%, and a known chart. Given the profile, audit also checks that the
+saved card follows the profile's current [card] and [look] settings: the name or handle, show,
+hide, enabled and the look, and that every project name on the card is one the profile still
+has. A card built under other settings is not certified until it is built again.
 
 audit() also says whether every card file is there and certified, for the exit code.
 """
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import struct
 import zlib
 
@@ -274,6 +277,36 @@ def _sheet_card(out_dir: str):
 
 # Card fields that come from the shares alone, or from the build date, not from a setting.
 _NOT_SETTINGS = {"stats", "chart", "built"}
+_MONTH = re.compile(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}")
+
+
+def schema_problems(card) -> list:
+    """What in the saved card fields lies outside what a card may show: [] when nothing does.
+    These fields come from the shares and the build date, not from a setting, so no profile
+    check covers them."""
+    from .sets import SETS
+    out = []
+    if not isinstance(card.get("name"), str):
+        out.append("name")
+    stats_of = SETS.get(str(card.get("set", "")).lower())
+    if stats_of is None:
+        out.append("set")
+    built = card.get("built")
+    if built is not None and not (isinstance(built, str) and _MONTH.fullmatch(built)):
+        out.append("built")
+    stats = card.get("stats")
+    good = isinstance(stats, list) and len({s.get("stat") for s in stats if isinstance(s, dict)}) == len(stats)
+    for st in stats if good else ():
+        pct = st.get("pct")
+        if (not isinstance(st, dict) or set(st) != {"stat", "pct"} or st["stat"] not in (stats_of or ())
+                or not isinstance(pct, int) or isinstance(pct, bool) or not 0 <= pct <= 100 or pct % 5):
+            good = False
+    if not good:
+        out.append("stats")
+    lit = sum(1 for st in stats if st["pct"] > 0) if good else None
+    if card.get("chart") not in ("radar", "bars") or (lit is not None and (card["chart"] == "radar") != (lit >= 3)):
+        out.append("chart")
+    return out
 
 
 def stale_fields(sheet: dict | None, profile) -> list | None:
@@ -288,7 +321,14 @@ def stale_fields(sheet: dict | None, profile) -> list | None:
         want = card_fields(now, profile)
     except (KeyError, TypeError, ValueError, AttributeError, IndexError):
         return None
-    return sorted(k for k in set(want) | set(card) if k not in _NOT_SETTINGS and want.get(k) != card.get(k))
+    stale = {k for k in set(want) | set(card) if k not in _NOT_SETTINGS and want.get(k) != card.get(k)}
+    # A project name on the card must be one the profile still has: the saved sheet's names are
+    # what the card drew, not what the profile allows now.
+    allowed = {p.name for p in profile.projects}
+    shown = card.get("projects")
+    if shown is not None and (not isinstance(shown, list) or any(n not in allowed for n in shown)):
+        stale.add("projects")
+    return sorted(stale)
 
 
 def portrait_line(card: dict) -> str:
@@ -327,6 +367,11 @@ def audit(out_dir: str, profile=None, pack=None) -> tuple:
     if isinstance(card, dict) and card.get("enabled"):
         lines.append(portrait_line(card))
     clean = True
+    bad = schema_problems(card) if isinstance(card, dict) and card.get("enabled") else []
+    if bad:
+        lines.append(f"The card fields in sheet.json hold what a card may not show ({', '.join(bad)}). No card file "
+                     "is certified. Run build again.")
+        return lines, False
     for name, check in (("card.png", lambda b: check_png(b, card, data, pack)),
                         ("portrait.png", lambda b: check_portrait_png(b, card, pack)),
                         ("portrait.gif", lambda b: check_portrait_gif(b, card, pack))):

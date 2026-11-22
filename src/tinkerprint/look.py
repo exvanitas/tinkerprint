@@ -42,7 +42,7 @@ def of_card(card: dict) -> dict:
     look = card.get("look") or {}
     if all(k in look for k in ("presentation",) + TRAITS):
         return {k: look.get(k) for k in TOKENS}
-    full = resolve(look, str(card.get("name", "")))
+    full = resolve(look, public_name(card.get("name", "")))
     return {k: full[k] for k in TOKENS}
 
 
