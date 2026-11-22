@@ -1,6 +1,7 @@
 """Profile loading and validation. A profile is a TOML file the person writes."""
 from __future__ import annotations
 
+import difflib
 import hashlib
 import math
 import os
@@ -16,6 +17,66 @@ CARD_EXTRAS = ("dates", "projects")
 
 class ProfileError(ValueError):
     pass
+
+
+# Every key a profile may hold, per table. Anything else is a ProfileError that names the key.
+KEYS = {
+    "top": ("name", "set", "timezone", "rollover_hour", "work", "milestones", "identity", "harnesses", "card",
+            "project"),
+    "identity": ("emails", "names", "bots"),
+    "harnesses": ("claude", "codex", "agy", "claude_dir", "codex_dir", "agy_db"),
+    "card": ("allow", "show"),
+    "project": ("name", "root", "roots", "stats", "part", "override"),
+    "part": ("path", "stats"),
+    "override": ("glob", "stats"),
+}
+_TABLE_LABEL = {"top": "the top level", "identity": "[identity]", "harnesses": "[harnesses]", "card": "[card]",
+                "project": "[[project]]", "part": "[[project.part]]", "override": "[[project.override]]"}
+
+
+def _suggest(key: str, allowed) -> str:
+    hit = difflib.get_close_matches(key.lower(), list(allowed), n=1, cutoff=0.6)
+    return f" Did you mean {hit[0]!r}?" if hit else ""
+
+
+def _check_keys(table: dict, kind: str, where: str) -> None:
+    allowed = KEYS[kind]
+    for key in table:
+        if key in allowed:
+            continue
+        hint = _suggest(key, allowed)
+        if not hint:
+            home = next((k for k, keys in KEYS.items() if k != kind and key in keys and k in _TABLE_LABEL), None)
+            if home:
+                hint = f" It belongs in {_TABLE_LABEL[home]}."
+        raise ProfileError(f"{where}: unknown key {key!r}.{hint}")
+
+
+def _table(raw, kind: str, where: str) -> dict:
+    """An optional table: absent is empty, anything but a table is an error."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ProfileError(f"{where} must be a table, like {_TABLE_LABEL[kind]} on its own line")
+    _check_keys(raw, kind, where)
+    return raw
+
+
+def _tables(raw, kind: str, where: str, allow_str: bool = False) -> list:
+    """An optional array of tables, like [[project]]."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ProfileError(f"{where} must be written as {_TABLE_LABEL[kind]} tables")
+    out = []
+    for i, item in enumerate(raw):
+        if allow_str and isinstance(item, str):
+            out.append(item)
+            continue
+        if not isinstance(item, dict):
+            raise ProfileError(f"{where} {i + 1} must be a {_TABLE_LABEL[kind]} table")
+        out.append(item)
+    return out
 
 
 @dataclass
@@ -97,11 +158,17 @@ def _weights(raw, set_name: str, where: str) -> dict:
     out = {}
     for k, v in raw.items():
         if k not in allowed:
-            raise ProfileError(f"{where}: unknown stat {k!r} for the {set_name} set")
+            raise ProfileError(f"{where}: unknown stat {k!r} for the {set_name} set.{_suggest_stat(k, allowed)}")
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 < v <= 1e9:
             raise ProfileError(f"{where}: weight for {k} must be a positive number up to 1e9")
         out[k] = float(v)
     return out
+
+
+def _suggest_stat(key: str, allowed) -> str:
+    by_lower = {a.lower(): a for a in allowed}
+    hit = difflib.get_close_matches(str(key).lower(), list(by_lower), n=1, cutoff=0.6)
+    return f" Did you mean {by_lower[hit[0]]!r}?" if hit else ""
 
 
 def _bool(raw, default: bool, where: str) -> bool:
@@ -123,42 +190,59 @@ def _strs(raw, where: str) -> tuple:
     return tuple(raw)
 
 
+def _str(raw, default: str, where: str) -> str:
+    if raw is None:
+        return default
+    if not isinstance(raw, str):
+        raise ProfileError(f"{where} must be text in quotes")
+    return raw
+
+
+def _tz_error(tz) -> ProfileError:
+    try:
+        import zoneinfo
+        no_data = not zoneinfo.available_timezones()
+    except Exception:  # an unusual zoneinfo install: give the usual advice
+        no_data = False
+    if no_data and isinstance(tz, str) and "/" in tz:
+        return ProfileError(f"timezone {tz!r} needs time-zone data, and this Python has none. Install the tzdata "
+                            "package, or use an offset in quarter hours like \"+05:30\"")
+    return ProfileError(f"timezone {tz!r} is not usable. Use an IANA name like \"Europe/Berlin\", "
+                        "or an offset in quarter hours like \"+05:30\"")
+
+
 def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Profile:
-    set_name = data.get("set", "builder")
+    _check_keys(data, "top", "profile")
+    set_name = _str(data.get("set"), "builder", "set")
     if set_name not in SETS:
         raise ProfileError(f"set must be one of {', '.join(SETS)}")
-    tz = data.get("timezone", "UTC")
+    tz = _str(data.get("timezone"), "UTC", "timezone")
     try:
         load_tz(tz)
     except Exception as e:  # zoneinfo raises several types
-        raise ProfileError(f"timezone {tz!r} is not usable. Use an IANA name like \"Europe/Berlin\", "
-                           "or an offset in quarter hours like \"+05:30\"") from e
+        raise _tz_error(tz) from e
     rollover = data.get("rollover_hour", 4)
-    if not isinstance(rollover, int) or not 0 <= rollover <= 23:
+    if isinstance(rollover, bool) or not isinstance(rollover, int) or not 0 <= rollover <= 23:
         raise ProfileError("rollover_hour must be a whole hour from 0 to 23")
 
-    ident = data.get("identity", {})
+    ident = _table(data.get("identity"), "identity", "identity")
     emails = _strs(ident.get("emails"), "identity.emails")
     names = _strs(ident.get("names"), "identity.names")
     if not emails and not names:
         raise ProfileError("identity needs at least one email or name pattern")
     bots = _strs(ident.get("bots"), "identity.bots")
 
-    harn = data.get("harnesses", {})
-    card = data.get("card", {})
-    if not isinstance(harn, dict) or not isinstance(card, dict):
-        raise ProfileError("[harnesses] and [card] must be tables")
+    harn = _table(data.get("harnesses"), "harnesses", "harnesses")
+    card = _table(data.get("card"), "card", "card")
     show = _strs(card.get("show"), "card.show")
     for s in show:
         if s not in CARD_EXTRAS:
             raise ProfileError(f"card.show: {s!r} is not supported. Use {', '.join(CARD_EXTRAS)}")
 
     projects = []
-    raw_projects = data.get("project", [])
-    if not isinstance(raw_projects, list):
-        raise ProfileError("projects go in [[project]] tables")
-    for i, rp in enumerate(raw_projects):
+    for i, rp in enumerate(_tables(data.get("project"), "project", "project")):
         where = f"project {i + 1}"
+        _check_keys(rp, "project", where)
         roots = rp.get("roots") or ([rp["root"]] if "root" in rp else [])
         roots = [_path(r, base_dir) for r in _strs(roots, f"{where}.roots")]
         if not roots:
@@ -166,17 +250,23 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
         name = rp.get("name") or f"Project {i + 1}"
         if not isinstance(name, str):
             raise ProfileError(f"{where}: name must be a string")
+        where = f"project {name!r}"
         parts = []
-        for j, raw in enumerate(rp.get("part", [])):
+        for j, raw in enumerate(_tables(rp.get("part"), "part", f"{where} part", allow_str=True)):
             if isinstance(raw, str):
                 raw = {"path": raw}
-            p = raw.get("path", "").strip("/")
+            _check_keys(raw, "part", f"{where} part {j + 1}")
+            p = raw.get("path", "")
+            if not isinstance(p, str):
+                raise ProfileError(f"{where} part {j + 1}: path must be text in quotes")
+            p = p.strip("/")
             if not p:
                 raise ProfileError(f"{where} part {j + 1}: needs a path")
             st = _weights(raw["stats"], set_name, f"{where} part {p}") if "stats" in raw else None
             parts.append(Part(path=os.path.normpath(p), stats=st))
         overrides = []
-        for j, raw in enumerate(rp.get("override", [])):
+        for j, raw in enumerate(_tables(rp.get("override"), "override", f"{where} override")):
+            _check_keys(raw, "override", f"{where} override {j + 1}")
             g = raw.get("glob")
             if not isinstance(g, str) or not g:
                 raise ProfileError(f"{where} override {j + 1}: needs a glob")
@@ -187,10 +277,10 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     if len(set(names_seen)) != len(names_seen):
         raise ProfileError("project names must be unique")
 
-    milestones = data.get("milestones")
+    milestones = _str(data.get("milestones"), "", "milestones")
     return Profile(
         id=_slug(default_id),  # storage key: from the profile file path, never from the file content
-        name=str(data.get("name", "Unnamed")),
+        name=_str(data.get("name"), "Unnamed", "name"),
         set=set_name,
         timezone=tz,
         rollover_hour=rollover,
@@ -212,17 +302,44 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     )
 
 
-def load_profile(path: str) -> Profile:
+def profile_id(path: str) -> str:
+    """The storage key of a profile file: its stem and a hash of its real path. Two profile files
+    never share history or output folders. The file need not exist."""
     path = os.path.realpath(os.path.expanduser(path))
-    with open(path, "rb") as f:
-        try:
-            data = tomllib.load(f)
-        except tomllib.TOMLDecodeError as e:
-            raise ProfileError(f"{os.path.basename(path)}: {e}") from e
-    # Two profile files never share history or output folders: the key carries a hash of the real path.
     stem = os.path.splitext(os.path.basename(path))[0]
     tag = hashlib.sha256(path.encode("utf-8")).hexdigest()[:8]
-    return parse_profile(data, os.path.dirname(path), default_id=f"{stem}-{tag}")
+    return _slug(f"{stem}-{tag}")
+
+
+def read_toml(path: str) -> dict:
+    """The parsed profile file. Every failure is a ProfileError with a plain message."""
+    shown = path
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError:
+        raise ProfileError(f"no profile at {shown}. Run 'tinkerprint init' to write one, "
+                           "or pass --profile PATH") from None
+    except IsADirectoryError:
+        raise ProfileError(f"{shown} is a folder. Pass the profile file itself with --profile PATH") from None
+    except PermissionError:
+        raise ProfileError(f"cannot read {shown}: permission denied") from None
+    except OSError as e:
+        raise ProfileError(f"cannot read {shown}: {e.strerror or e}") from None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ProfileError(f"{shown} is not UTF-8 text") from None
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        raise ProfileError(f"{os.path.basename(path)}: {e}") from None
+
+
+def load_profile(path: str) -> Profile:
+    real = os.path.realpath(os.path.expanduser(path))
+    data = read_toml(real)
+    return parse_profile(data, os.path.dirname(real), default_id=profile_id(real))
 
 
 def map_weights(weights: dict, set_name: str) -> dict:

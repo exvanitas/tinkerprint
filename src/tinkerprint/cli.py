@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from datetime import datetime
+from zoneinfo import ZoneInfoNotFoundError
 
 from . import __version__
 from .art import export_pack, load_pack
@@ -223,13 +225,43 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
+def _os_message(e: OSError) -> str:
+    """An OSError in plain words: what failed and where, never a bare errno."""
+    what = e.strerror or str(e)
+    where = e.filename if e.filename is not None else ""
+    return f"{what}: {where}" if where else what
+
+
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
     try:
         return args.func(args)
-    except (ProfileError, ValueError, OSError) as e:
+    except ProfileError as e:
         print(f"tinkerprint: {e}", file=sys.stderr)
         return 2
+    except ZoneInfoNotFoundError as e:  # a KeyError, so it comes before the general cases
+        print(f"tinkerprint: a time zone is missing from this Python's time-zone data ({e}). "
+              "Install the tzdata package, or use an offset like \"+02:00\".", file=sys.stderr)
+        return 2
+    except subprocess.CalledProcessError as e:
+        tool = os.path.basename(str(e.cmd[0])) if isinstance(e.cmd, (list, tuple)) and e.cmd else "a command"
+        print(f"tinkerprint: {tool} failed with exit code {e.returncode}.", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"tinkerprint: {_os_message(e)}", file=sys.stderr)
+        return 2
+    except ValueError as e:
+        print(f"tinkerprint: {e}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        print("tinkerprint: stopped.", file=sys.stderr)
+        return 130
+    except Exception as e:  # anything else is a bug: say so in one line, the traceback only on request
+        if os.environ.get("TINKERPRINT_DEBUG"):
+            raise
+        print(f"tinkerprint: unexpected error ({type(e).__name__}: {e}). This is a bug. "
+              "Set TINKERPRINT_DEBUG=1 to see the traceback.", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ import helpers  # noqa: F401
 from helpers import commit, profile, run
 from tinkerprint.build import build
 from tinkerprint.demo import RepoWriter
-from tinkerprint.profile import load_profile
+from tinkerprint.profile import ProfileError, load_profile
 
 UTC = ZoneInfo("UTC")
 ME = ("Ida Fenwick", "ida@fenwick.example.test")
@@ -84,8 +84,11 @@ class A_SheetIsPure(World):
 
     def test_profiles_with_the_same_id_keep_separate_folders(self):
         from tinkerprint.cli import default_out
-        a = load_profile(write_profile(os.path.join(self.t, "work", "p.toml"), self.root, 'id = "same"'))
-        b = load_profile(write_profile(os.path.join(self.t, "home", "p.toml"), self.root, 'id = "same"'))
+        # The id key is gone: storage keys come from the file path only, and an unknown key is refused.
+        with self.assertRaises(ProfileError):
+            load_profile(write_profile(os.path.join(self.t, "old", "p.toml"), self.root, 'id = "same"'))
+        a = load_profile(write_profile(os.path.join(self.t, "work", "p.toml"), self.root))
+        b = load_profile(write_profile(os.path.join(self.t, "home", "p.toml"), self.root))
         home = os.path.join(self.t, "data")
         self.assertNotEqual(default_out(home, a), default_out(home, b))
         self.go(date(2026, 3, 1), prof=a, out="oa")
