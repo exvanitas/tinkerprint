@@ -94,7 +94,7 @@ What a card reveals:
 - **Achievement months.** The earliest ones show roughly when you started.
 - **Your party**: which coding agents you used, never how much.
 - **Your portrait**: drawn from your class, multiclass and top stats, the name on the card and your `[look]`. It holds no text.
-- **The season** of a season build, the month it was built, and the method version.
+- **The season** of a season build, by month unless `show` adds dates, the month it was built, and the method version.
 
 Nothing else: no project names, exact dates, hours, repos, paths or emails, unless `show` adds dates or project names.
 

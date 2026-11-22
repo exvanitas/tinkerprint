@@ -439,7 +439,7 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
         "stats": stats,
         "chart": public_chart,
         "method": sheet["method"],
-        "season": _card_season(season.get("from"), season.get("to")),
+        "season": _card_season(season.get("from"), season.get("to"), exact),
     }
     if "level" not in hide:
         # The level and the day counts give the same band away, so they hide together.
@@ -462,14 +462,16 @@ def portrait_look(profile) -> dict:
     return dict(resolve_look(getattr(profile, "look", {}) or {}, seed), seed=seed)
 
 
-def _card_season(frm: str | None, to: str | None) -> str:
-    """The season in a few words for the card, or "" for all history."""
+def _card_season(frm: str | None, to: str | None, exact: bool = False) -> str:
+    """The season in a few words for the card, or "" for all history. Months, unless the profile
+    shows dates."""
+    label = day_label if exact else month_label
     if frm and to:
-        return f"{day_label(frm)} to {day_label(to)}"
+        return f"{label(frm)} to {label(to)}"
     if frm:
-        return f"from {day_label(frm)}"
+        return f"from {label(frm)}"
     if to:
-        return f"up to {day_label(to)}"
+        return f"up to {label(to)}"
     return ""
 
 

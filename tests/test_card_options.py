@@ -168,10 +168,10 @@ class FooterAndAlt(unittest.TestCase):
         prof = profile([("Kite", "/w/kite", None)])
         evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py")]
         card = run(prof, evs, season=(date(2026, 1, 1), date(2026, 6, 30)))[0]["card"]
-        self.assertEqual(card["season"], "Jan 1, 2026 to Jun 30, 2026")
-        self.assertIn("season Jan 1, 2026 to Jun 30, 2026", visible(card)["footer"][0])
+        self.assertEqual(card["season"], "Jan 2026 to Jun 2026")
+        self.assertIn("season Jan 2026 to Jun 2026", visible(card)["footer"][0])
         self.assertEqual(run(prof, evs)[0]["card"]["season"], "")
-        self.assertIn("season from Jan 1, 2026",
+        self.assertIn("season from Jan 2026",
                       visible(run(prof, evs, season=(date(2026, 1, 1), None))[0]["card"])["footer"][0])
 
     def test_multiclass_has_a_label(self):

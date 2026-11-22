@@ -3,8 +3,10 @@ Every name, path and email here is invented."""
 import struct
 import unittest
 import zlib
+from datetime import date
 
 import helpers  # noqa: F401
+from helpers import commit, profile, run
 from test_card_options import tie_card
 from tinkerprint.art import default_pack
 from tinkerprint.audit import check_png, check_portrait_png, png_chunks
@@ -60,6 +62,25 @@ class PngBytes(unittest.TestCase):
         for bad in _hidden(png):
             ok, msg = check_portrait_png(bad, self.card, PACK)
             self.assertFalse(ok, msg)
+
+
+class SeasonDates(unittest.TestCase):
+    def setUp(self):
+        self.evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py")]
+        self.season = (date(2026, 2, 3), date(2026, 7, 12))
+
+    def card(self, **extra):
+        return run(profile([("Kite", "/w/kite", None)], **extra), self.evs, season=self.season)[0]["card"]
+
+    def test_months_by_default(self):
+        card = self.card()
+        self.assertEqual(card["season"], "Feb 2026 to Jul 2026")
+        svg = render_card(card, PACK)
+        self.assertNotIn("Feb 3", svg)
+        self.assertNotIn("Jul 12", svg)
+
+    def test_days_when_dates_are_shown(self):
+        self.assertEqual(self.card(card={"show": ["dates"]})["season"], "Feb 3, 2026 to Jul 12, 2026")
 
 
 if __name__ == "__main__":

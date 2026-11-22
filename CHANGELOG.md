@@ -33,7 +33,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - `card.png`, the file to post. Discord and most social sites preview it. It draws the same fields as `card.svg`.
 - `portrait.png` and an idling `portrait.gif`: the card's portrait alone, your figure in front of your own room.
 - A `[card]` table: `enabled` turns the card on or off on any profile, `name` puts a handle on the card while the sheet keeps your name, and `hide` leaves off any of the party, the level and the achievements.
-- The card gains your portrait with a level seal, share bars, the party's instruments, a MULTICLASS label, and a footer naming tinkerprint, the method version, the build month and the active days the shares cover.
+- The card gains your portrait with a level seal, share bars, the party's instruments, a MULTICLASS label, and a footer naming tinkerprint, the method version, the build month and the active days the shares cover. A season build's footer names the season by month, or by day when `show` has `dates`.
 - After each build, `shows` lists what the card holds and `alt` gives alt text to paste with it. The SVG carries the same alt text.
 - A Share view button on the sheet leaves only what the card shows, ready for a screenshot.
 - `audit` checks `card.png`, `portrait.png` and `portrait.gif` as well as `card.svg`: each must be, byte for byte, what the card's fields draw. It lists the look tokens. It exits 1 unless every card file is there and certified.
