@@ -255,5 +255,61 @@ class Git(unittest.TestCase):
         self.assertTrue(all(e.added > 0 for e in last))
 
 
+class Antigravity(unittest.TestCase):
+    def setUp(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from tinkerprint.demo import write_agy_db
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db = os.path.join(self.tmp.name, "agy.db")
+        utc = ZoneInfo("UTC")
+        write_agy_db(self.db, [("a1", ["/w/a"], datetime(2026, 3, 2, 10, tzinfo=utc)),
+                               ("a2", ["/w/b"], datetime(2026, 3, 3, 10, tzinfo=utc))])
+
+    def sql(self, statement, *args):
+        import sqlite3
+        con = sqlite3.connect(self.db)
+        con.execute(statement, args)
+        con.commit()
+        con.close()
+
+    def read(self):
+        from tinkerprint.readers import _common, agy
+        hc = _common.new_health()
+        return agy.read_db(self.db, hc), hc
+
+    def test_one_row_that_is_not_utf8_is_skipped_alone(self):
+        for column in ("workspace_uris", "conversation_id", "last_modified_time"):
+            with self.subTest(column=column):
+                self.setUp()
+                self.sql(f"update conversation_summaries set {column} = cast(? as text) where conversation_id = 'a1'",
+                         b"\xff\xfe[\"file:///w/z\"]")
+                evs, hc = self.read()
+                self.assertFalse(hc.get("unreadable"))
+                self.assertIn(("a2", "/w/b"), {(e.session, e.path) for e in evs})
+                self.assertEqual(hc["lines"], 2)
+
+    def test_the_folder_list_limit_is_in_bytes(self):
+        from unittest import mock
+        from tinkerprint.readers import _common
+        wide = json.dumps(["file:///w/" + "\u00e9" * 80], ensure_ascii=False)  # 90-odd characters, 170-odd bytes
+        self.sql("update conversation_summaries set workspace_uris = ? where conversation_id = 'a1'", wide)
+        self.assertLess(len(wide), 120)
+        self.assertGreater(len(wide.encode("utf-8")), 120)
+        with mock.patch.object(_common, "MAX_RECORD", 120):
+            evs, hc = self.read()
+        self.assertEqual(sorted((e.session, e.path) for e in evs), [("a1", ""), ("a2", "/w/b")])
+        self.assertEqual(hc["rejected"], 1)
+
+    def test_a_numeric_time_out_of_the_calendar_is_no_time(self):
+        from tinkerprint.timeutil import parse_ts
+        self.assertIsNone(parse_ts(-62135596800))  # the first second of year 1
+        self.sql("update conversation_summaries set last_modified_time = ? where conversation_id = 'a1'",
+                 -62135596800)
+        evs, hc = self.read()
+        self.assertEqual({e.session for e in evs}, {"a2"})
+
+
 if __name__ == "__main__":
     unittest.main()

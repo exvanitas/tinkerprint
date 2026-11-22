@@ -29,7 +29,8 @@ from ._common import TooLong, byte_lines, decode, path_text, presence, resolve, 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
 # Prefilter for speed only: a line that can be one of LINE_TYPES has this somewhere, whatever its
-# key order or spacing. Every line that passes is parsed in full before anything is recorded.
+# key order or spacing. Every line that passes is parsed in full before anything is recorded. A
+# line that fails it is no record this reader reads, so a malformed one is not counted as rejected.
 _MAYBE = re.compile(rb'"type"\s*:\s*"(?:user|assistant|system|attachment)"')
 
 

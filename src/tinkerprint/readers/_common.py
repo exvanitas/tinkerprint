@@ -133,7 +133,9 @@ def new_health() -> dict:
     """Counts a reader keeps about one log, for the build's reader health line. Never any text
     but version numbers. lines: lines or rows seen. records: those of a shape the reader knows.
     tool_calls: tool calls of any kind. edit_calls: calls or records of an edit kind it knows.
-    rejected: records skipped because they would not decode, nested too deep or ran too long."""
+    rejected: records skipped because they would not decode, nested too deep or ran too long.
+    The Claude reader counts only lines that name one of its record types: a line that names
+    none is no record of its own and is passed over uncounted, decodable or not."""
     return {"lines": 0, "records": 0, "tool_calls": 0, "edit_calls": 0, "rejected": 0, "versions": set()}
 
 

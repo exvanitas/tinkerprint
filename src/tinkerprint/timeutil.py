@@ -22,9 +22,10 @@ def parse_ts(value) -> datetime | None:
         if secs > 1e11:  # milliseconds
             secs /= 1000.0
         try:
-            return datetime.fromtimestamp(secs, timezone.utc)
+            dt = datetime.fromtimestamp(secs, timezone.utc)
         except (OverflowError, OSError, ValueError):
             return None
+        return dt if 1 < dt.year < 9999 else None  # as for text below
     if not isinstance(value, str):
         return None
     s = value.strip()
