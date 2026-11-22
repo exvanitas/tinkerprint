@@ -13,7 +13,7 @@ import hashlib
 import json
 import os
 
-from .datadir import _write, pretty
+from .datadir import _write, data_lock, pretty
 from .profile import Profile, is_key, profile_id
 
 REGISTRY = "profiles.json"
@@ -90,6 +90,13 @@ def resolve(home: str, profile: Profile, write: bool = True) -> tuple:
 
     The path is a profile's identity: a file saved in place, or replaced by an editor, keeps its
     history whatever it now says. When its name or identity changed, the caller says so."""
+    if write:
+        with data_lock(home):  # the list is shared: read, claim and replace it as one step
+            return _resolve(home, profile, True)
+    return _resolve(home, profile, False)
+
+
+def _resolve(home: str, profile: Profile, write: bool) -> tuple:
     real = profile.source
     rows = read_registry(home)
     sig, whom = signature(profile), who(profile)
@@ -136,10 +143,11 @@ def adopt(home: str, profile: Profile, write: bool = True) -> str | None:
 
 def forget_key(home: str, key: str) -> None:
     """Drop one key from the registry, so its file starts afresh."""
-    rows = read_registry(home)
-    if key in rows:
-        del rows[key]
-        if rows:
-            write_registry(home, rows)
-        else:
-            os.remove(_path(home))
+    with data_lock(home):
+        rows = read_registry(home)
+        if key in rows:
+            del rows[key]
+            if rows:
+                write_registry(home, rows)
+            else:
+                os.remove(_path(home))

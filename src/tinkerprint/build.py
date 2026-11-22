@@ -20,8 +20,8 @@ from .render_html import render_html
 from .history import History, scope_digests
 from .keys import adopt
 from .score import compare, score_core
-from .datadir import (_is_git_dir, _write, data_home, inside_repo_or_root, mark_home, mark_sheets, path_within,
-                      pretty)
+from .datadir import (_is_git_dir, _write, data_home, data_lock, inside_repo_or_root, mark_home, mark_sheets,
+                      path_within, pretty)
 from .timeutil import month_label, parse_day, parse_ts
 
 # A version change re-reads every log that is still there, and keeps what earlier builds read
@@ -169,17 +169,20 @@ def gather(profile: Profile, home: str) -> Inputs:
         health[name] = rep
         return evs
 
-    # Logs are read even when their folder is gone, so what earlier builds kept still counts.
+    # Logs are read even when their folder is gone, so what earlier builds kept still counts. The
+    # cache is shared: each read, merge and replace holds the data folder's lock.
     if profile.claude:
         rep = new_report()
-        events += note("claude", profile.claude_dir, os.path.isdir(profile.claude_dir), _cached(
-            claude.transcript_files(profile.claude_dir), claude.read_file,
-            os.path.join(cache, "claude.json"), profile.claude_dir, rep), rep)
+        with data_lock(home):
+            evs = _cached(claude.transcript_files(profile.claude_dir), claude.read_file,
+                          os.path.join(cache, "claude.json"), profile.claude_dir, rep)
+        events += note("claude", profile.claude_dir, os.path.isdir(profile.claude_dir), evs, rep)
     if profile.codex:
         rep = new_report()
-        events += note("codex", profile.codex_dir, os.path.isdir(profile.codex_dir), _cached(
-            codex.rollout_files(profile.codex_dir), codex.read_file,
-            os.path.join(cache, "codex.json"), profile.codex_dir, rep), rep)
+        with data_lock(home):
+            evs = _cached(codex.rollout_files(profile.codex_dir), codex.read_file,
+                          os.path.join(cache, "codex.json"), profile.codex_dir, rep)
+        events += note("codex", profile.codex_dir, os.path.isdir(profile.codex_dir), evs, rep)
     if profile.agy:
         # One database, not a file per session: what it no longer holds is gone (see METHOD.md).
         found = os.path.isfile(profile.agy_db)

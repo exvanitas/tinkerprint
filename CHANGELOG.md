@@ -43,6 +43,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 - `tinkerprint forget` lists what tinkerprint keeps for a profile, or everything with `--all`, and deletes it with `--yes`. It deletes only in a data folder a build has marked, and only files tinkerprint wrote. It never touches your repos, agent logs, profiles or `--out` folders.
 - Sessions from agent logs that are gone still count. Claude Code deletes old transcripts after about a month, and your sheet no longer loses those days. That includes logs 0.1 read that are gone by your first 0.2 build.
+- Two builds at once, or a build and `forget`, take turns with the cache and the profile list, so neither loses the other's sessions or profiles.
 - History follows a profile file you move. A copy of a profile starts its own. A profile whose name or identity changed at the same path keeps its history, and `build` says how to start afresh.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - Outputs are readable under your umask, so a web server or a copy can serve them. The cache and history stay private to you.

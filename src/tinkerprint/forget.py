@@ -6,7 +6,8 @@ pointers, the profile list (profiles.json, or one profile's entry in it) and, wi
 sheets folders of builds made without --out. Files go one by one, each checked just before it
 goes, and then the emptied folders. Nothing is deleted through a link: a folder or file that is a
 symlink or junction is left alone. A folder holding anything else is left alone and named. Repos,
-agent logs, profiles and --out folders are never touched.
+agent logs, profiles and --out folders are never touched. Deleting waits for any build that is
+reading or replacing the shared cache or the profile list, through the data folder's lock file.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import os
 import re
 import stat
 
-from .datadir import MARKER, MARKER_HEAD, SHEETS_MARK, data_home
+from .datadir import LOCK, MARKER, MARKER_HEAD, SHEETS_MARK, data_home, data_lock
 from .keys import REGISTRY, forget_key, read_registry
 from .profile import is_key
 
@@ -249,24 +250,21 @@ def remove(home: str, items) -> list:
     return out
 
 
-def _finish_all(home: str) -> None:
-    """After --all: the marker and the temporary files at the top go when nothing else is left,
-    then the folder itself."""
+def _finish_all(home: str) -> bool:
+    """After --all: the marker and the temporary files at the top go when nothing else is left.
+    True when only the lock file is left, so the folder can go once the lock is released."""
     try:
         names = os.listdir(home)
     except OSError:
-        return
-    ours = [n for n in names if _own_name(n, lambda x: x in (MARKER, REGISTRY))]
+        return False
+    ours = [n for n in names if _own_name(n, lambda x: x in (MARKER, REGISTRY)) or n == LOCK]
     if len(ours) != len(names):
-        return
+        return False
     for n in ours:
         path = os.path.join(home, n)
-        if _plain_file(path):
+        if n != LOCK and _plain_file(path):
             os.unlink(path)
-    try:
-        os.rmdir(home)
-    except OSError:
-        pass
+    return True
 
 
 def forget(home: str, profile_key: str | None, yes: bool) -> list:
@@ -278,6 +276,22 @@ def forget(home: str, profile_key: str | None, yes: bool) -> list:
     if not owns(home):
         return [f"Left alone: {home} has no {MARKER}, so it is not a data folder tinkerprint made. "
                 "Nothing was deleted."]
+    if not yes:
+        return _forget(home, profile_key, False)[0]
+    # A build that is reading or replacing the cache or the profile list finishes first.
+    with data_lock(home) as lock:
+        lines, deleted = _forget(home, profile_key, True)
+        lock.drop = profile_key is None and deleted and _finish_all(home)
+    if lock.drop:
+        try:
+            os.rmdir(home)
+        except OSError:
+            pass
+    return lines
+
+
+def _forget(home: str, profile_key: str | None, yes: bool) -> tuple:
+    """(the lines to print, whether anything was planned for deletion)."""
     delete, keep = plan(home, profile_key)
     lines = []
     if delete:
@@ -319,5 +333,4 @@ def forget(home: str, profile_key: str | None, yes: bool) -> list:
                     os.rmdir(sheets)
             except OSError:
                 pass
-            _finish_all(home)
-    return lines
+    return lines, bool(delete)

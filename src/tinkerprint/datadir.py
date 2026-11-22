@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
+from contextlib import contextmanager
 
 
 def data_home(override: str | None = None) -> str:
@@ -125,3 +127,105 @@ def _write(path: str, text: str | bytes, share: bool = False) -> None:
         except OSError:
             pass
         raise
+
+
+# One tinkerprint run at a time reads, merges and replaces the shared harness cache and the
+# profile list, and forget waits for it. The lock is this file in the data folder: fcntl.flock on
+# POSIX, msvcrt.locking on Windows. Either goes when the process ends, so a crash leaves no lock.
+LOCK = "tinkerprint.lock"
+LOCK_WAIT = 120.0  # seconds to wait for another run before giving up
+
+
+class Busy(ValueError):
+    """Another tinkerprint run held the data folder's lock for longer than LOCK_WAIT."""
+
+
+_held: dict = {}  # lock path -> the open lock, while this process holds it
+
+
+class _Lock:
+    def __init__(self, fd: int):
+        self.fd = fd
+        self.drop = False  # remove the lock file on release: forget --all empties the folder
+
+
+def _try_lock(fd: int) -> bool:
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, PermissionError):
+        return False
+    except OSError as e:
+        import errno
+        if e.errno in (errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLOCK", errno.EDEADLK)):
+            return False
+        raise
+    return True
+
+
+def _unlock(fd: int) -> None:
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def _still_there(fd: int, path: str) -> bool:
+    """The locked file is still the one at path, not one a forget --all removed meanwhile."""
+    try:
+        return os.path.samestat(os.fstat(fd), os.lstat(path))
+    except (OSError, AttributeError):
+        return os.name == "nt"
+
+
+@contextmanager
+def data_lock(home: str, wait: float | None = None):
+    """Hold the data folder's lock for a read, merge and replace of shared state. Waits up to
+    wait seconds (LOCK_WAIT by default), then raises Busy. Holding it again in the same process
+    nests, so no caller can wait on itself."""
+    path = os.path.join(os.path.abspath(home), LOCK)
+    key = os.path.normcase(path)
+    if key in _held:
+        yield _held[key]
+        return
+    os.makedirs(home, exist_ok=True)
+    deadline = time.monotonic() + (LOCK_WAIT if wait is None else wait)
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    while True:
+        fd = os.open(path, flags, 0o600)
+        if _try_lock(fd):
+            if _still_there(fd, path):
+                break
+            _unlock(fd)
+        os.close(fd)
+        if time.monotonic() >= deadline:
+            raise Busy(f"another tinkerprint run is using {home}. Wait for it to finish, then try again")
+        time.sleep(0.05)
+    lock = _held[key] = _Lock(fd)
+    try:
+        yield lock
+    finally:
+        del _held[key]
+        if lock.drop and os.name != "nt":
+            try:
+                os.unlink(path)  # while still held, so a waiting run sees it go and starts afresh
+            except OSError:
+                pass
+        _unlock(fd)
+        os.close(fd)
+        if lock.drop and os.name == "nt":
+            try:
+                os.unlink(path)  # Windows removes no open file: after closing, if no one else opened it
+            except OSError:
+                pass
