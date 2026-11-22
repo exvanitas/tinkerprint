@@ -295,19 +295,21 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     prev_day, prev = hist.previous(stamp)
     changes = compare(sheet, prev, prev_day)
     os.makedirs(out_dir, exist_ok=True)
+    # Everything in the output folder is for opening or sharing, so it gets the umask's usual mode.
+    # The pointer and history below stay private.
     paths = {"json": os.path.join(out_dir, "sheet.json"), "changes": os.path.join(out_dir, "changes.json"),
              "html": os.path.join(out_dir, "sheet.html")}
-    _write(paths["json"], pretty(sheet))
-    _write(paths["changes"], pretty(changes))
+    _write(paths["json"], pretty(sheet), share=True)
+    _write(paths["changes"], pretty(changes), share=True)
     pack = pack or art.default_pack()
-    _write(paths["html"], render_html(sheet, built_at, changes, pack))
+    _write(paths["html"], render_html(sheet, built_at, changes, pack), share=True)
     card_path = os.path.join(out_dir, "card.svg")
     png_path = os.path.join(out_dir, "portrait.png")
     if sheet["card"].get("enabled"):
-        _write(card_path, render_card(sheet["card"], pack))
+        _write(card_path, render_card(sheet["card"], pack), share=True)
         paths["card"] = card_path
         # The portrait as a PNG, from the card's allowlisted fields only.
-        _write(png_path, art.portrait(pack, art.card_look(sheet["card"])).png(8))
+        _write(png_path, art.portrait(pack, art.card_look(sheet["card"])).png(8), share=True)
         paths["portrait"] = png_path
     else:
         for path in (card_path, png_path):

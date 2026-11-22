@@ -186,7 +186,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
 </html>
 """
     path = os.path.join(out, "gallery.html")
-    _write(path, page)
+    _write(path, page, share=True)
     paths = [path]
     if png:
         folder = os.path.join(out, "png")
@@ -194,6 +194,6 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         for name, pic in sorted(pngs.items()):
             scale = 4 if name.startswith("banner") else 8
             p = os.path.join(folder, name)
-            _write(p, pic.png(scale))
+            _write(p, pic.png(scale), share=True)
         paths.append(folder + os.sep)
     return paths

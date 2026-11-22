@@ -65,13 +65,26 @@ def inside_repo_or_root(path: str, roots=()) -> str | None:
         probe = parent
 
 
-def _write(path: str, text: str | bytes) -> None:
-    """Write through a unique temporary file in the same folder, then rename into place."""
+def _umask() -> int:
+    mask = os.umask(0o077)
+    os.umask(mask)
+    return mask
+
+
+def _write(path: str, text: str | bytes, share: bool = False) -> None:
+    """Write through a unique temporary file in the same folder, then rename into place.
+
+    The temporary file is private (0600). Private data (cache, history, pointers) stays that way.
+    share=True is for outputs people open or pass on: they get the usual mode for a new file under
+    the user's umask, 0644 under the common 022.
+    """
     folder = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=folder)
     try:
         with (os.fdopen(fd, "wb") if isinstance(text, bytes) else os.fdopen(fd, "w", encoding="utf-8")) as f:
             f.write(text)
+        if share:
+            os.chmod(tmp, 0o666 & ~_umask())
         os.replace(tmp, path)
     except BaseException:
         try:
