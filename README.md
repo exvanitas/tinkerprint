@@ -74,7 +74,7 @@ A build that finds nothing still makes a sheet: level 0, Unclassed. It prints a 
 - **A root is a folder of repos.** Commits are read only from the repo a root is in. List each repo as a root.
 - **A harness is on, but its folder is missing or has no sessions.** Set it to `false` under `[harnesses]`, or point `claude_dir`, `codex_dir` or `agy_db` at its logs.
 - **git is not on PATH.** No commits can be read.
-- **A harness changed its log format.** After each build a `Readers:` line per harness counts files, records, sessions and edits, with the log versions seen. It warns when logs hold no record it recognises, or many tool calls but no edit it knows. Update tinkerprint, and if that does not help, report that line. It holds counts and version numbers only.
+- **A harness changed its log format.** After each build, a line per harness under `Readers` counts its files, records, sessions and edits, with the log versions seen. It warns when logs hold no record it recognises, or many tool calls but no edit it knows. Update tinkerprint, and if that does not help, report that line. It holds counts and version numbers only.
 
 Agent sessions in folders outside every root are unassigned and not scored. The build prints their totals. `--list-unassigned 20` lists up to 20 of the folders, so you can find roots you missed. Folder names stay off the screen unless you ask.
 

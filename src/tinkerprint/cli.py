@@ -170,7 +170,7 @@ def cmd_build(args) -> int:
         print(line)
     health = res["local"].get("health") or []
     if health:
-        print("Readers:")
+        print("Readers, over every log in each harness folder:")
         for line in health:
             print("  " + line)
     for w in res.get("warnings", []):
