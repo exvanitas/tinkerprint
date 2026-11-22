@@ -216,6 +216,10 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
     if not out:
         return commits
     cut = shallow_commits(top)
+    if cut and warnings is not None:
+        warnings.append((top, "history is shallow, so its oldest commits show their whole tree as changed. They "
+                              "count for days but not for achievements, and this clone earns no Founder. Run "
+                              "'git fetch --unshallow' in it to read its full history."))
     for head_text, body in _split_commits(out):
         head = head_text.split("\x1f")
         if len(head) < 6:
@@ -231,7 +235,7 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
         bot = ident.is_bot(an, ae)
         mine = (not bot) and (ident.is_me(an, ae) or ident.coauthor_is_me(trailers))
         commits.append({"hash": h, "parents": parents, "ts": at, "mine": mine, "bot": bot, "files": files,
-                        "boundary": h in cut, "author": (an, ae)})
+                        "boundary": h in cut, "shallow": bool(cut), "author": (an, ae)})
     return commits
 
 
@@ -330,20 +334,23 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
 
     chosen = {}
     for h, copies in seen.items():
-        # A shallow clone's boundary copy lacks its parents, so its diff is unreliable. Prefer a
-        # complete copy for parents, files and line counts. Any complete copy proves a first commit.
+        # A shallow clone's boundary copy lacks its parents, so its diff shows its whole tree. Prefer a
+        # complete copy for parents, files and line counts. With none, the commit's scope is unknown,
+        # so it counts for no achievement. Only a copy in a clone that is not shallow proves a first
+        # commit: a shallow one cannot show what came before.
         complete = [(t, cc) for t, cc in copies if not cc["boundary"]]
         top, c = (complete or copies)[0]
         dt = parse_ts(c["ts"])
         if dt is None:
             continue
         ts = iso(dt)
-        genuine_first = any(not cc["parents"] for _, cc in complete)
-        chosen[h] = (copies, c)
+        genuine_first = any(not cc["parents"] and not cc["shallow"] for _, cc in complete)
+        in_scope = bool(complete) and scoped(copies, c)
+        chosen[h] = (copies, c, in_scope)
         # Scope is worked out for your own commits only: no achievement looks at anyone else's.
         res.commits.append(Commit(ts=ts, hash=h, repo=repo_ids[top], top=top, mine=c["mine"],
                                   bot=c["bot"], root=genuine_first, files=len(c["files"]),
-                                  scoped=c["mine"] and scoped(copies, c)))
+                                  scoped=c["mine"] and in_scope))
         if not c["mine"]:
             continue
         for path, st, add in c["files"]:
@@ -363,7 +370,7 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
                 continue
             key = (t["name"], t["target"])  # one tag, however many clones hold it
             # The tag is in scope when its commit is.
-            in_scope = target is not None and scoped(*target)
+            in_scope = target is not None and target[2]
             tags.setdefault(key, Tag(ts=iso(dt), name=t["name"], repo=repo_ids[top], top=top, mine=True,
                                      scoped=in_scope))
     res.commits.sort()

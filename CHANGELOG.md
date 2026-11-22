@@ -57,6 +57,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - Full party needs any three harnesses on one day, so a fourth harness seen once no longer takes it away.
 - Shipwright counts lightweight tags on your commits, dated by the commit, and reads a prefixed tag like `cli/v1.2.0` by its last part.
 - Commit and tag achievements count only commits that change a file inside one of the profile's roots.
+- A shallow clone's oldest commits, whose changes it cannot show, earn no achievement, and a shallow clone never earns Founder. The build warns when a project's history is shallow.
 - Party labels say only what the logs recorded: "No edits recorded" replaces "Mostly reviews", and Antigravity says "Presence only". Past six models a party card shows "+N more".
 - The sheet says how many active days the class rests on: "Based on N of M active days".
 - The sheet's footer gives the build's as-of date, not the clock time, so the same inputs make the same `sheet.html`.

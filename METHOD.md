@@ -138,7 +138,7 @@ One member per harness: days together, sessions and models used. Its label says 
 
 Generic rules over events and git, the same for everyone. Each states its rule and the dated event that earned it.
 
-Achievements stay inside the profile's scope. Rules over active days and the party use only what the profile scores. Rules over commits and tags (Founder, Thousandfold, Shipwright, Swarm day, Necromancer) count only your commits that change a file inside one of the profile's roots. A commit that changes no file, like an empty first commit, counts when a root holds its whole repo. A tag counts when its commit does. So a profile of one folder in a monorepo never earns Founder from a commit elsewhere in that repo.
+Achievements stay inside the profile's scope. Rules over active days and the party use only what the profile scores. Rules over commits and tags (Founder, Thousandfold, Shipwright, Swarm day, Necromancer) count only your commits that change a file inside one of the profile's roots. A commit that changes no file, like an empty first commit, counts when a root holds its whole repo. A tag counts when its commit does. So a profile of one folder in a monorepo never earns Founder from a commit elsewhere in that repo. A shallow clone cannot show what its oldest commits changed, since their parents are missing, so those commits count for days but for no achievement, and a shallow clone never proves a first commit. A complete clone of the same repo elsewhere in the profile settles both. The build warns, by project name, when a repo's history is shallow.
 
 | Achievement | Rule |
 |---|---|

@@ -2,11 +2,14 @@
 Every name, path and email here is invented."""
 import json
 import os
+import subprocess
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import helpers  # noqa: F401
+from tinkerprint.demo import RepoWriter, git_env
 from tinkerprint.render_html import _changes
 from tinkerprint.score import compare
 
@@ -159,6 +162,82 @@ class SameInputsSameSheet(unittest.TestCase):
                     pages.append(f.read())
         self.assertEqual(pages[0], pages[1])
         self.assertIn(b"As of Sep 15, 2026.", pages[0])
+
+
+class ShallowClones(unittest.TestCase):
+    """A shallow clone's boundary commits show their whole tree as added, so they never decide scope,
+    and a shallow repo never proves a first commit."""
+
+    ME = ("Ida Fenwick", "ida@fenwick.example.test")
+    UTC = ZoneInfo("UTC")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.t = os.path.realpath(self.tmp.name)
+        self.data = os.path.join(self.t, "data")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, cwd, *args, when="2026-03-05T10:00:00+00:00"):
+        env = dict(git_env(), GIT_AUTHOR_NAME=self.ME[0], GIT_AUTHOR_EMAIL=self.ME[1], GIT_COMMITTER_NAME=self.ME[0],
+                   GIT_COMMITTER_EMAIL=self.ME[1], GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when,
+                   GIT_ALLOW_PROTOCOL="file")
+        return subprocess.run(["git", "-C", cwd, *args], check=True, capture_output=True, env=env).stdout
+
+    def profile(self, root):
+        from tinkerprint.profile import load_profile
+        path = os.path.join(self.t, "p.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f'name = "Ida"\n[identity]\nemails = ["{self.ME[1]}"]\n[harnesses]\nclaude = false\n'
+                    f'codex = false\n[[project]]\nname = "Kite"\nroot = "{root}"\n')
+        return load_profile(path)
+
+    def build(self, prof):
+        from tinkerprint.build import build
+        return build(prof, os.path.join(self.t, "out"), home=self.data, today=date(2026, 11, 1))
+
+    def test_a_boundary_commit_never_puts_a_tag_in_scope(self):
+        full = os.path.join(self.t, "full")
+        r = RepoWriter(full)
+        r.touch(datetime(2026, 3, 1, 10, tzinfo=self.UTC), self.ME, {"sub/x.py": 2, "other/y.py": 2})
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=self.UTC), self.ME, {"other/y.py": 2}, tag="v1.0.0")
+        r.write()
+        shallow = os.path.join(self.t, "shallow")
+        self.git(self.t, "clone", "-q", "--depth", "1", "file://" + full, shallow)
+        res = self.build(self.profile(os.path.join(shallow, "sub")))
+        ids = [a["id"] for a in res["sheet"]["achievements"]]
+        self.assertNotIn("shipwright", ids)
+        self.assertNotIn("founder", ids)
+        shallow_lines = [w for w in res["warnings"] if "shallow" in w]
+        self.assertEqual(len(shallow_lines), 1)
+        self.assertTrue(shallow_lines[0].startswith("Kite: "), shallow_lines[0])
+        self.assertNotIn(shallow, shallow_lines[0])
+        # The same history, complete, puts the tag out of scope too: it touched only other/.
+        res = self.build(self.profile(os.path.join(full, "sub")))
+        self.assertNotIn("shipwright", [a["id"] for a in res["sheet"]["achievements"]])
+        self.assertFalse([w for w in res["warnings"] if "shallow" in w])
+
+    def test_a_shallow_repo_never_earns_founder(self):
+        full = os.path.join(self.t, "full")
+        r = RepoWriter(full)
+        r.touch(datetime(2026, 3, 1, 10, tzinfo=self.UTC), self.ME, {"a.py": 2})
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=self.UTC), self.ME, {"a.py": 2})
+        r.touch(datetime(2026, 3, 3, 10, tzinfo=self.UTC), self.ME, {"a.py": 2})
+        r.write()
+        tree = self.git(full, "rev-parse", "HEAD^{tree}").decode().strip()
+        side = self.git(full, "commit-tree", tree, "-m", "side", when="2026-02-01T10:00:00+00:00").decode().strip()
+        self.git(full, "update-ref", "refs/heads/side", side)
+        shallow = os.path.join(self.t, "shallow")
+        # At depth 2 the side branch's root is whole, not cut off: no parents, and not a boundary.
+        self.git(self.t, "clone", "-q", "--depth", "2", "--no-single-branch", "file://" + full, shallow)
+        with open(os.path.join(shallow, ".git", "shallow")) as f:
+            self.assertNotIn(side, f.read())
+        res = self.build(self.profile(shallow))
+        self.assertNotIn("founder", [a["id"] for a in res["sheet"]["achievements"]])
+        self.assertTrue(any(w.startswith("Kite: ") and "shallow" in w for w in res["warnings"]))
+        res = self.build(self.profile(full))
+        self.assertIn("founder", [a["id"] for a in res["sheet"]["achievements"]])
 
 
 if __name__ == "__main__":
