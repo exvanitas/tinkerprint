@@ -204,7 +204,10 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
     proj_parts = defaultdict(list)
     proj_days = defaultdict(int)
     unclassified_parts = []
+    classified_days = 0  # season days with any classified points: what the class rests on
     for d in season_days:
+        if any(v > 0 for per in day_points[d].values() for s, v in per.items() if s != ""):
+            classified_days += 1
         for pname in sorted(day_points[d]):
             per = day_points[d][pname]
             proj_days[pname] += 1
@@ -293,6 +296,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
             "active_days": len(season_days),
             "points": len(season_days),
             "classified": _r(classified),
+            "classified_days": classified_days,
             "unclassified": _r(unclassified),
             "unclassified_share": _r(unclassified / len(season_days)) if season_days else 0.0,
             "first_day": season_days[0].isoformat() if season_days else None,

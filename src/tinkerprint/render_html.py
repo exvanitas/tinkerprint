@@ -497,6 +497,13 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     why = e(cls["why"]) if cls else "No classified points yet."
     if multi:
         why += f" Multiclass: {e(multi['stats'][0])} and {e(multi['stats'][1])} each hold 10% or more."
+    evidence = ""
+    if cls:
+        # How much the class rests on: a one-day share should not read as a strong class.
+        cd, ad = tot.get("classified_days", tot["active_days"]), tot["active_days"]
+        evidence = (f'<div class="cls-why evidence">Based on {cd} of {plural(ad, "active day")}. '
+                    f'The rest changed only unclassified files.</div>' if cd < ad else
+                    f'<div class="cls-why evidence">Based on {cd} of {plural(ad, "active day")}.</div>')
 
     lo = hist["level"] ** 2
     need = hist["next_level_at"] - hist["points"]
@@ -616,7 +623,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     <div class="who">
       <h1>{e(prof["name"])}</h1>
       <div class="cls">{cls_html}</div>
-      <div class="cls-why">{why}</div>{pix["costume"]}{jump}
+      <div class="cls-why">{why}</div>{evidence}{pix["costume"]}{jump}
     </div>
     <div class="xp">
       <div class="lv">

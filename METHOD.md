@@ -113,6 +113,7 @@ Within the season:
 - **Close calls**: when the runner-up sits within 2 points of share of the winner, the sheet names both, winner first: "Artificer, close to Alchemist". A pair's runner-up swaps its second stat for the third. A specialist's runner-up is the second stat as a specialist. A multiclass's runner-up swaps its fourth stat for the fifth. A generalist has none.
 - Shares are compared at full precision. Exact ties go to the earlier stat in the set's order.
 - No rule looks at an earlier sheet. The same events and profile always give the same class.
+- **Evidence**: beside the class, the sheet says how many of the season's active days hold classified points, for example "Based on 1 of 10 active days". Days that changed only unclassified files add points but never a class, so a class can rest on few days.
 
 Class names belong to the set: 28 pair names, 8 specialist names and one generalist name.
 
