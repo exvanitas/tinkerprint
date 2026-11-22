@@ -1,34 +1,48 @@
 # Art
 
-The Woodland Guild is a set of original 48 × 48 pixel portraits. Each trade has its own character. The Warden is a broad badger behind a pavise, the Cartographer is a kingfisher with a telescope, and the Lorekeeper is a raven reading an open book. The builder stands above a moonlit viaduct. The tinkerer stands on a plum-colored lakeshore. The hills, sky and ground use closely spaced dark values so the faces and tools carry the light.
+The Woodland Guild works the night shift. Its 48 × 48 pixel portraits show people from thirteen trades. The Artificer wears copper goggles on a leather band. The Sage wears a moon-stitched hood. The Mechanist carries a pressure tank with brass valves. Through the workshop arch, the builder sees a moonlit viaduct and the tinkerer sees a windmill above the lake.
 
-Run `tinkerprint gallery --out art` for the 74 classes, close-call costumes, multiclass capes, both workshops and the small sprites. Add `--png` to write individual PNGs.
+Run `tinkerprint gallery --out art` to see all 74 classes, both workshops, multiclass capes and the small pieces. Add `--png` to save individual sprites.
 
-## How a portrait composes
+## Dressing a figure
 
-The top stat selects the animal, coat, stance and shoulder position. The runner-up supplies a handheld tool, a second piece of equipment worn on the opposite shoulder, and the pose of the working arm. For example, a mouse with Logic wears a blue mantle and leans on a staff. With Art it carries a paint palette and raises a brush. A specialist with a single rounded stat uses its own trade for both.
+The top stat selects the stance, clothes and headgear. The runner-up selects a tool, a sleeve pose and gear for the far shoulder. A Sage with Data carries a brass spyglass and map case. With Infra the same Sage braces a kite shield and buckles on a steel pauldron. A specialist who only has one rounded stat uses the tool of their own trade.
 
-A multiclass adds a windblown cloak behind the figure. Its fabric and woven border use the two multiclass stats. The generalist is a tortoise with a walking crook and a rolled blanket dyed in the leading stat. The unclassed tortoise rests its hand at its side.
+The generalist wears a traveling cloak and carries a crook and bedroll. The unclassed traveler has a bare head and rests a hand at their side. A multiclass adds a cape with a contrasting woven border.
 
-Layers are the cloak or pack, body, shoulder equipment, sleeve, head, and tool. The hand goes over the grip unless the tool covers it. A one-pixel material contour finishes the figure. The light comes from the upper left. All fixed inks, stat ramps and contours in the default pack come from 61 swatches. Steel has short ivory reflections, leather catches an ochre edge, and cloth uses larger uninterrupted folds.
+The layers run from cape or pack through coat, shoulder gear, sleeve and head to the held tool. Ordinary handles use a separate hand layer. The open book, lantern, shield, spyglass and teapot include fingers drawn against their particular grips. Light comes from the upper left. A narrow dark line separates overlapping materials. The outer contour takes the color of the material along the silhouette.
 
-Looks follow class shape alone. The sheet and card both rank shares rounded to 5%, breaking ties in the set's order. The card portrait reads only `set`, `class`, `multiclass` and the rounded stats. It contributes only paths with `fill` and `d` attributes to the card.
+All default inks come from 63 swatches. Brass takes a yellow glint and an ochre shadow. Steel reflects ivory and blue-gray. Each stat has a four-color fabric ramp. Every face and hand uses the same four skin colors. Replacing `skin_colors` in the pack changes all of them together.
 
-## On the sheet
+## Presentation
 
-The hero is the workshop with the figure layered on its rug. `banner(..., with_figure=False)` draws the studio alone and `banner_figure_box` says where the figure goes, so a close call can swap the costume without redrawing the room. Each stat card is tinted with its stat's ramp from `stat_ramp`. On the light page its bar deepens toward the ramp's darkest color until it holds 3:1 against the track. The share card draws its bars and radar dots from the same ramps.
+Every sheet, card and chronicle uses the neutral head. The gallery shows the Sage, Artificer and Lorekeeper in all three presentations. In the built-in pack, neutral has a tucked or cropped cut and a clean jaw. Man has a shorter cut, a heavier brow and facial hair. Woman has a bob, waves, braid or low tail fitted to the headgear, with a small change at the mouth.
 
-## Other pictures
+`art.figure` and `art.portrait` take the same optional keywords. Pass `presentation="neutral"`, `"man"` or `"woman"`. Pass `skin` with four hex colors, light to dark, to recolor the face and hands for one drawing.
 
-| Picture | Composition |
+```python
+from tinkerprint import art
+
+pack = art.default_pack()
+sage = art.look_for("builder", "specialist", ["Logic"], ["Logic"])
+portrait = art.portrait(pack, sage, presentation="woman")
+figure = art.figure(pack, sage, skin=("#d7a471", "#a76a48", "#714a40", "#49323a"))
+```
+
+## On the sheet and card
+
+| Picture | At display size |
 |---|---|
-| Workshop | A 252 × 72 studio with a lantern over a pressed fern, a distant aqueduct or windmill, and a rug for the figure. Active trades stock the cabinet. Party members bring their familiars. |
-| Familiars | An owl, cat, jelly and fallback sprout slime. These also appear on the party cards and, from the card's party names, along the foot of the share card. |
-| Achievement pins | Each rule and the milestone fallback get their own silhouette. |
-| Shelf miniatures | One object per stat, shared between the shelf and stat cards. |
-| Chronicle | Each quarter shows its class portrait. A kettle hangs over the fire in quiet stretches. Repeated portraits reuse SVG definitions. |
+| Workshop | A 252 × 72 room with a lantern over a drafting bench, an open arch and a stocked cabinet. The figure stands on the rug. A phone crops the scene around the figure and the party. |
+| Portrait | The card draws 4× pixels. The level seal sits at the lower right, clear of the tools. The stand-alone portrait PNG is 384 × 384. |
+| Chronicle | Each quarter shows its costume at 2×. A kettle hangs above the fire in quiet stretches. Repeated portraits share SVG definitions. |
+| Familiars | A brass storm lantern for Claude, a portable typewriter for Codex, an amethyst orrery for Antigravity and a crank gramophone for any other harness. Each stands on the studio floor and appears at 3× on its party card. |
+| Pins | Each achievement has its own 3× pin. A packet of sealed letters marks Swarm day. Four enamel quadrants share the Season's turn wheel. |
+| Trinkets | Each trade stocks a miniature in the cabinet. Folded maps, book stacks and hourglasses appear at 4× on stat cards and 2× in smaller slots. |
 
-The counter-mode SHA-256 stream places stock and companions from the same sheet seed on every build. PNGs use the standard library and fixed compression. The default `portrait.png` is an 8× integer enlargement, 384 × 384. The card portrait uses 4× pixels. The sheet's hero stretches the workshop across the page, and on a phone crops it to the figure and familiars. The chronicle uses 2×, familiars and pins 3×, stat trinkets 4×. Inline SVG on the sheet and gallery carries lossless pixel art at its requested display resolution. The card and the chronicle’s reusable portrait definitions draw orthogonal paths. Each path joins same-color runs across rows, including stepped edges.
+The sheet and card rank stat shares rounded to 5%, breaking ties in set order. The card portrait reads `set`, `class`, `multiclass` and the rounded stats. Card artwork contributes only SVG paths with `fill` and `d`. The sheet and gallery embed lossless PNGs. The chronicle uses reusable paths.
+
+`banner(..., with_figure=False)` returns the furnished studio. `banner_figure_box` locates the figure layer for the close-call swap. The counter-mode SHA-256 stream places stock and companions deterministically. The sheet uses `stat_ramp` for the stat colors and deepens the bars as needed for the light theme.
 
 ## Replace the pack
 
@@ -38,22 +52,28 @@ tinkerprint gallery --art-pack mypack.json --out preview
 tinkerprint build --profile me.toml --art-pack mypack.json
 ```
 
-The built-in heads, coats, tools, shoulder gear, pins and miniatures are literal character grids. Edit the corresponding row to move a highlight, change a sleeve or cut a notch in a feather. The landscape and workshop drawings are rasterized to the same grid format on export. A replacement pack contains only data. Each part has `at`, rectangular `rows`, and an optional local `palette`. A dot is clear. A grid key selects either a fixed ink or one of the following channels.
+The built-in art uses character grids and hand-placed polygons. Export resolves both into plain JSON. Each part has an `at` coordinate, rectangular `rows` and an optional local `palette`. A dot is transparent. Other characters select a fixed ink or a palette channel.
 
 | Keys | Meaning |
 |---|---|
-| `A B C F` | Top stat, from highlight to deep shadow |
-| `X Y Z H` | Equipment stat, in the same order |
-| `T U` | Cloak fabric |
-| `V W` | Cloak border |
-| `@ + : ~` | Face and paw, from highlight to shadow, in a version 2 pack with `skin_colors` |
+| `A B C F` | Outfit, highlight to shadow |
+| `X Y Z H` | Equipment, highlight to shadow |
+| `T U` | Cape fabric |
+| `V W` | Cape border |
+| `@ + : ~` | Skin, highlight to shadow, in version 2 packs with `skin_colors` |
 
-Every built-in head and exposed paw uses the same `skin_colors` array of four hex colors. Replacing that one array changes the skin ramp throughout the set. The feathers, fur markings, horns and eye details have their own inks. Older packs that omit the array keep their original grid keys.
+A version 2 look references its body, head (`hat`), tool, trinket and shoulder gear. The gear origin follows the costume's `shoulder`. The sleeve registers against the costume's `grip` using the reference `hand`. The tool's `offset` locates the closed fingers and handle together. A part with `seam: true` inks its contact edge where it overlaps existing paint. The `edges` table supplies lit and shaded outlines. With `mixed_gear_only: true`, the far shoulder takes extra gear when the outfit and tool come from different trades.
 
-A version 2 look references its body, head (`hat`), tool, trinket and shoulder gear. The gear's origin is relative to `shoulder`. The sleeve is registered to the costume's `grip` using the pack's reference `hand`. The tool and hand then move together by the tool's `offset`. The `edges` table maps an ink to its lit and shadow contour colors. Each set references its portrait scene and studio background.
+The loader checks coordinates, colors, grid keys, flags and references. Pack names and part identifiers stay out of visible output. Earlier packs retain their original composition rules.
 
-The loader checks grid sizes, color values, keys, coordinates and part references. Pack metadata and part identifiers stay out of visible output. Earlier 32 × 32 version 1 packs retain their original composition rules.
+### Add a hair or face variant
+
+In an exported pack, the `hat` part is the complete neutral head. A named entry in `presentations` maps each neutral head part to a replacement. The map covers every distinct `hat` used by the trades, the generalist's hat and the unclassed `base`. Packs without this table draw their original heads by default. Requesting an unknown presentation raises `PackError`.
+
+For example, to give the Sage a shorter braid in the woman presentation, edit `parts["logic-head-woman"]["rows"]`. Dots clear pixels. Keep the hood and its registration at `at`, use `@ + : ~` for skin and carry the hair colors through the cut. The built-in beards use three local palette keys, `^` for light, `$` for midtone and `&` for shadow.
+
+To add a separate choice, copy an existing presentation map under a new name such as `cropped`. Duplicate the head part you want to edit, point that entry in the new map at the copy, and draw its rows. Other entries can share existing parts. Load the JSON with `art.load_pack` and pass `presentation="cropped"` to draw it.
 
 ## Size budgets
 
-The art tests keep both invented demo sheets below 104,000 bytes, cards below 30,000 bytes and portrait PNGs below 4,800 bytes. The gallery limit is 240,000 bytes. The built-in gallery measures 215,843 bytes.
+The art tests keep both demo sheets under 104,000 bytes, cards under 30,000 bytes, portrait PNGs under 4,800 bytes and the gallery under 240,000 bytes.

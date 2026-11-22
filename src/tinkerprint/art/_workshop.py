@@ -287,6 +287,8 @@ def rug():
     d.shape('L',(91,59),(142,59),(153,67),(148,69),(80,69),(80,67))
     d.shape('C',(91,59),(141,59),(152,67),(80,67))
     d.shape('B',(92,60),(139,60),(147,65),(85,65))
+    # A dark woven field behind the boots, with the trade colors on the binding.
+    d.shape('F',(96,61),(136,61),(142,64),(91,64))
     d.line('A',(86,65),(147,65))
     for x in (86,98,138):
         d.shape('C',(x,63),(x+3,61),(x+6,63),(x+3,64))

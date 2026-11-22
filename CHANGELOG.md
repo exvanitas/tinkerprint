@@ -4,7 +4,8 @@ Newest first. Every release gets a version, an entry here and a GitHub release.
 
 ## Unreleased
 
-- Pixel art, made in code from a pack of parts: a woodland guild with one animal per trade, by lantern light. Your character shows your top stat's animal and costume, with your runner-up's tool, sleeve and shoulder piece, and a cape for a multiclass. On a close call it changes into the other costume.
+- Pixel art, made in code from a pack of parts: a guild of tradespeople by lantern light. Your character wears your top stat's costume, with your runner-up's tool, sleeve and shoulder piece, and a cape for a multiclass. On a close call it changes into the other costume.
+- Characters are drawn gender-neutral. The art pack also holds a man and a woman version of every head, ready for a later profile setting; a custom pack can add its own. See docs/ART.md.
 - The sheet opens on one scene: your character in a workshop looking out on a moonlit viaduct (builder) or a lake (tinkerer), with a nameplate and level seal below. Its shelves hold trinkets for your strongest stats and your party's familiars stand beside you. On a phone the scene crops to you and your familiars.
 - Familiars on the party cards, a pin on each achievement, a trinket on each stat card, each at a whole multiple of its pixels.
 - A new reading order: the scene, then the build (radar beside the stat cards, strongest first), party, achievements, chronicle, what changed, projects and method. A link under your name jumps to what changed. Stats with no points share one line instead of empty cards.

@@ -23,7 +23,7 @@ INK = {
     # Midnight ridge and plum lake, arranged in close values behind the characters.
     '!': '#192b38', '?': '#263e50', '%': '#314c60', '/': '#466575',
     '{': '#30293a', '}': '#49374b', '|': '#594256', ';': '#735766',
-    '(': '#a48692', ')': '#746a7d', '=': '#807674',
+    '<': '#f2ba97', '>': '#c3816e', '(': '#a48692', ')': '#746a7d', '=': '#807674',
 }
 STAT_KEYS = {
     'Interface': 'Qqp9', 'Logic': '4321', 'Infra': 'mMnf', 'Tools': 'yhlL',
@@ -41,7 +41,7 @@ def ramp(keys):
 
 # Nearest cool edge on a lit side, and the edge in shadow. Each color is in the master table.
 EDGE_GROUPS = (
-    ('PLOloaewcSGgyhirR0x', 'O', 'P'),
+    ('PLOloaewcSGgyhirR0x<>', 'O', 'P'),
     ('fnNMsmIEDK=', 'n', 'f'),
     ('Jjtvubz', 'j', 'J'), ('1234', '2', '1'), ('5678()', '6', '5'),
     ('9pqQ', 'p', '9'), ('kd', 'P', 'k'),

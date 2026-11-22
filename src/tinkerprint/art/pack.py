@@ -54,6 +54,13 @@ def _color(v, where):
         raise PackError(f"{where}: {v!r} is not a #rrggbb color")
 
 
+def check_skin(skin):
+    if not isinstance(skin, (list, tuple)) or len(skin) != len(SKIN_KEYS):
+        raise PackError("skin needs four colors from highlight to shadow")
+    for color in skin:
+        _color(color, "skin")
+
+
 def _point(v, where):
     if not (isinstance(v, list) and len(v) == 2 and all(type(n) is int and 0 <= n < 64 for n in v)):
         raise PackError(f"{where}: expected a pixel coordinate")
@@ -72,14 +79,12 @@ def check_pack(pack: dict) -> None:
     version = pack.get("version", 1)
     if type(version) is not int or version not in (1, 2):
         raise PackError("unsupported pack version")
+    if "mixed_gear_only" in pack and type(pack["mixed_gear_only"]) is not bool:
+        raise PackError("mixed_gear_only must be a boolean")
     modern = version == 2
     reserved = EXTENDED_RAMP if modern else RAMP
     if modern and "skin_colors" in pack:
-        skin = pack["skin_colors"]
-        if not isinstance(skin, list) or len(skin) != len(SKIN_KEYS):
-            raise PackError("skin_colors needs four colors from highlight to shadow")
-        for color in skin:
-            _color(color, "skin_colors")
+        check_skin(pack["skin_colors"])
         reserved += SKIN_KEYS
     ramp_lengths = (3, 4) if modern else (3,)
     if pack["canvas"] not in ([[32, 32], [48, 48], [64, 64]] if modern else [[32, 32]]):
@@ -123,6 +128,8 @@ def check_pack(pack: dict) -> None:
             raise PackError(f"part name {name!r}")
         if not isinstance(part, dict):
             raise PackError(f"part {name}: expected an object")
+        if "seam" in part and type(part["seam"]) is not bool:
+            raise PackError(f"part {name}: seam must be a boolean")
         at = part.get("at")
         if not (isinstance(at, list) and len(at) == 2 and all(isinstance(v, int) and -64 <= v <= 256 for v in at)):
             raise PackError(f"part {name}: at must be two integers")
@@ -181,6 +188,18 @@ def check_pack(pack: dict) -> None:
     for k in ("base", "hand", "cape", "campfire"):
         if k not in parts:
             raise PackError(f"pack needs a {k!r} part")
+    if "presentations" in pack:
+        variants = pack["presentations"]
+        if not modern or not isinstance(variants, dict):
+            raise PackError("presentations must be a version 2 head map")
+        heads = {"base", pack["generalist"]["hat"]} | {pack["looks"][s]["hat"] for s in ALL_STATS}
+        for name, replacements in variants.items():
+            if not isinstance(name, str) or not _NAME.fullmatch(name) or name == "neutral":
+                raise PackError("invalid presentation name (neutral uses the original heads)")
+            if not isinstance(replacements, dict) or replacements.keys() != heads:
+                raise PackError(f"presentation {name} needs a replacement for each head")
+            if any(not isinstance(ref, str) or ref not in parts for ref in replacements.values()):
+                raise PackError(f"presentation {name} references an unknown head part")
 
 
 check_pack(DEFAULT)

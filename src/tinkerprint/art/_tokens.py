@@ -3,16 +3,16 @@ from ._drawing import grid_part
 
 SKETCHES = {
 'sunrise': """
-      g   y
-       y g
-    g   yyy
-  J   gywwwyg
-  jJ gywwwwyyg J
- jzjJ ywwyyygg jJ
- JjJ  gggggGG jtjJ
-jztjJzzzzbbbbbJJJ
- JJJuubbbbbzuujjJ
-  JJJJJuuuujJJJJ
+     222222
+   22ggyygg22
+  22g222222g22
+  2g222yy222g2
+ 12g2gwwwwg2g21
+ 122gywwwwyg221
+ 11yywwwwwyyy11
+  fbbbbbbzzbbf
+   uuuzzbbbuu
+    JuubbuuJ
 """,
 'flag': """
     yg
@@ -31,71 +31,67 @@ jztjJzzzzbbbbbJJJ
     ffJJ
 """,
 'coins': """
-        gyyy
-      gywwyyg
-     GyyggyygG
-     GygGgyygG
-      GgggggG
-   gyyyggGGo
-  gywwyygGGG
- GyyggyygGyyygg
- GygGgyyGwwyyyyg
-  GggggGGgggggG
-  gyyyyGgGgGggG
-  GgGggGyyyyyyG
-   GGGG.GggGggG
+       gyyyg
+      gywwygG
+      ygGgygG
+      ygggygG
+       ggggG
+  gyyyyggGGgg
+ gywwyyygGgGGG
+ yyyyyygGyyggG
+ GgggggGGgggGG
+ gyyyyygGyyyggG
+ GgggggGgggggGG
+  GGGGG GGGGGG
 """,
 'ship': """
-         j
-         ojttj
-        aaojj
-       aaao
-      aaao ee
-     aaoao eae
-    aaooao eaee
-    aaooao eaae
-     ooOoo  a
- vvv  oo o      vt
- jtttvvtooovvvtjj
-  jvvtjjtjtjttjj
-   JjjjjtttttjJ
-  zuuJJJJJJJJbbu
-    bbbzzbbbu
+        oo
+        orrR
+       woO
+      wwo Oc
+     wweo  wc
+    wweeo  wwcc
+   wweeao  wweec
+  weeaaao  eecc
+        ol
+ aooaaaaoloooooa
+  rrrRRRRRRRRRR
+   RRRRPLLLLP
+ bzzzbbuuubzzbb
+   uubbbzzzbu
 """,
 'signpost': """
-      aaal
-      llLO
-   aoeaaaaol
-  oaaaoooooool
-   OOllOllllO
-      loLO
-      loLO
-    ooaaaooooo
-  oaaoooooool
-    OOOlllO
-      ooLO
-    t lolo  j
-  vtjjloLO tj
-  jtjjssNsjjjJ
-   JnsMNNnnJ
+      allo
+      oolL
+  eeaaaaaaao
+ eaaaoooooool
+  OOOOllOOOO
+      olL
+      olL
+    oaaaaooooo
+   aoaaaolllOOl
+    OOOOLOOOOO
+      olL
+      olL
+   jt olL  j
+  jtjNNNnnjJ
+   JJnnnffJ
 """,
-'hive': """
-          mw
-   .lllo. wm
-  ollLOO.Gkg
-    l    gg
-   gygg
-  gyyyygg
-  GyggggG
- gywyyyygg
- GggggggGG
- gywwwyyyyg
- GggGddggGG
-  gyGkdggg
-   GGGGGG
- wm
- mwgk
-   gg
+'mail': """
+     ubbbbbbb
+     bzzzzzzbJ
+     buubbuubJ
+    yyyyyyyyyJ
+    ywaaaawyG
+    ygggggggG
+ cwwwweeeeecG
+ wecweeeececG
+ weacweeccaeG
+ weeacrrcaeeG
+ weeerrRceeeG
+ weeccRRaceeG
+ wccceeeeaccG
+  eeeeeecccc
 """,
 'skull': """
          tvv
@@ -114,20 +110,20 @@ jztjJzzzzbbbbbJJJ
     aoaoao
 """,
 'bubbles': """
-   iiirrr
-  iwwiirrr
-  iiiiirrR
-  irrrrrRR
-   rrRRRR   bb
-    R R   bzzzbb
-         bwwzzbbb
-         bzzbbbbb
-    ttt   bbbbuu
-   vtvtjj  .uu
-  vwwtttjj   u
-  ttvttjjj
-   jttjjJ
-    jJ J
+    iiiiirrr
+  iwwwwwwirrrR
+  iwrrrrrrirrR
+  iwwwwwiiirrR
+  iwrrrrirrRRR
+  iiiiiirrRRRR
+   rrr rRRbbbbu
+    rR  bzzzzbbu
+    R   bJbbbJJbu
+        bzzzzzzbu
+        bJJbbJbbu
+        bbbbbbbuu
+         uuuu uu
+               u
 """,
 'pennants': """
    y
@@ -147,47 +143,47 @@ jztjJzzzzbbbbbJJJ
    fNNnNnnNNNnf
 """,
 'wheel': """
-     tj  gyy
-   vtjjJ gyyyg
-  vvvtjJ gyywyG
- ttvvjjJ.gyyyyG
- jtvjjJ G ggggG
- jjJjj Gyg GGG
-  JJJ GwyG  G
-   . GgyggG
-   b  GgGG .Ooo
-  zzbb G. Oooao
- bzzbbJ  looaoO
- bwwbbJ lloooO
-  bbbJJ llooO
-   JJ    LOO
+     gyyyg
+   gywwwwyyg
+  gytvvGyggyg
+ gytttvGyyggyg
+ gtttvvGyygggG
+gytttvvGyyggggG
+yGGGGGgygGGGGGy
+wbbbbgywygllllg
+ybuubGgygGOoolg
+ gyubbuGoooooG
+ gybbbuGoooolG
+  gybbuGoolgG
+   gyyyggggG
+     ggggG
 """,
 'star': """
-    ir     ir
-    irrr rrrR
-     iirrriR
-      irrRR
-       ggG
-      gwwyg
-    gggwygggg
-   gywGGyGGyyg
-  gywwGyygGyyGG
-  GyygGwwgGggGG
-   GggGgyGGggG
-    GGGyygGGG
-      GggG
-       GG
+   rrr   rrr
+   riiR riir
+    riiRiiR
+     riirR
+      ggG
+    gyyyygG
+   gymmymmGG
+  gyNNyyyNNgG
+  ygNyyyyyNgG
+  ggNgyyygNgG
+   GgNgNgNgG
+    GgggggG
+      GGG
 """,
 'frame': """
-   gggg
-  gymmmG
- ggmwXXMG
- gXwXYYZG
- gXXYYYZG
-  gYYYZG
-   gggG
-   .oG
-   lll
+   gyyg
+  gyzzgG
+ gywzzugG
+ gyzzbugG
+ GgzbbugG
+  GguugG
+   GggG
+     gG
+     gy
+      G
 """,
 'runebook': """
   XXXYYY
@@ -210,36 +206,37 @@ jztjJzzzzbbbbbJJJ
   f...nf
 """,
 'hammer': """
-      sM
-    mmMNN
-   smMNNNn
-    nMNnNN
-   .XYb. n
-   XYZ
-  XYZ
-  YZ
+   smmM
+  smmMMN
+ mmMNNnNn
+  nMXo.Nn
+   XYo
+  XYo
+ XYo
+ YZ
 """,
 'map': """
-     eee
-   eeewaG
-  eewYeoG
-  eYwYYoG
-  egYYXoG
- eaaYego
- wwaygo
- eeaoo
-  ooO
+  aaa  ee
+ eweeaewe
+ ewwaeece
+ wjtajcwe
+ wjjaeewe
+ webabbee
+ weaubbce
+ weeawece
+ eaa eeaa
 """,
 'flask': """
-    oo
-   mmss
-    mN
-   mmYs
-  mwXXYN
- mwXXYYZN
- mXYYYZZN
- nYYYZZZn
-  NNNNNn
+   oo
+  smmN
+   mN
+   mN
+  mwMN
+ mwwwMN
+ mXYYYYN
+ mXXYYYn
+  nYYYn
+   nnn
 """,
 'hourglass': """
  oaaaaao
@@ -253,26 +250,28 @@ jztjJzzzzbbbbbJJJ
  oooooll
 """,
 'books': """
-   XXYYYY
-  XweeeaZ
-   ZZZZZZ
-  loooooo
- leeeeaaL
-  OOOOOOL
- YYYYXXg
- Yeeecag
-  ZZZZZZ
+  Rrrrrrr
+ Rwwwceea
+ RRRRRRRR
+  uuuuuuu
+ uweeecao
+ uJJJJJJJ
+  looolll
+ leeeecco
+ LLLLLLLL
 """,
 'cog': """
-    MM
-  X MM X
-  XXYYMM
- MMYgggNN
-MMYgg.YYNN
- MYY..YZn
-  nYYYZn
-  n ZZ n
-    ZZ
+   XXX
+ X XMX X
+ XXMMMNX
+ MMygyMN
+XMyG.GyNX
+XMg...gNX
+XNyG.GynX
+ nNygyNn
+ nZNNNZZ
+ Z ZNZ Z
+   ZZZ
 """,
 'paints': """
  r.  b
@@ -307,15 +306,16 @@ MMYgg.YYNN
    gggG
 """,
 'mug': """
-    w
-   .c w
-   .w
-  eeeee
-  XwwYYZgg
-  XXXXYYZG
-  XYYYZY.G
-  XYYYZZG
-  .YZZG
+  c
+   c
+   c
+  wwwww
+ XwwXXXggG
+ XYYYYZGgg
+ XYYYYZkkG
+ XYYYZZggG
+  YZZZG
+   ZZZ
 """,
 }
 PARTS = {name: grid_part(0, 0, sketch) for name, sketch in SKETCHES.items()}

@@ -62,7 +62,7 @@ BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a
 
 
 def _familiars(party: list, pack: dict) -> list:
-    """The party's familiars, from the allowlisted party names. Unknown names get the fallback sprout."""
+    """The party's familiars, from the allowlisted party names. Unknown names get the pack’s fallback."""
     by_name = {v: k for k, v in HARNESS_NAMES.items()}
     return [art.familiar(pack, by_name.get(name, "")) for name in party[:3]]
 
@@ -117,7 +117,7 @@ def render_card(card: dict, pack: dict | None = None) -> str:
         fx += f.w * 2 + 6
     out.append(f'<g shape-rendering="crispEdges">{"".join(_merge(sprites))}</g>')
     # Level: a lantern seal on the portrait's corner.
-    sx, sy = PX + frame, PY + frame - 38
+    sx, sy = PX + frame + 14, PY + frame - 14
     out.append(f'<circle cx="{sx}" cy="{sy}" r="44" fill="{BG}"/>')
     out.append(f'<circle cx="{sx}" cy="{sy}" r="39" fill="url(#seal)" stroke="#6e4214" stroke-width="3"/>')
     out.append(_t(sx, sy + 9, v["level"], 34 if len(v["level"]) < 3 else 26, 700, "#2b1606", anchor="middle", family=SERIF))

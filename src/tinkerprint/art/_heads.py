@@ -1,346 +1,480 @@
-"""Hand-cut portraits. @ + : ~ are the four shared face inks, light to dark.
+"""Faces of the night guild. Coordinates in a head are relative to the temple.
 
-The other marks are pelage, feathers, shell, headwear, eyes and noses. Each
-sketch is a single layer so a face can be edited at its actual pixel size.
+The four skin keys are shared by the face, neck, ears and fingers. Hair, beards,
+caps and spectacles are independent ink layers, illuminated from the left.
 """
-from ._drawing import grid_part
+from ._colors import INK
+from ._drawing import Drawing
 
-PARTS = {
-    # Mouse illusionist, caught just before the reveal.
-    'interface-head': grid_part(7, 4, """
-      ssss
-    smmmmss       sss
-   sm@@++@ss    smmMMs
-  sm@+++++:Ms  sm@++:M
-  s@+++::::Ms  sm++:MM
-  s@++:::::Ms  s:::MM
-   MM:::::MM  BBCCMM
-    MMMMMMABBBBBBCC
-      AAABBBBBBBBBCCC
-    AAABBBBBBBBCCCCCCF
-   BBBBBBBCCgggggGFFFF
-   FCCCggggGMMMMMss
-      MMMMMMsssmmmMM
-      MMMssssm@@++MMM
-     MMsssssmm@wkk+sM
-     MMMssssmm+kkk++sM
-      MMMsssmmm::+++++sMM
-       MMMssssmm@@@++@@qq
-       nMMMMsssm@@++Pkk
-         nMMMMMss++PP
-           nnnMMMMM
+# The ear sits at the left, the nearer eye is the wider of the pair.
+FACES = {
+    'oval': """
+    +++++++
+  ++@@@+++++:
+  +@@@+++++++:
+ :+@@++::+++:+
+:++:++PPP++PP:
+@+:++wwdk+wdk:
+@::++@wk++@k+:
+ ::+@@++++@+++:
+  ~:+@@+++@@@::
+    :++++:::+:
+    :+++:~~+:
+     ::++++:
+       :++:
+""",
+    'square': """
+    ++++++++
+   +@@@+++++:
+  +@@@+++++++:
+ :++@++++++++:
+ ::+++ddd++dd:
+@+:++wwkk++wk:
+++:++@wk+++@k:
+ ::+++@@++@@++:
+  ~:+++++:@@@::
+   :+++++::::
+   ::+++~~++:
+    :+++++++:
+     ~~:::::
+""",
+    'keen': """
+     +++++++
+   +@@@@+++++:
+  :+@@@++++++:
+  ++@@+++++++:
+ :++++PPP+++PP
+@+:++wwdk++wdk
++:+++@wk+++@k:
+ ::++@@+++++@+:
+  ~:+++++++:@@+:
+   :+++++++::::
+    :+++:+~~+:
+     ::+++++:
+       :++:
+""",
+    'round': """
+     +++++++
+   ++@@@+++++:
+  ++@@@@++++++:
+ :++@@@+++++++:
+ :+++PPP+++PP+:
+@+:++wwdk++wdk:
++::++@wk+++@k+:
+ :::+@@@+++@@++:
+  :+++++++:@@@::
+   :+++++++::++:
+    :++++~~++:
+     ::+++++:
+       ~::::
+""",
+    'elder': """
+    ++++++++
+  :+@@@+++++:
+  ++@@+++::++:
+ :+@@@++:::++:
+ ::+++mmm++mm:
+@+:++wwkk++wk:
++:+++@wk+:+@k:
+ ::+:@@++++@@+:
+  ~:+:++++:@@@+:
+   :++@+++::::
+   ::++::~++:
+    :++++++:
+      :::::
+""",
+}
+
+
+# Hair sketches sit behind the ear or sweep across the temple. H, S and I
+# step from shade to light. Each crown covers the top of the finished cut.
+HAIR = {
+    'dark': 'dLO', 'copper': 'POh', 'silver': 'fNm',
+    'auburn': '9Rl', 'gold': 'Ooe', 'ink': 'kfn', 'pewter': 'dL=',
+}
+
+FRINGE = {
+    'neutral': """
+      IIIIISSS
+    IIIISSSSSHH
+  SIISSSSSSHH
+ ISSSSSSHHH
+ ISSSSSH
+ SSISH
+  ISH
+  SH
+""",
+    'man': """
+     IIISSSS
+   IISSSSIISS
+  ISSSHHIIISHH
+ SSSHHH  SHH
+ ISSHH
+ SSH
+""",
+    'woman': """
+      IIIIISSS
+   IIIISSSSSSHH
+  IISSSHHIISSHH
+ IISSHH   ISSH
+ ISSSH     SH
+ SISH
+ ISSH
+  ISH
+  SH
+""",
+}
+
+# Each nape has its own outline. The short cuts expose the ear. The longer
+# ones fall to the far shoulder so the front hand and equipment stay clear.
+NAPE = {
+    'tuck': (-2, 0, """
+    IIIISS
+   IISSSSH
+  IISSSHHH
+ ISSSSHH
+ ISSHHH
+ SSSHH
+ SHSHH
+  SSHH
+   SHH
 """),
-    # Hare logician, one ear cocked and one listening ahead.
-    'logic-head': grid_part(8, 2, """
-               aa
-              a@@a
-        ooo   a++a
-     ooa@@@oo a++:o
-   oa@@+++:oooa++:o
-   o++:o   oooa+::l
-    oo       oa+:l
-             oa+:l
-            oaaao
-          ooaaaool
-         aaaaaaaool
-       aa@@@@@aaaoo
-      aa@@@@++++++ol
-      a@@@+++~~P++:o
-     aa@@++++@@kk++:o
-     a@@++::+wwkk+++o
-     aa++:::+++@+++++o
-     oo+++@@@@++++++qq
-     ooo++@@@@@+++PP9
-      ooo+++@@+++PP
-       lloooo+++::o
-       AABBBBBBgG
-     AAABBBCCggG
-   ABBBCC  gG
+    'curl': (-2, 0, """
+    ISSSS
+  IISSISSH
+ IISSSSHHH
+  SSHSSHH
+ IISHHH
+ SSHSHH
+  ISSSH
+   SHH
 """),
-    # Badger warden. Two diagonal mask stripes run up to the brim of the sallet.
-    'infra-head': grid_part(8, 6, """
-              mm
-       mm    mM
-     mMMNs  mMN    sm
-     mNkkN mMMN   skkm
-     MNkkNmmmMNNNmkkkM
-      NmmmmMMMNNNNkkM
-     mmmmMMNNNNnnnNN
-    mmMMMMNNNNnnnf
-     gggggGGGGGMMM
-     mmmmmmmmmkkNNn
-    mmmmmMkkkkkkmmMN
-    mmmMkkkk@@kkkmmMN
-   mmmMkkkk@wkkk++mmMN
-   mMMkkkdd+wkk:+++mmMN
-   MMkkddd::+++++@@@mmNk
-   Nkkd:::+++++@@@mmmmkk
-   Nd::+++@@@@@@mmmmkk
-    N::++@@@mmmmmNNn
-    NNNNmmmmmmNNnn
-      nNNNNNNn
+    'crop': (-1, 0, """
+    IIISSS
+  IISSSSHH
+ ISSSHHH
+ SSSHHH
+  SSHH
+   SH
 """),
-    # Beaver smith. Goggles sit above the brow and the square incisors clear the lip.
-    'tools-head': grid_part(9, 8, """
-       ooo         oo
-     oa@@@ao     oa@@o
-     oa+++aooooooa+:oo
-      oooaaaoaaaaooool
-       GggggGGGggggGl
-     GggzzzgGGgzzzgGll
-    GgzwbbzgGgzwbbzgGo
-    GgzbuujgGgzbuujgGl
-     GgbujjGGGgbujjGl
-      GGGGGoooGGGGGl
-     lloooaa@@++~++ol
-     lloaaa@@++kk++:l
-     looaaa@@+wkk+++ol
-     Olooaa@@++++@@@@@P
-      lloaaa++++@@@@:Pk
-       Ooooo++++@@++Pl
-        OOooooPwwOww
-          OOolllmwOmw
-            LLOOomm
+    'bob': (-4, 0, """
+     IIISSSS
+   IISSISSSHH
+  IISSISSSSHH
+  ISSISSSHHH
+ ISSISSSHHHH
+ ISSSSSSHHHH
+ ISIISSSHHHH
+ ISSISSSHHHH
+ SSIISSSHHHH
+ SSIISSSHHHH
+  SSSISSHHHH
+  HSSSISSHHH
+   HHSSSSHHH
+     HHHHH
 """),
-    # Kingfisher surveyor. Long blade bill, swept wing-blue crest, white throat.
-    'data-head': grid_part(7, 5, """
-            b
-         bzzb  b
-      bzzzbbbzbb
-    zzbbbuubbbuu
-  zzbbbuubzbbbuu
-    bbuuzzzbbuuu
-   uuuuzzzbbuJJJu
-    uuubbbbuJkkJJJ
-     Ju@@@++@wkkJJJ
-      @@++++@wkkJsssM
-      ++++++++ssmmmmmmMNN
-       +++@@@@@NNNNnnnffffff
-      Ooo@@@@@@@o
-      oo@@@@@@@oo
-     Ooo@@@@++o
-     ooo+++::o
-      lloooo
-        AABBBC
-      AABBBCCgG
-      BBC  gG
+    'braid': (-4, 0, """
+     IIISSSSS
+   IIISSSSSSH
+  ISSSISSSHHH
+  IISHHSSHHH
+   SSISSHHH
+    SSSHHH
+   ISISHH
+  IISSHH
+   SSSSH
+    ISISH
+   IISSH
+    SSHH
+    gGH
+    ISH
+   SSH
 """),
-    # Silkmoth alchemist with comb antennae and large, forward-facing eye patches.
-    'models-head': grid_part(7, 2, """
-   88                   8
-    788               887
-   876788           88767
-     87678         87678
-      87678       87678
-     77 6678     8766 77
-       77667     76677
-          567   765
-            67 76
-            @@@@
-         @@@@++@@@
-        @@@@@++@@@@
-       @@@@++++++@@@
-      @@@555+++555@@
-      @@57765+57765@
-      @57wkk6+5wkk65
-      @57kkk6+5kkk65
-      ++5666+++5666+
-       +++6+@@++6++
-        :++@@@@++:
-         ::++++::
-           :++:
+    'tail': (-5, 0, """
+      IIIISSS
+    IIISSSSSHH
+   IISSISSSHHH
+    SSHHSSHHHH
+     HggHHHH
+    IISS
+   IISSSH
+  ISSISSH
+  ISIISSH
+ ISSISSSH
+ ISSISSH
+  SISSSH
+  SSSSH
+   SHH
 """),
-    # Fox duelist, chin up; a black ear tip and a flat, intent brow.
-    'tests-head': grid_part(7, 4, """
-    kk              k
-    dkP            dk
-    drrP          rrd
-    rhrrP        rirr
-     hiirP     rriihr
-     hiiiPrrrrriiihR
-      hiihhiiihhhhRR
-      rihhiiiihhhrrR
-      rhhiiihhhhhhrr
-     OhiiiihhrrhhhhhR
-     hhiiihPPPrhhPPhR
-    Ohiihh@@@kkh+kkRo
-    Ohhhhh@@wkk++wk+o
-   hhiiiih@@@+++h+++:o
-    rriih++@@@@++@@@@@k
-     hh++@@@@@@+++@@@k
-     +@@@@@+++++++PP
-       +@@@@++++P
-        ::++++P
-          :++
-"""),
-    # Owl scribe looks up over half-moon spectacle frames.
-    'docs-head': grid_part(10, 6, """
-          SSSSS
-      ccccceeeeS
-    ccceeeeeaaSS
-   ccaaSSSSoooaaSS
-     OOOgggggGGGoo
-      a@@@aa@@@@aa
-    aa@@@@++@@@@@@aa
-   oa@@@@++++++@@@@ao
-   a@@++~~+++~PP++@@a
-   a@@+@wwk++@wwk+@@a
-   a@@++kkk++@kkk+@@a
-   oa@g+++gGyG+++g@ao
-   oaaggggGygGgggGaol
-    oa@@++ygG++@@ao
-     oa+++gG::++ao
-      oo+++++++oo
-      lloo+++ool
-        OOOOO
-"""),
-    # Ram mechanist. The horn is a single bold spiral behind a lowered brow.
-    'systems-head': grid_part(6, 5, """
-           ggggg       o
-         ggyyyggG     oao
-         GgggggGG    oaaol
-      oaaaaaaooooooloaaol
-    oaaeeeeaaaaaoooolaaol
-   aaeeeeeeaaaaoooOooool
-  aaeeaaaooooaaaooLooool
-  aeeaaoLLLLooaaaoLoooao
- aeeaoLLoooolloaaolaaaaol
- aeaolLoaaaaooloaolaaaaol
- aeaoLloaaaoooloaol@++++o
- aaooLloaoOollloaol@@PPPPl
- oaooLlooooLllooaol@+wwkkl
-  oooLLLllLLloooal+@@wkkl
-  lloooLLLLloooal+@+++++:o
-   llooooooooool+++@@@@++:o
-     lllooooool+++++@@@+++P
-        Llllll:::+++++++P
-           looo::::+++P
-             llooooool
-"""),
-    # Calico painter with a beret pulled over one ear.
-    'art-head': grid_part(8, 5, """
-    kk              o
-    odk            oao
-    oaakk        oa++o
-    oa+akk      oa++:o
-   AABBBBCCCC  oa+::ol
-  AAABBBBBBBCCCoaaaool
- AABBBBBBBBBBCCCooool
-  CCBBBBBBgggGGFoooo
-    FFFgggGooooooddd
-     ooaaooo+++oddkk
-    ooaa@@@+++++ddkko
-    oaa@@++~P+++dP~ko
-    oa@@++@wk+++@wkkko
-    o@@+++kkk+++kkkdko
-    o@@++@@@@+++@@@++o
-     ooo@@@@@@+@@@qP
-      oo+++++P+P+++o
-       lloo++++++ol
-          looooool
-"""),
-    # Deer gardener. The antler forks leave sky between their branches.
-    'worlds-head': grid_part(6, 2, """
-      o              o
-      o       o     oo
-   o  ao     oo     o  o
-   oo oo     o     oo oo
-    oo ao  oo      o oo
-      ooao oo   o ooo
-        oooo    ooo
-          lo   oo
-    aa    lo  oo    aa
-    o@@a   oooo   a@@o
-     o++aaoaoooaa++:o
-      oooaa@@@aaaooo
-         a@@@@++aol
-        a@@@++++++ol
-        a@@++~PP~+ol
-        a@+++@@kk++o
-       oa@++@wkkk+++o
-       oa@@++@@+++++o
-       oaa@@+++++@@++o
-       ooaa+++++@@@@+o
-       loo++::::+@@@+k
-        lo+:::+++++Pk
-         o++++++:o
-           oooo
-"""),
-    # Raven lorekeeper. The near eye and monocle lean down toward the book.
-    'lore-head': grid_part(9, 4, """
-          s      N
-        sMMN   MMN
-      sMMMNN MMMN
-    sMMMNNNnMMNN
-   MMMNNNnnnNNn
-    NNNnnnnnNNn
-   NNNNNnnnggggg
-   nNNNnnngy@@@+g
-   nNMMnnng@@@++G
-   nMMNnnng@wwkkG
-   nNNnnnng++kkkGNN
-   fnnnnfffGgggGsssM
-    fnnnff@@+:NmmmmMMN
-   fnNNnf@@+++:nnMMMMnn
-    fnNn@@@++::ffnnnnffk
-     fnn++:::Pf    fffk
-      fnfff::f       fk
-      fNNnff
-       fnff
-"""),
-    # Hedgehog innkeeper. Quills form three large stepped fans around the face.
-    'community-head': grid_part(5, 7, """
-        a        a
-        aal    aal
-     o  aool aaooL  a
-     oao oooloollL oa
-      oaooooloolLOaao
-   ao  ooolLolLPoool
-   oaaoollPooLPOOaool
-    oaaolLPoLPOOooool
-  oo oolLPoLPOOllaaaoo
-   oooLLPoLPOoa@@@++o
-    oLLOllLOoa@@++PP~l
-  oooLOllLOoa@@++@++ol
-   ooOllLOOoa@@+wwkkoo
-    OLLOOlloa@+++kkk+o
-   oOOLLOOoa@++++++++o
-     OLLOOoa@@++++@@@+o
-      lLOOoa@@@@+++@@@+k
-        OOOo@@@+PPPPPk
-          Ooo++@@++P
-             Oooo
-"""),
-    'traveler-head': grid_part(8, 8, """
-          lllll
-       loaaaaaaol
-      loaaeaaaaaol
-     looaaaaoooooll
-    ooaaaOOggGGGOollo
-  oaaeeeaaaaaaoooooool
-    OlooooollllloooL
-       jjtttttjj
-      jttvvvttttjj
-      jtvvvJJJtttjj
-      jttt@@@++tttjj
-      jtt@@@wkk++ttj
-       jt@@+kkk+++tj
-       jj@@@++++@@@+j
-        jj+++++@@@++J
-         Jj:::+++JJJ
-           j+++++j
-"""),
-    'base': grid_part(14, 12, """
-      jjtttt
-    jjttvvttjj
-   jttvvvtttttj
-  jttvvvJJJtttjj
-  jttt@@@++tttjj
-  jtt@@@wkk++ttj
-   jt@@+kkk+++tj
-   jj@@@++++@@@+j
-    jj+++++@@@++J
-     Jj:::+++JJJ
-       j+++++j
+    'waves': (-4, 0, """
+     IIIISSS
+   IISSISSSSH
+  IISSISSSSHH
+  ISSISSSHHHH
+ ISIISSHHHHH
+ ISSSSSSHHH
+  SISSSHHHH
+  IISSISSHH
+ IISSSSHHHH
+ ISSSHHSSHH
+  SHISSSSHH
+   IISSSHHH
+   SSSHHHH
+     SHH
 """),
 }
+
+# Only facial hair uses these three local palette keys. A pack editor can
+# recolor a beard independently of hair, the skin ramp and metalwork.
+BEARDS = {
+    'point': (3, 9, """
+ $$^^$$$  $$&
+  ^^^$&^^$$&
+  ^^$$  $$$&
+   ^^$$$&&&
+    ^$$$&&
+     ^$$&
+      $&
+"""),
+    'boxed': (2, 8, """
+ $$        $
+  $$  $$  $&
+  $$^^$$$$$&
+   ^$$  $$&
+   ^$$$$$&
+    $$$&&
+"""),
+    'whiskers': (4, 9, """
+  ^^$$$ $$$
+ ^$$&&$$$&&
+ $$&    &&
+"""),
+    'goatee': (6, 10, """
+  ^^$ $
+    &&
+  ^$$&
+   $&
+"""),
+}
+
+# Two quiet expression pixels per face, placed relative to the temple.
+# Both brow ends thicken together, or the corner of the smile lifts a pixel.
+EXPRESSION = {
+    'oval':   ((6, 3), (11, 3), (10, 10)),
+    'square': ((6, 3), (11, 3), (10, 10)),
+    'keen':   ((7, 3), (12, 3), (12, 10)),
+    'round':  ((5, 3), (11, 3), (11, 10)),
+    'elder':  ((6, 3), (11, 3), (10, 10)),
+}
+
+
+def head(x, y, face, crown, cap_at, *, hair, long_cut, beard, short_cut='tuck', detail=None):
+    variants = {}
+    tones = HAIR[hair]
+    dye = str.maketrans('HSI', tones)
+    for presentation, cut in [('neutral', short_cut), ('man', 'crop'), ('woman', long_cut)]:
+        d = Drawing()
+        bx, by, locks = NAPE[cut]
+        d.grid(x + bx, y + by, locks.translate(dye))
+        d.grid(x + 4, y + 9, """
+ :++++:
+ :+++~:
+ ::::~:
+ :::~
+""")
+        d.grid(x, y, FACES[face])
+        d.grid(x, y - 2, FRINGE[presentation].translate(dye))
+        left, right, smile = EXPRESSION[face]
+        options = {}
+        if presentation == 'man':
+            for bx, by in (left, right):
+                d.set(x + bx, y + by, tones[1])
+            bx, by, rows = BEARDS[beard]
+            d.grid(x + bx, y + by, rows)
+            options['palette'] = dict(zip('&$^', (INK[t] for t in tones)))
+        elif presentation == 'woman':
+            bx, by = smile
+            d.set(x + bx, y + by, ':')
+            d.set(x + bx - 1, y + by + 1, '@')
+        if detail:
+            bx, by, rows = detail
+            d.grid(x + bx, y + by, rows)
+        bx, by = cap_at
+        d.grid(x + bx, y + by, crown)
+        variants[presentation] = d.part(seam=True, **options)
+    return variants
+
+
+HEADS = {
+    'interface-head': head(14, 12, 'oval', """
+     888888888
+    8AABBBBBCF
+     ABBBBCBCF
+     ABBBBCBCF
+      ABBBBCBF
+      ygggggGG
+    AAABBBCBBBBB
+  ABCCCCCCCCCCCF
+  FF         FF
+""", (-2, -9), hair='ink', long_cut='waves', beard='whiskers'),
+    'logic-head': head(15, 13, 'elder', """
+       AA
+       ABAA
+      ABBBBA
+     ABBBCBBA
+    ABBBCBBBBC
+   ABBBggBBBBCF
+  ABBBggBBBBBCCF
+ AABBCgggBBBCCCF
+ ABBCCBBBBAAAACCF
+ ABCCFAAABBBBBC
+ ABCCFBBBCCFFF
+  BCCF
+  BCF
+  BF
+""", (-3, -10), hair='silver', long_cut='braid', beard='point'),
+    'infra-head': head(13, 13, 'square', """
+       sssmm
+     smmmMssNN
+    smmmMMMMNNn
+   smmmMMMMMNNnf
+   mmmMMNNNNNnnf
+  mmmmmsmmmmmMMNn
+  MNNMNNnnnnnnnnnf
+   nmgNf
+   nMMnf
+   nMnf
+    nf
+""", (-2, -7), hair='dark', long_cut='tail', beard='boxed'),
+    # A leather work band carries the copper goggles above the brow.
+    'tools-head': head(14, 13, 'round', """
+       aaoooo
+    aaooollllooo
+   ollllooolllllL
+  oolLLlOllllLLLO
+  OggyyyGGyyyggGO
+   gywzzggwzzggG
+   GgzbuGGzbuGG
+    gggGLLgggG
+""", (-2, -8), hair='copper', short_cut='curl', long_cut='tail', beard='whiskers'),
+    'data-head': head(14, 12, 'keen', """
+        XXBBB
+      ABBAABBBCC
+     ABBBAABBBBC
+    ABBBAABBBBBC
+    aoooooolllLC
+ AAABBBBCCCCCCBBBB
+AABBBBBBBBBBBBBBBCC
+ CCCCCFFFFFFCCCCCCF
+""", (-4, -7), hair='dark', long_cut='braid', beard='goatee'),
+    'models-head': head(15, 12, 'oval', """
+        ee
+       eggG
+     AAABBCCC
+    ABBBAABBCC
+   ABBCBBAABBCC
+  AABBBCCCAAABBC
+  BBBCCCAAABBCCCF
+  CCAAABBBBCCFFF
+   CCgCCCCCFF
+     yG
+""", (-2, -9), hair='ink', long_cut='waves', beard='point', detail=(1, 8, 'yg\ngG')),
+    'tests-head': head(16, 12, 'keen', """
+           AABBB
+         AABBBBCF
+       AABBBBBCCF
+       BCCCBCCCF
+ BBB   gyyyggGG
+ ABBBCABBBBBBBBBCC
+  ABBCCCCFFFFFFCCC
+   CCFF
+""", (-5, -7), hair='ink', long_cut='tail', beard='whiskers'),
+    'docs-head': head(14, 13, 'oval', """
+        gggg
+     AAAABBggBBB
+  AAAABBBBBBGCCCC
+  CCCCCCCCCCGFFF
+    ABBBCCCCG
+    CCCFFFFFo
+           ggG
+""", (-2, -7), hair='auburn', long_cut='bob', beard='goatee', detail=(3, 5, """
+ gggG  gggG
+GNwkGgGwkG
+ GGgG  GgG
+""")),
+    'systems-head': head(13, 13, 'square', """
+      mmmMMM
+    mmMNnggMMN
+   mMNngyyGgMNn
+  mMNngywygGMNnf
+  sNNngyygGnnnnf
+  nNNnngGGNnnnnf
+  gyyyygggGGGGGG
+   gMMMMMNNnnnnnn
+""", (-1, -7), hair='pewter', long_cut='braid', beard='boxed'),
+    'art-head': head(13, 12, 'oval', """
+       rR
+     AABBBBAAA
+   AABBBBBBAABBBC
+ AABBBBBCCCCBBBCCC
+ ABBCCCCCCCCCCCCCF
+  CCCCCFFFCCCCCFF
+    FFFFFFF
+""", (-3, -6), hair='gold', short_cut='curl', long_cut='waves', beard='goatee'),
+    'worlds-head': head(14, 13, 'square', """
+   vvvvvv
+  vAAABBBBBC
+  ABBAABBBBBBC
+  ABBCBBBBBBBCC
+  ABCCCCBBAABBCC
+ ABCCFCCCCCAABBCC
+ ABCCF   FFFCCCCCF
+ BBCCF
+ BCCF
+ CCF
+ CF
+""", (-5, -7), hair='auburn', long_cut='braid', beard='boxed'),
+    # Bookbinder's oxblood cap with a folded vellum slip tucked in its band.
+    'lore-head': head(14, 12, 'keen', """
+   rrRRRRRRRR
+  rrRRR9999999
+  rRRR999999ee9
+  rRR999999ewc9
+  gggggggggcaGG
+   99999999G99P
+""", (-2, -6), hair='silver', long_cut='bob', beard='whiskers', detail=(3, 5, """
+ yggG  yggG
+GzkkGgGzkG
+ GggG  GgG
+""")),
+    'community-head': head(13, 13, 'round', """
+    ewww    ee
+   ewwwwwweewwcc
+  ewwwewwwwwwewcc
+  eweecwwweewwecc
+   eecwwweeewwecc
+    ceecceeeccca
+     wwwwweeeecc
+     weeeeeeccca
+""", (-1, -8), hair='copper', short_cut='curl', long_cut='bob', beard='whiskers'),
+    'traveler-head': head(14, 12, 'keen', """
+        aaaao
+     aaaeaaaaol
+    aaaeaaaaollO
+    aaaaaooooOlO
+    jjJJJJJJJJJO
+  eeaaaaaooooooool
+ eaaaaaooooooolllll
+  lllLLLLLLLLLLLL
+""", (-4, -7), hair='dark', long_cut='braid', beard='boxed'),
+    'base': head(14, 12, 'keen', '', (0, 0), hair='dark', long_cut='waves', beard='boxed'),
+}
+
+PARTS = {}
+PRESENTATIONS = {'man': {}, 'woman': {}}
+for name, variants in HEADS.items():
+    PARTS[name] = variants['neutral']
+    for presentation, replacement in PRESENTATIONS.items():
+        alternative = f'{name}-{presentation}'
+        PARTS[alternative] = variants[presentation]
+        replacement[name] = alternative

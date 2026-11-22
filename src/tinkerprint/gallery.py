@@ -8,6 +8,7 @@ from html import escape
 from . import art
 from .achievements import RULES
 from .art.compose import look_for
+from .art.pixels import Canvas
 from .datadir import _write
 from .party import HARNESS_NAMES
 from .render_html import CSP, CSS, JS, _chronicle
@@ -25,6 +26,12 @@ GALLERY_CSS = """
 .banners figure { margin: 0; }
 .banners svg { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border-2); }
 .banners figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.sample { margin: 0; padding: 10px; text-align: center; }
+.sample h3 { margin: 0 0 6px; }
+.sample svg, .sample figcaption { width: min(100%, 288px); margin: auto; }
+.sample svg { display: block; height: auto; }
+.sample figcaption { display: grid; grid-template-columns: repeat(3, 1fr); font-size: 12px; }
 """
 
 BANNERS = (
@@ -61,6 +68,27 @@ def class_looks(set_name: str) -> list:
     return out
 
 
+def _presentation_samples(pack, pngs):
+    choices = ("neutral", "man", "woman")
+    if not all(mode in pack.get("presentations", {}) for mode in choices[1:]):
+        return ""
+    samples = []
+    w, h = pack["canvas"]
+    captions = "".join(f"<span>{mode.capitalize()}</span>" for mode in choices)
+    for set_name, stat in (("builder", "Logic"), ("builder", "Tools"), ("tinkerer", "Lore")):
+        name = SPECIALIST[set_name][stat]
+        look = look_for(set_name, "specialist", [stat], [stat])
+        strip = Canvas(w * len(choices), h)
+        for index, mode in enumerate(choices):
+            fig = art.figure(pack, look, presentation=mode)
+            pngs[f"{set_name}-{name.lower()}-{mode}.png"] = fig
+            strip.paste(fig, index * w, 0)
+        image = strip.svg(1, f"{name} in neutral, man and woman presentations")
+        samples.append(f'<figure class="card sample"><h3>{name}</h3>{image}<figcaption>{captions}</figcaption></figure>')
+    return ('<h2>Presentation</h2><p class="lede">Each class has three presentations. '
+            'Sheets and cards use neutral.</p><div class="samples">' + "".join(samples) + '</div>')
+
+
 def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list:
     pack = pack or art.default_pack()
     os.makedirs(out, exist_ok=True)
@@ -75,6 +103,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         sections.append(f'<h2>{set_name.capitalize()} set</h2><p class="lede">Every class: 8 specialists, 28 pairs and '
                         f'the generalist. A pair wears its top stat’s outfit and its runner-up’s equipment, so the same pair '
                         f'with the order swapped looks different.</p><div class="grid">{"".join(tiles)}</div>')
+    sections.append(_presentation_samples(pack, pngs))
     extra = []
     for set_name, kind, stats, ranked, multi, why in (
             ("tinkerer", "pair", ["Systems", "Tools"], ["Systems", "Tools", "Art", "Lore"], ["Art", "Lore"],
@@ -113,7 +142,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         pngs[f"familiar-{h}.png"] = f
         fams.append(_tile(f.svg(3, "", "px"), HARNESS_NAMES.get(h, "Any other harness"),
                           small=True))
-    sections.append(f'<h2>Familiars</h2><p class="lede">One creature per harness, mapped in the pack.</p>'
+    sections.append(f'<h2>Familiars</h2><p class="lede">One companion per harness, mapped in the pack.</p>'
                     f'<div class="grid">{"".join(fams)}</div>')
     icons = []
     for key, (title, rule) in list(RULES.items()) + [("milestone", ("Milestone", "Written by hand."))]:

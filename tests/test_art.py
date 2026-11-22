@@ -45,6 +45,56 @@ def png_pixels(data: bytes) -> tuple:
 
 
 class EveryClass(unittest.TestCase):
+    def test_all_presentations_at_native_size(self):
+        for set_name in SETS:
+            cases = class_looks(set_name) + [("Unclassed", look_for(set_name, None, [], []), "")]
+            for name, look, _ in cases:
+                renders = []
+                for mode in ("neutral", "man", "woman"):
+                    with self.subTest(set=set_name, name=name, mode=mode):
+                        fig = art.figure(PACK, look, presentation=mode)
+                        self.assertEqual((fig.w, fig.h), (48, 48))
+                        paint = {(x, y) for y, row in enumerate(fig.px) for x, ink in enumerate(row) if ink}
+                        self.assertTrue(all(0 < x < 47 and 0 < y < 47 for x, y in paint))
+                        # Follow the contour too: an isolated fleck inside the frame is a stray.
+                        todo = [paint.pop()]
+                        while todo:
+                            x, y = todo.pop()
+                            for pt in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                                if pt in paint:
+                                    paint.remove(pt)
+                                    todo.append(pt)
+                        self.assertFalse(paint)
+                        plated = art.plate(PACK, set_name)
+                        plated.paste(fig, 0, 0)
+                        pic = art.portrait(PACK, look, presentation=mode)
+                        self.assertEqual(pic.px, plated.px)
+                        renders.append(pic.png())
+                        if mode == "neutral":
+                            self.assertEqual(art.figure(PACK, look).px, fig.px)
+                            self.assertEqual(art.portrait(PACK, look).px, pic.px)
+                self.assertEqual(len(set(renders)), 3, (set_name, name))
+
+    def test_facial_hair_follows_presentation_for_every_class(self):
+        pack = copy.deepcopy(PACK)
+        marker = "#01fa03"
+        for part in pack["parts"].values():
+            for key in set(part.get("palette", {})) & set("&$^"):
+                part["palette"][key] = marker
+        for set_name in SETS:
+            cases = class_looks(set_name) + [("Unclassed", look_for(set_name, None, [], []), "")]
+            for name, look, _ in cases:
+                for mode in ("neutral", "man", "woman"):
+                    fig = art.figure(pack, look, presentation=mode)
+                    self.assertEqual(marker in fig.colors(), mode == "man", (name, mode))
+
+    def test_unknown_presentation_is_refused(self):
+        look = look_for("builder", None, [], [])
+        for draw in (art.figure, art.portrait):
+            for unknown in ("automatic", "", None, []):
+                with self.assertRaisesRegex(PackError, "unknown presentation"):
+                    draw(PACK, look, presentation=unknown)
+
     def test_every_class_of_both_sets_draws_a_distinct_portrait(self):
         for set_name in SETS:
             looks = class_looks(set_name)
@@ -190,6 +240,27 @@ class Deterministic(unittest.TestCase):
 
 
 class Packs(unittest.TestCase):
+    def test_pack_controls_heads_and_skin_independently(self):
+        pack = copy.deepcopy(PACK)
+        look = look_for("tinkerer", "specialist", ["Lore"], ["Lore"])
+        custom = ("#d7a471", "#a76a48", "#714a40", "#49323a")
+        for mode in ("neutral", "man", "woman"):
+            fig = art.figure(pack, look, skin=custom, presentation=mode)
+            self.assertTrue(set(custom) <= set(fig.colors()))
+            self.assertEqual(fig.px, art.portrait(pack, look, False, skin=custom, presentation=mode).px)
+        for invalid in ([], ["red"] * 4):
+            with self.assertRaises(PackError):
+                art.figure(pack, look, skin=invalid)
+        pack["presentations"]["cropped"] = dict(pack["presentations"]["man"])
+        check_pack(pack)
+        self.assertEqual(art.figure(pack, look, presentation="cropped").px,
+                         art.figure(PACK, look, presentation="man").px)
+        del pack["presentations"]
+        check_pack(pack)
+        self.assertEqual(art.figure(pack, look).px, art.figure(PACK, look).px)
+        with self.assertRaisesRegex(PackError, "unknown presentation"):
+            art.figure(pack, look, presentation="man")
+
     def test_export_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "pack.json")
@@ -224,6 +295,12 @@ class Packs(unittest.TestCase):
             lambda p: p["icons"].pop("founder"),
             lambda p: p["parts"].__setitem__("Bad Name", {"at": [0, 0], "rows": ["."]}),
             lambda p: p["ink"].__setitem__("A", "#000000"),
+            lambda p: p.update(mixed_gear_only="true"),
+            lambda p: p.update(presentations=[]),
+            lambda p: p["presentations"].update(neutral={}),
+            lambda p: p["presentations"]["man"].pop("base"),
+            lambda p: p["presentations"]["woman"].update(base="missing-head"),
+            lambda p: p["parts"]["base"].update(seam=1),
             lambda p: p.update(skin_colors=["#cccccc"]),
             lambda p: p.update(skin_colors=["#ffffff", "blue", "#888888", "#555555"]),
             lambda p: p["parts"]["base"].update(palette={"@": "#000000"}),
@@ -252,11 +329,16 @@ class Packs(unittest.TestCase):
         p["parts"][marker] = p["parts"].pop(p["familiars"]["claude"])
         p["familiars"]["claude"] = marker
         p["looks"][marker] = p["looks"]["Tools"]
+        p["presentations"][marker] = p["presentations"]["woman"]
         check_pack(p)
         with tempfile.TemporaryDirectory() as folder:
             path = write_gallery(folder, p)[0]
             with open(path, encoding="utf-8") as f:
-                self.assertNotIn(marker, f.read())
+                page = f.read()
+                self.assertNotIn(marker, page)
+                self.assertIn("<h2>Presentation</h2>", page)
+                for caption in ("Neutral", "Man", "Woman"):
+                    self.assertEqual(page.count(f"<span>{caption}</span>"), 3)
 
 
 class Chronicle(unittest.TestCase):
@@ -310,6 +392,7 @@ class Built(unittest.TestCase):
             card = sheet["card"]
             self.assertLessEqual(set(card), allowed | {"projects"})
             self.assertEqual(art.card_look(card), art.sheet_looks(sheet)[0], slug)
+            self.assertEqual(render_card(dict(card, presentation="man")), render_card(card))
             # The art never changes when anything outside the allowlist changes.
             other = json.loads(json.dumps(sheet))
             other["projects"] = []
@@ -328,6 +411,29 @@ class Built(unittest.TestCase):
         before = render_card(card)
         card["class"] = "Warden"
         self.assertNotEqual(render_card(card), before)
+
+    def test_level_seal_clears_the_figure_in_both_orders_of_every_pair(self):
+        from tinkerprint.render_card import PX, PY
+
+        card = render_card(self.out["wren"]["sheet"]["card"])
+        seal = re.search(r'<circle cx="(\d+)" cy="(\d+)" r="(\d+)"[^>]+/>\s*'
+                         r'<circle[^>]+fill="url\(#seal\)"', card)
+        self.assertIsNotNone(seal)
+        cx, cy, radius = map(int, seal.groups())
+        covered = []
+        # Each 4 px square begins inside the portrait frame's 4 px padding.
+        for y in range(48):
+            for x in range(48):
+                left, top = PX + 4 + 4 * x, PY + 4 + 4 * y
+                dx = max(left - cx, cx - left - 4, 0)
+                dy = max(top - cy, cy - top - 4, 0)
+                if dx * dx + dy * dy < radius * radius:
+                    covered.append((x, y))
+        for set_name, stats in SETS.items():
+            for top in stats:
+                for item in stats:
+                    fig = art.figure(PACK, Look(set_name, "pair", top, item))
+                    self.assertFalse(any(fig.get(x, y) for x, y in covered), (top, item))
 
     def test_long_names_stay_clear_of_the_radar(self):
         """The name's box ends at least 16 px before the radar's top-left label starts, at any length."""

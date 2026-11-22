@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from ..sets import GENERALIST, PAIR, SPECIALIST, stats_of
 from .pixels import Canvas, mix
 from ._colors import SKIN_KEYS
+from .pack import PackError, check_skin
 
 
 @dataclass(frozen=True)
@@ -100,16 +101,41 @@ def palette(pack: dict, look: Look | None = None) -> dict:
 def _stamp(c: Canvas, pack: dict, name: str, pal: dict, dx: int = 0, dy: int = 0) -> None:
     part = pack["parts"][name]
     p = dict(pal, **part.get("palette", {}))
-    c.stamp(part["rows"], p, part["at"][0] + dx, part["at"][1] + dy)
+    x0, y0 = part["at"][0] + dx, part["at"][1] + dy
+    rows = part["rows"]
+    if part.get("seam"):
+        # Ink the contact edge only where the new layer crosses existing paint.
+        # Outside the figure, the final material contour supplies its own light.
+        for y, row in enumerate(rows):
+            for x, key in enumerate(row):
+                if key in ". ":
+                    continue
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= ny < len(rows) and 0 <= nx < len(row) and rows[ny][nx] not in ". ":
+                        continue
+                    if c.get(x0 + nx, y0 + ny) is not None:
+                        c.set(x0 + nx, y0 + ny, pack["outline"])
+    c.stamp(rows, p, x0, y0)
 
 
 # ------------------------------------------------------------------ portrait
 
-def figure(pack: dict, look: Look) -> Canvas:
+def figure(pack: dict, look: Look, *, skin=None, presentation: str = "neutral") -> Canvas:
     """The dressed figure on a clear canvas, with the tools registered to its pose."""
     w, h = pack["canvas"]
     c = Canvas(w, h)
     pal = palette(pack, look)
+    heads = {}
+    if presentation != "neutral":
+        choices = pack.get("presentations", {})
+        if not isinstance(presentation, str) or presentation not in choices:
+            raise PackError(f"unknown presentation {presentation!r}")
+        heads = choices[presentation]
+    if skin is not None:
+        if "skin_colors" not in pack or pack.get("version") != 2:
+            raise PackError("a skin override needs a pack with skin_colors")
+        check_skin(skin)
+        pal.update(zip(SKIN_KEYS, skin))
     if pack.get("version") == 2:
         costume = pack["looks"][look.top] if look.kind in ("specialist", "pair") else pack["generalist"]
         if look.trim:
@@ -117,7 +143,7 @@ def figure(pack: dict, look: Look) -> Canvas:
         if look.kind == "generalist":
             _stamp(c, pack, costume["back"], pal)
         _stamp(c, pack, costume["body"], pal)
-        if look.item:
+        if look.item and (look.item != look.top or not pack.get("mixed_gear_only")):
             _stamp(c, pack, pack["looks"][look.item]["gear"], pal, *costume["shoulder"])
         dx, dy = (a - b for a, b in zip(costume["grip"], pack["hand"]))
         if look.kind:
@@ -126,7 +152,8 @@ def figure(pack: dict, look: Look) -> Canvas:
             _stamp(c, pack, equipment["sleeve"], pal, dx, dy)
         else:
             _stamp(c, pack, "idle", pal, dx, dy)
-        _stamp(c, pack, costume["hat"] if look.kind else "base", pal)
+        head = costume["hat"] if look.kind else "base"
+        _stamp(c, pack, heads.get(head, head), pal)
         if look.kind:
             dx += equipment["offset"][0]
             dy += equipment["offset"][1]
@@ -171,8 +198,8 @@ def plate(pack: dict, set_name: str, w: int | None = None, h: int | None = None)
     return c
 
 
-def portrait(pack: dict, look: Look, scene: bool = True) -> Canvas:
-    fig = figure(pack, look)
+def portrait(pack: dict, look: Look, scene: bool = True, *, skin=None, presentation: str = "neutral") -> Canvas:
+    fig = figure(pack, look, skin=skin, presentation=presentation)
     if not scene:
         return fig
     c = plate(pack, look.set_name)
