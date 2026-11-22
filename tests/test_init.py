@@ -131,7 +131,7 @@ class DefaultProfile(InCwd):
         out = os.path.join(self.t, "card")
         os.makedirs(out)
         code, text, _ = self.cli("audit", "--out", out)
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 1)
         self.assertIn("No card.svg", text)
 
 

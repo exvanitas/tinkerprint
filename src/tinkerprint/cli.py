@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfoNotFoundError
 
 from . import __version__
 from .art import export_pack, load_pack
-from .audit import audit_card
+from .audit import audit
 from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
 from .datadir import data_home
@@ -256,8 +256,10 @@ def cmd_audit(args) -> int:
         adopt(home, profile, write=False)
         out = last_out(home, profile) or default_out(home, profile)
     pack = load_pack(args.art_pack) if args.art_pack else None
-    print("\n".join(audit_card(out, profile, pack)))
-    return 0
+    lines, clean = audit(out, profile, pack)
+    print("\n".join(lines))
+    # Non-zero when any card file is missing, malformed or not certified, so a script can stop a share.
+    return 0 if clean else 1
 
 
 def cmd_init(args) -> int:
@@ -349,7 +351,7 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--art-pack", metavar="PACK.json", help="draw with this art pack. Default: the built-in pack")
     b.set_defaults(func=cmd_build)
 
-    a = sub.add_parser("audit", help="print every text string in the built card.svg, and check card.png")
+    a = sub.add_parser("audit", help="print every text string in the built card.svg, and check card.png and the portraits. Exits 1 unless every card file is certified")
     a.add_argument("--profile", help=f"Default: ./{DEFAULT_PROFILE} when it exists")
     a.add_argument("--out", help="the build folder to audit. Default: this profile's last build")
     a.add_argument("--data-dir")
