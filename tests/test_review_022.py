@@ -55,6 +55,39 @@ class LegacyAdoption(Base):
         self.assertFalse(os.path.exists(home))
 
 
+def card_profile(path, base, enabled):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f'name = "Ida"\n[identity]\nemails = ["ida@fenwick.example.test"]\n[harnesses]\nclaude = true\n'
+                f'codex = false\nclaude_dir = "{base.logs}"\n[card]\nenabled = {"true" if enabled else "false"}\n'
+                f'[[project]]\nname = "P"\nroot = "{base.root}"\n')
+    return path
+
+
+class CardFilesWhenOff(Base):
+    def test_an_out_folder_keeps_its_files_and_the_build_names_them(self):
+        out = os.path.join(self.t, "exports")
+        self.put(os.path.join(out, "portrait.png"), "another tool's picture\n")
+        self.put(os.path.join(out, "card.svg"), "<svg/>\n")
+        p = card_profile(os.path.join(self.t, "w.toml"), self, False)
+        text = self.build(p, "--out", out)
+        self.assertTrue(os.path.isfile(os.path.join(out, "portrait.png")))
+        self.assertTrue(os.path.isfile(os.path.join(out, "card.svg")))
+        self.assertIn(f"Note: {out} still holds card.svg, portrait.png from an earlier build. Delete them if they "
+                      "should not be shared.", text)
+
+    def test_the_default_sheets_folder_loses_its_old_card_files(self):
+        p = card_profile(os.path.join(self.t, "w.toml"), self, True)
+        self.build(p)
+        key = os.listdir(os.path.join(self.data, "sheets"))[0]
+        out = os.path.join(self.data, "sheets", key)
+        self.assertTrue(all(os.path.isfile(os.path.join(out, n)) for n in CARD_FILES))
+        card_profile(p, self, False)
+        text = self.build(p)
+        self.assertFalse(any(os.path.lexists(os.path.join(out, n)) for n in CARD_FILES))
+        self.assertNotIn("still holds", text)
+
+
 class BuildAndForget(Base):
     def test_forget_waits_for_a_build_that_registered_its_profile(self):
         prof = load_profile(self.write(os.path.join(self.t, "a.toml")))

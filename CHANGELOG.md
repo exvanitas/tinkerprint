@@ -38,6 +38,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - A Share view button on the sheet leaves only what the card shows, ready for a screenshot. The browser tab shows the card's name, or a plain title when there is no card.
 - `audit` checks `card.png`, `portrait.png` and `portrait.gif` as well as `card.svg`: each must be, byte for byte, what the card's fields draw. It lists the look tokens, and fails a card whose saved fields hold more than a card may show. With a profile, it also checks that the card follows the profile's current `[card]` and `[look]` settings and shows only project names the profile still has. An empty `--profile` is an error, never the same as leaving it out. It exits 1 unless every card file is there and certified.
 - The sheet links `card.png` and `card.svg`.
+- When a build turns the card off, it deletes older card files only from its own sheets folder. In an `--out` folder it names them and deletes nothing.
 
 ### Your data and privacy
 

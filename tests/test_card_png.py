@@ -219,7 +219,7 @@ class AuditPng(unittest.TestCase):
         self.assertIn("  shows    " + shows(self.card), lines)
         self.assertIn("  alt      " + visible(self.card)["alt"], lines)
 
-    def test_card_off_removes_every_card_file(self):
+    def test_card_off_keeps_every_card_file_in_a_chosen_folder_and_names_them(self):
         with tempfile.TemporaryDirectory() as t:
             out = os.path.join(t, "out")
             for name in ("card.svg", "card.png", "portrait.png", "portrait.gif"):
@@ -230,9 +230,12 @@ class AuditPng(unittest.TestCase):
             prof.card_allow = False
             res = build(prof, out, home=os.path.join(self.tmp.name, "data"), today=date(2026, 11, 1))
             for name in ("card.svg", "card.png", "portrait.png", "portrait.gif"):
-                self.assertFalse(os.path.exists(os.path.join(out, name)), name)
+                self.assertTrue(os.path.exists(os.path.join(out, name)), name)
             from tinkerprint.cli import output_lines
-            self.assertIn("  card     off: The profile sets [card] enabled = false.", output_lines(res))
+            lines = output_lines(res)
+            self.assertIn("  card     off: The profile sets [card] enabled = false.", lines)
+            self.assertIn(f"Note: {out} still holds card.svg, card.png, portrait.png, portrait.gif from an earlier "
+                          "build. Delete them if they should not be shared.", lines)
 
 
 class DemoPrints(unittest.TestCase):

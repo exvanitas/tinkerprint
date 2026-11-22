@@ -160,6 +160,8 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 
 The cache, history, last-build files, `profiles.json` and the sheet itself (`sheet.html`, `sheet.json`, `changes.json`) are private to you (mode 0600), since the sheet names your projects, models and exact dates. The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are made to pass on: others can read them (0644, less what your umask takes away), and only you can change them. Text files are UTF-8 with `\n` line ends on every system.
 
+When a build turns the card off, it deletes older card files from its own `sheets/` folder. In an `--out` folder it deletes nothing: it names the card files still there, for you to delete if they should not be shared.
+
 `tinkerprint forget` deletes nothing. It shows the data folder and its size, and with `--profile` that profile's history folder, last-build file and sheets folder. To remove one profile's data, delete those yourself. The cache is shared by every profile.
 
 `tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt` or is the default location, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. When something cannot be removed, such as a file another program holds open, it names what is left. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them. See [Trust](#trust).

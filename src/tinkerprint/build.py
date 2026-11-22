@@ -433,6 +433,16 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     return sheet, local
 
 
+CARD_FILES = ("card.svg", "card.png", "portrait.png", "portrait.gif")
+
+
+def in_sheets(out_dir: str, home: str) -> bool:
+    """out_dir is in the data folder's own sheets folder, by its name and after links."""
+    sheets = os.path.join(home, "sheets")
+    return (path_within(os.path.abspath(out_dir), sheets)
+            and path_within(os.path.realpath(out_dir), os.path.realpath(sheets)))
+
+
 def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | None = None,
           home: str | None = None, built_at: str = "", inputs: Inputs | None = None,
           today: date | None = None, pack: dict | None = None) -> dict:
@@ -478,18 +488,24 @@ def _build(profile, out_dir, season, as_of, home, built_at, inputs, today, pack)
         # portrait plate at 6x, still and idling.
         files += [(k, name, draw(sheet["card"], pack), True) for k, name, draw in card_files]
     paths = {}
+    left = []
     os.makedirs(out_dir, exist_ok=True)
     for k, name, data, share in files:
         paths[k] = os.path.join(out_dir, name)
         _write(paths[k], data, share=share)
     if not sheet["card"].get("enabled"):
-        for _, name, _ in card_files:
-            if os.path.exists(os.path.join(out_dir, name)):
+        # Older card files would still be there to share. tinkerprint deletes them only in its own
+        # sheets folder. A folder the user chose may hold files of the same name from elsewhere.
+        old = [n for n in CARD_FILES if os.path.lexists(os.path.join(out_dir, n))]
+        if in_sheets(out_dir, home):
+            for name in old:
                 os.remove(os.path.join(out_dir, name))
+        else:
+            left = old
     os.makedirs(os.path.dirname(pointer), exist_ok=True)
     _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
     # History is published last: a build that failed anywhere earlier never becomes a comparison.
     # The saved copy also keeps the scope digests, so the next build can say when they changed.
     hist.save(stamp, dict(sheet, _scope=scope))
     return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
-            "warnings": local.get("warnings", [])}
+            "warnings": local.get("warnings", []), "card_files_left": left}

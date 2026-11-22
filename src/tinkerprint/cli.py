@@ -212,6 +212,12 @@ def output_lines(res: dict) -> list:
     out = [f"  {label:<8} {paths[k]}{note}" for k, label, note in OUTPUTS if k in paths]
     if not card.get("enabled"):
         out.append("  card     off: " + card.get("reason", ""))
+        left = res.get("card_files_left") or []
+        if left:
+            folder = os.path.dirname(paths["json"])
+            out.append(f"Note: {folder} still holds {', '.join(left)} from an earlier build. Delete "
+                       f"{'it' if len(left) == 1 else 'them'} if {'it' if len(left) == 1 else 'they'} should not "
+                       "be shared.")
         return out
     out.append("  shows    " + shows(card))
     out.append("  alt      " + visible(card)["alt"])

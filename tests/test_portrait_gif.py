@@ -67,7 +67,9 @@ class PortraitGif(unittest.TestCase):
     def test_build_prints_it_and_card_off_removes_it(self):
         self.assertIn(f"  portrait {self.out}/portrait.gif", output_lines(self.res))
         with tempfile.TemporaryDirectory() as t:
-            out = os.path.join(t, "out")
+            from tinkerprint.datadir import claim_home
+            claim_home(os.path.join(t, "data"))
+            out = os.path.join(t, "data", "sheets", "p-0badc0de")  # the data folder's own sheets folder
             os.makedirs(out)
             with open(os.path.join(out, "portrait.gif"), "wb") as f:
                 f.write(b"old")
