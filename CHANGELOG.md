@@ -4,17 +4,18 @@ Newest first. Every release gets a version, an entry here and a GitHub release.
 
 ## Unreleased
 
-- Pixel art, made in code from a pack of parts: a guild of tradespeople by lantern light. Your character wears your top stat's costume, with your runner-up's tool, sleeve and shoulder piece, and a cape for a multiclass. On a close call it changes into the other costume.
-- Characters are drawn gender-neutral. The art pack also holds a man and a woman version of every head, ready for a later profile setting; a custom pack can add its own. See docs/ART.md.
-- The sheet opens on one scene: your character in a workshop looking out on a moonlit viaduct (builder) or a lake (tinkerer), with a nameplate and level seal below. Its shelves hold trinkets for your strongest stats and your party's familiars stand beside you. On a phone the scene crops to you and your familiars.
-- Familiars on the party cards, a pin on each achievement, a trinket on each stat card, each at a whole multiple of its pixels.
+- Pixel art made in code: your character, half length, at the counter of their own workshop. They wear your top stat's coat and hat and hold your runner-up's tool, with a cape for a multiclass. On a close call they change into the other costume.
+- A `[look]` table in the profile sets the presentation (neutral, man or woman), skin, hair, eyes and expression. Hair, eyes and expression left unset are picked from the name the card shows. See docs/ART.md.
+- The sheet opens on your room, idling, with a nameplate and level seal below. The view, light and furnishings come from your name, its shelves hold trinkets for your strongest stats, and your party's instruments stand in the case. Viewers who ask for reduced motion see a still. On a phone the room crops to you and the case.
+- Party instruments on the party cards, a pin on each achievement, a trinket on each stat card, each at a whole multiple of its pixels.
 - A new reading order: the scene, then the build (radar beside the stat cards, strongest first), party, achievements, chronicle, what changed, projects and method. A link under your name jumps to what changed. Stats with no points share one line instead of empty cards.
 - On a close call, a button under your class tries the other costume. The two costumes never show at once.
 - The chronicle opens on its latest chapter.
 - A lantern palette for the light and dark themes. Stat cards, radar dots and the card's share bars wear each stat's colors.
 - A chronicle on the sheet: a road of chapters, one per quarter, with that quarter's class. Quiet stretches rest at camp. `sheet.json` gains a `chronicle` list.
-- The share card shows a larger portrait with a level seal, share bars and the party's familiars, all drawn from its allowlisted fields only. `build` writes `portrait.png` when the card is on.
-- `tinkerprint gallery` writes one page with every portrait, familiar and icon. `--art-pack` on `build` and `gallery` draws with your own pack. See docs/ART.md.
+- The share card shows a larger portrait with a level seal, share bars and the party's instruments, all drawn from its allowlisted fields only. `build` writes `portrait.png` and an idling `portrait.gif` when the card is on.
+- `audit` checks both portraits as it checks `card.png`, and exits 1 unless every card file is there and certified.
+- `tinkerprint gallery` writes one page with every class, face, room, pin, trinket and party instrument. `--art-pack` on `build` and `gallery` draws with your own pack. See docs/ART.md.
 
 ## 0.1.0 (2026-11-21)
 

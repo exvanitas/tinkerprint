@@ -245,6 +245,7 @@ class DemoPrints(unittest.TestCase):
             text = buf.getvalue()
             self.assertEqual(text.count("card.png  (share this one)"), 2)
             self.assertEqual(text.count("portrait.gif"), 2)
+            self.assertEqual(text.count("\nLook: neutral, skin "), 2)
             self.assertEqual(text.count("  alt      tinkerprint card for "), 2)
             for slug in ("wren", "tobi"):
                 for name in ("card.png", "portrait.gif"):

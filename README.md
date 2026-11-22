@@ -61,15 +61,15 @@ tinkerprint audit     # every text string in the built card, before you share it
 
 `build` and `audit` use `./tinkerprint.toml` when `--profile` is left out. Keep the profile outside your repos: it lists your folders and emails. A misspelled key, like `[[projects]]`, stops the build and names the right one.
 
-`tinkerprint gallery --out art` writes one page with every class portrait of both sets, every familiar, icon and a few banners. The art is pixel art made in code from a pack of parts, and `--art-pack` swaps the pack. See [docs/ART.md](docs/ART.md).
+`tinkerprint gallery --out art` writes one page with every class of both sets, the faces, a room for each set, and every pin, trinket and party instrument. The art is pixel art made in code. An art pack recolors it, and `--art-pack` swaps the pack. See [docs/ART.md](docs/ART.md).
 
-`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json` and `sheet.html`, plus `card.png`, `card.svg` and `portrait.png` when the card is on. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
+`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json` and `sheet.html`, plus `card.png`, `card.svg`, `portrait.png` and `portrait.gif` when the card is on. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
 
 ## Sharing
 
-Post `card.png`. Discord and most social sites show it as a preview, and they do not preview SVG. `card.svg` draws the same thing. `portrait.png` is the portrait alone, for an avatar.
+Post `card.png`. Discord and most social sites show it as a preview, and they do not preview SVG. `card.svg` draws the same thing. `portrait.png` is the portrait alone, for an avatar, and `portrait.gif` is the same portrait idling.
 
-After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` holds image data only and draws the same fields.
+After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` and both portraits hold image data only and draw the same fields. It exits 1 when a card file is missing, broken or not certified, so a script can stop on it.
 
 What a card reveals:
 
@@ -94,7 +94,7 @@ show = ["dates", "projects"]  # exact dates and up to three project names go on 
 
 Hiding the level also hides the day counts, since they give the same band away. `allow = true` still turns the card on for a work profile.
 
-People often screenshot the sheet instead. The sheet's **Share view** button hides everything the card would not show and leaves the workshop banner, the card's name, class, level and top stats. It works without script, with the keyboard and by touch.
+People often screenshot the sheet instead. The sheet's **Share view** button hides everything the card would not show and leaves the room, with only the party the card shows, the card's name, class, level and top stats. It works without script, with the keyboard and by touch.
 
 ## If your sheet is empty
 

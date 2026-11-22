@@ -265,7 +265,7 @@ def render_card(card: dict, pack: dict | None = None) -> str:
             out.append(_t(84, y, title, 19, 600, INK))
             out.append(_t(COL_RIGHT, y, when, 16, 400, MUTED, anchor="end"))
             y += ACH_STEP
-    # Party in the radar's column after its familiars, projects in the left column.
+    # Party in the radar's column after its instruments, projects in the left column.
     if v["party"]:
         out.append(_t(fx + 6, BOTTOM_Y, v["party"], party_size(v["party"], fx + 6), 700, MUTED, spacing="1"))
     if v["projects"]:

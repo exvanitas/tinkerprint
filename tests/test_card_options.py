@@ -111,7 +111,7 @@ class CardOptions(unittest.TestCase):
         self.assertNotIn("Level grows", svg)
         self.assertIn("Shares are of classified activity.", svg)
 
-    def test_hidden_party_draws_no_familiars(self):
+    def test_hidden_party_draws_no_instruments(self):
         card = tie_card()
         with_party = render_card(card)
         card.pop("party")

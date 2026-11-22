@@ -211,6 +211,14 @@ def look_line(sheet: dict, profile, pack: dict | None = None) -> str:
     return describe(sheet["look"], pack or default_pack(), from_card_name=bool(profile.card_name))
 
 
+def demo_look_line(sheet: dict) -> str:
+    """The Look line for a demo person, who has no profile file: a handle shows as a card name unlike their own."""
+    from .art import default_pack
+    from .look import describe
+    handle = (sheet.get("card") or {}).get("name", sheet["profile"]["name"]) != sheet["profile"]["name"]
+    return describe(sheet["look"], default_pack(), from_card_name=handle)
+
+
 def _n(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
@@ -302,6 +310,7 @@ def cmd_demo(args) -> int:
         print(f"{name}: level {s['history']['level']}, {cls}, {lit} stats with points.")
         for line in output_lines(res):
             print(line)
+        print(demo_look_line(s))
     return 0
 
 
@@ -375,7 +384,7 @@ def parser() -> argparse.ArgumentParser:
     d.add_argument("--out", default="tinkerprint-demo")
     d.set_defaults(func=cmd_demo)
 
-    g = sub.add_parser("gallery", help="write one page with every portrait, familiar, icon and a few banners")
+    g = sub.add_parser("gallery", help="write one page with every class, face, room, pin, trinket and party instrument")
     g.add_argument("--out", default="tinkerprint-gallery")
     g.add_argument("--art-pack", metavar="PACK.json", help="show this art pack instead of the built-in one")
     g.add_argument("--png", action="store_true", help="also write every picture as a PNG")

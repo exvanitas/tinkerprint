@@ -437,7 +437,7 @@ class Built(unittest.TestCase):
             for s in lit:
                 self.assertIn(f"--hue-1:{art.stat_ramp(PACK, s['key'])[1]}", page)
 
-    def test_card_familiars_follow_the_allowlisted_party(self):
+    def test_card_instruments_follow_the_allowlisted_party(self):
         card = copy.deepcopy(self.out["wren"]["sheet"]["card"])
         three = render_card(card)
         card["party"] = card["party"][:1]
@@ -446,7 +446,7 @@ class Built(unittest.TestCase):
         card["party"] = []
         none = render_card(card)
         self.assertNotIn("PARTY", none)
-        # An unknown member gets the fallback familiar, and the party line stays the only party text.
+        # An unknown member gets the fallback instrument, and the party line stays the only party text.
         card["party"] = ["Someone"]
         odd = render_card(card)
         texts = re.findall(r">([^<>]+)</text>", odd)

@@ -206,6 +206,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .achs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .ach { grid-template-columns: minmax(0, 1fr); text-align: center; padding: 14px 10px; }
   .ach .ic { width: 68px; height: 68px; margin: 0 auto 8px; }
+  .ach .ic svg { transform: scale(.75); }  /* 3x instead of 4x: room inside the smaller ring */
   .ach .t { font-size: 16px; }
 }
 .ms { list-style: none; padding: 0; margin: 12px 0 0; }
@@ -481,7 +482,7 @@ def _art(sheet: dict, pack: dict) -> dict:
     differs = card and keepsake_berths(shown) != keepsake_berths(harnesses)
     a["scene"] = _hero_scene(sheet, pack, main, alt, name, ranked, harnesses, shown if differs else None)
     # Party members are presence only: each instrument depends on the harness name alone.
-    a["familiar"] = {m["harness"]: keepsake.instrument(m["harness"]).svg(4, f"{m['name']}'s instrument", "px")
+    a["instrument"] = {m["harness"]: keepsake.instrument(m["harness"]).svg(4, f"{m['name']}'s instrument", "px")
                      for m in sheet["party"]}
     a["icon"] = {x["id"]: keepsake.pin(pack, x["id"]).svg(4, "", "px") for x in sheet["achievements"]}
     a["milestone"] = keepsake.pin(pack, "milestone").svg(2, "", "px")
@@ -670,7 +671,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
             models += f'<span class="m">+{len(m["models"]) - 6} more</span>'
         facts = [("Sessions", m["sessions"])]
         party.append(
-            f'<article class="card comp"><div class="fam">{pix["familiar"][m["harness"]]}</div>'
+            f'<article class="card comp"><div class="fam">{pix["instrument"][m["harness"]]}</div>'
             f'<div><div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div></div>'
             f'<div class="big">{m["days_together"]}<small>days together</small></div>'
             f'<dl class="facts">{"".join(f"<div><dt>{k}</dt><dd>{v}</dd></div>" for k, v in facts)}</dl>'
