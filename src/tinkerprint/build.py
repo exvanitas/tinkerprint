@@ -452,8 +452,9 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     # A sheet saved without --as-of is dated so that it holds nothing after its date.
     stamp = as_of or max(today or date.today(), local.get("latest_day") or date.min)
     if sheet["card"].get("enabled"):
-        # The card says the month it was built: the as-of month, else today's. Nothing finer.
-        sheet["card"]["built"] = month_label(stamp.isoformat())
+        # The card says the month it was built: the as-of month, else today's. Nothing finer, and
+        # never a session's date, which a log can set to anything.
+        sheet["card"]["built"] = month_label((as_of or today or date.today()).isoformat())
     prev_day, prev = hist.previous(stamp)
     scope = scope_digests(profile)
     changes = compare(sheet, prev, prev_day, scope)
