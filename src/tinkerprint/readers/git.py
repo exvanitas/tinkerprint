@@ -9,7 +9,9 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
+from collections import Counter
 
 from ..events import Commit, Event, Inputs, Tag
 from ..timeutil import iso, parse_ts
@@ -214,7 +216,7 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
         bot = ident.is_bot(an, ae)
         mine = (not bot) and (ident.is_me(an, ae) or ident.coauthor_is_me(trailers))
         commits.append({"hash": h, "parents": parents, "ts": at, "mine": mine, "bot": bot, "files": files,
-                        "boundary": h in cut})
+                        "boundary": h in cut, "author": (an, ae)})
     return commits
 
 
@@ -282,6 +284,13 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
     res = Inputs()
     per_top = {top: read_repo(top, ident, res.warnings) for top in tops}
     repo_ids = _repo_groups(per_top)
+    res.setup = {"git": shutil.which("git") is not None, "roots": dict(top_of), "repos": {}}
+    for top, rows in per_top.items():
+        mine = sum(1 for c in rows if c["mine"])
+        seen = Counter(c["author"] for c in rows if not c["bot"]) if not mine else Counter()
+        ranked = sorted(seen.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+        res.setup["repos"][top] = {"commits": len(rows), "mine": mine,
+                                   "authors": [(n, e, k) for (n, e), k in ranked]}
     for r, top in top_of.items():
         if top:
             rel = os.path.relpath(r, os.path.realpath(top))

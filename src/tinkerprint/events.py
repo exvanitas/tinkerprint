@@ -61,3 +61,7 @@ class Inputs:
     tags: list = field(default_factory=list)
     warnings: list = field(default_factory=list)  # local only: printed by the CLI, never on a sheet
     root_ids: dict = field(default_factory=dict)   # profile root -> identity shared by its clones
+    # Local only, for the setup warnings a build prints: whether git ran, each root's repo folder,
+    # per repo the commit totals (and, where none matched, the author identities seen), and
+    # per harness whether its folder was there and how many sessions were read.
+    setup: dict = field(default_factory=dict)

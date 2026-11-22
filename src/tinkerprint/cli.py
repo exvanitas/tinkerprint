@@ -164,11 +164,13 @@ def _n(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
-def unassigned_lines(sheet: dict, local: dict, limit: int) -> list:
-    """Terminal-only listing of folders outside every root. The totals are the sheet's own."""
+def unassigned_lines(sheet: dict, local: dict, limit: int = 0) -> list:
+    """Terminal-only note on folders outside every root. The totals are the sheet's own.
+    Folder names are listed only when asked for, so a build on a shared screen shows none."""
     un = sheet["unassigned"]
     if not (un["sessions"] or un["folders"] or un["edits"]):
         return []
+    limit = max(0, limit)
     out = [f"Unassigned: {_n(un['sessions'], 'session')} in {_n(un['folders'], 'folder')}, "
            f"{_n(un['edits'], 'changed file')}, outside every root. Not scored."]
     sessions = local.get("unassigned_folders", [])
@@ -176,7 +178,9 @@ def unassigned_lines(sheet: dict, local: dict, limit: int) -> list:
     edits = [f for f in local.get("unassigned_edit_folders", []) if f not in dict(sessions)]
     out += [f"        {folder}" for folder in edits[:limit]]
     hidden = max(0, len(sessions) - limit) + max(0, len(edits) - limit)
-    if hidden:
+    if hidden and not limit:
+        out[0] += " Use --list-unassigned N to list the folders."
+    elif hidden:
         out.append(f"  ... {hidden} more. Use --list-unassigned N to see them.")
     return out
 
@@ -271,7 +275,8 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
     b.add_argument("--out", help="output folder. Default: the data folder")
     b.add_argument("--data-dir", help="cache and history folder. Default: $XDG_DATA_HOME/tinkerprint")
-    b.add_argument("--list-unassigned", type=int, default=10, metavar="N", help="unassigned folders to list")
+    b.add_argument("--list-unassigned", type=int, default=0, metavar="N",
+                   help="list up to N folders outside every root. Default: totals only")
     b.add_argument("--art-pack", metavar="PACK.json", help="draw with this art pack. Default: the built-in pack")
     b.set_defaults(func=cmd_build)
 

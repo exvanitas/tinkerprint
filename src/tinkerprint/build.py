@@ -17,7 +17,7 @@ from .render_card import render_card
 from .render_html import render_html
 from .history import History
 from .score import compare, score_core
-from .datadir import _write, data_home, inside_repo_or_root, pretty
+from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, pretty
 from .timeutil import parse_day
 
 CACHE_VERSION = 4
@@ -90,15 +90,95 @@ def gather(profile: Profile, home: str) -> Inputs:
     g = read_git(roots, ident, in_roots=lambda p: resolver.resolve(p) is not None)
     events = list(g.events)
     cache = os.path.join(home, "cache")
-    if profile.claude and os.path.isdir(profile.claude_dir):
-        events += _cached(claude.transcript_files(profile.claude_dir), claude.read_file,
-                          os.path.join(cache, "claude.json"))
-    if profile.codex and os.path.isdir(profile.codex_dir):
-        events += _cached(codex.rollout_files(profile.codex_dir), codex.read_file, os.path.join(cache, "codex.json"))
+    harnesses = {}
+
+    def note(name, where, found, evs):
+        harnesses[name] = {"path": where, "found": found, "sessions": len({e.session for e in evs if e.session})}
+        return evs
+
+    if profile.claude:
+        found = os.path.isdir(profile.claude_dir)
+        events += note("claude", profile.claude_dir, found, _cached(
+            claude.transcript_files(profile.claude_dir), claude.read_file,
+            os.path.join(cache, "claude.json")) if found else [])
+    if profile.codex:
+        found = os.path.isdir(profile.codex_dir)
+        events += note("codex", profile.codex_dir, found, _cached(
+            codex.rollout_files(profile.codex_dir), codex.read_file,
+            os.path.join(cache, "codex.json")) if found else [])
     if profile.agy:
-        events += agy.read_db(profile.agy_db)
+        found = os.path.isfile(profile.agy_db)
+        events += note("agy", profile.agy_db, found, agy.read_db(profile.agy_db) if found else [])
     return Inputs(events=sorted(set(events)), commits=g.commits, tags=g.tags, warnings=g.warnings,
-                  root_ids=g.root_ids)
+                  root_ids=g.root_ids, setup=dict(g.setup, harnesses=harnesses))
+
+
+HARNESS_NAMES = {"claude": ("Claude Code", "claude", "claude_dir"), "codex": ("Codex", "codex", "codex_dir"),
+                 "agy": ("Antigravity", "agy", "agy_db")}
+
+
+def _tilde(path: str) -> str:
+    home = os.path.expanduser("~")
+    if home and home != os.sep and (path == home or path.startswith(home.rstrip(os.sep) + os.sep)):
+        return "~" + path[len(home):]
+    return path
+
+
+def _holds_repos(folder: str) -> int:
+    """How many direct subfolders of a folder are git repos. Only names are read."""
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return 0
+    return sum(1 for n in names if os.path.isdir(os.path.join(folder, n)) and _is_git_dir(os.path.join(folder, n)))
+
+
+def setup_warnings(profile: Profile, inputs: Inputs) -> list:
+    """Why a build may have found less than expected: missing roots, roots with no commits by the
+    profile's identities, harnesses with no folder or no sessions. Local only, never on a sheet.
+    Roots are named by project and number, never by path."""
+    out = []
+    setup = inputs.setup or {}
+    roots_top = setup.get("roots", {})
+    repos = setup.get("repos", {})
+    if setup and not setup.get("git", True) and any(p.roots for p in profile.projects):
+        out.append("git was not found on PATH, so no commits were read. Install git, or put it on PATH.")
+    for p in profile.projects:
+        told = set()
+        for i, root in enumerate(p.roots, 1):
+            which = "its root" if len(p.roots) == 1 else f"root {i} of {len(p.roots)}"
+            if not os.path.exists(root):
+                out.append(f"{p.name}: {which} does not exist. Set roots to a folder on this machine.")
+                continue
+            if not roots_top:
+                continue
+            top = roots_top.get(os.path.realpath(root))
+            if top is None:
+                n = _holds_repos(root)
+                if n:
+                    out.append(f"{p.name}: {which} is not a git repo, but {n} folder{'s' if n != 1 else ''} in it "
+                               f"{'are' if n != 1 else 'is'}. Commits are read only from the repo a root is in, so "
+                               "list each repo as a root.")
+                continue
+            info = repos.get(top)
+            if not info or info["mine"] or not info["commits"] or top in told:
+                continue
+            told.add(top)
+            seen = ", ".join(f"{n} <{e}> ({k})" for n, e, k in info["authors"])
+            repo = "the repo" if len(p.roots) == 1 else f"the repo of root {i}"
+            msg = (f"{p.name}: {info['commits']} commit{'s' if info['commits'] != 1 else ''} in {repo}, "
+                   "none by the emails or names under [identity].")
+            msg += f" Authors seen there: {seen}. Add yours to [identity]." if seen else " All are by bots."
+            out.append(msg)
+    for key, h in sorted((setup.get("harnesses") or {}).items()):
+        label, flag, setting = HARNESS_NAMES[key]
+        where = _tilde(h["path"])
+        if not h["found"]:
+            out.append(f"{label} is on, but {where} does not exist. Set {flag} = false under [harnesses], "
+                       f"or set {setting} to where its logs are.")
+        elif not h["sessions"]:
+            out.append(f"{label} is on, but no sessions were read from {where}.")
+    return out
 
 
 def read_milestones(path: str | None) -> list:
@@ -192,7 +272,8 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     warnings = list(inputs.warnings)
     priors = scan_priors(profile.projects, cutoff(profile, as_of), warnings)
     sheet, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
-    local["warnings"] = [f"{alias_of(top, profile)}: {msg}" for top, msg in warnings]
+    local["warnings"] = ([f"{alias_of(top, profile)}: {msg}" for top, msg in warnings]
+                         + setup_warnings(profile, inputs))
     return sheet, local
 
 
