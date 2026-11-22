@@ -5,6 +5,7 @@ from html import escape
 
 from . import art, radar
 from .art.pixels import mix
+from .render_card import visible as card_visible
 from .timeutil import day_label
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
@@ -33,8 +34,8 @@ CSS = """
   --muted: #998f7d; --ring: #57525f; --grid: #2d2b34; --axis: #3d3a45; --border: rgba(255,236,200,.09); --border-2: rgba(255,236,200,.17);
   --lantern: #eba84f; --lantern-ink: #f2bb6c; --lantern-wash: rgba(235,168,79,.17); --frame: #0b0a0e;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stat { --hue-fill: var(--hue-1); } }
-:root[data-theme="dark"] .stat { --hue-fill: var(--hue-1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) :is(.stat, .share-stats .row) { --hue-fill: var(--hue-1); } }
+:root[data-theme="dark"] :is(.stat, .share-stats .row) { --hue-fill: var(--hue-1); }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--page) radial-gradient(ellipse 90% 520px at 50% 0, var(--glow), transparent) no-repeat;
@@ -226,6 +227,27 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .method p { margin: 0 0 10px; break-inside: avoid; }
 .method b { color: var(--ink); }
 .foot { margin-top: 36px; font-size: 12px; color: var(--muted); }
+
+/* Share view: a checkbox before the page, so CSS alone can hide everything the card would not show.
+   No script. The box stays focusable; its label shows the focus ring and the state. */
+.top .tools { display: flex; gap: 8px; align-items: center; flex: none; }
+.top a.ghost-btn { text-decoration: none; }
+.share-toggle { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.share-btn { user-select: none; }
+.share-btn .on, .share-only { display: none; }
+.share-toggle:focus-visible ~ .wrap .share-btn { outline: 2px solid var(--lantern); outline-offset: 2px; }
+.share-toggle:checked ~ .wrap .share-btn { background: var(--lantern-wash); color: var(--lantern-ink); border-color: var(--lantern); }
+.share-toggle:checked ~ .wrap .share-btn .on { display: inline; }
+.share-toggle:checked ~ .wrap .share-btn .off { display: none; }
+.share-toggle:checked ~ .wrap .private { display: none !important; }
+.share-toggle:checked ~ .wrap .share-only { display: block; }
+.share-toggle:checked ~ .wrap span.share-only { display: inline; }
+.share-toggle:checked ~ .wrap .plaque { align-items: start; }
+.share-stats { display: grid; gap: 8px; margin-top: 14px; }
+.share-stats .row { --hue-fill: var(--hue-2); display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; }
+.share-stats .row .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.share-stats .bar i { background: var(--hue-fill); }
+.share-foot { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
 """
 
 JS = """
@@ -402,6 +424,11 @@ def _art(sheet: dict, pack: dict) -> dict:
     ranked = [(s, pcts[s]) for s in art.art_rank(pcts, set_name)]
     harnesses = [m["harness"] for m in sheet["party"]]
     a["scene"] = _hero_scene(sheet, pack, main, alt, name, ranked, harnesses)
+    card = card_visible(sheet.get("card") or {})
+    # The share view's banner holds only the familiars the card shows.
+    shown = [m["harness"] for m in sheet["party"] if card and m["name"] in card["members"]]
+    a["share_scene"] = (_hero_scene(sheet, pack, main, alt, name, ranked, shown)
+                        if card and shown != harnesses else None)
     a["familiar"] = {m["harness"]: art.familiar(pack, m["harness"]).svg(3, f"{m['name']} familiar", "px")
                      for m in sheet["party"]}
     a["icon"] = {x["id"]: art.icon(pack, x["id"]).svg(3, "", "px") for x in sheet["achievements"]}
@@ -453,6 +480,43 @@ def _chronicle(sheet: dict, pack: dict) -> str:
             'that quarter\'s points would give on their own. Quiet quarters rest at camp.</p>'
             f'<svg class="defs" width="0" height="0" aria-hidden="true"><defs>{"".join(defs)}</defs></svg>'
             f'<ol class="chron card">{"".join(cards)}</ol>')
+
+
+def _share_view(sheet: dict, pix: dict) -> dict:
+    """The share view: a CSS-only switch that leaves the banner, name, class, level and the card's
+    stats, from the card's visible fields. With the card off there is nothing to mirror, so no switch."""
+    prof_name = e(sheet["profile"]["name"])
+    v = card_visible(sheet.get("card") or {})
+    if not v:
+        return {"toggle": "", "button": "", "banner_class": "", "banner": "", "name": prof_name, "seal_class": "",
+                "stats": ""}
+    name = prof_name
+    if v["name"] != sheet["profile"]["name"]:
+        name = f'<span class="private">{prof_name}</span><span class="share-only">{e(v["name"])}</span>'
+    banner, banner_class = "", ""
+    if pix.get("share_scene"):
+        sc = pix["share_scene"]
+        banner_class = " private"
+        banner = f'\n  <div class="banner share-only"><div class="set" style="{sc["style"]}">{sc["html"]}</div></div>'
+    rows = []
+    for stat, p in v["stats"]:
+        hue = pix["hue"][stat]
+        rows.append(f'<div class="row" style="--hue-1:{hue[1]};--hue-2:{_deep(hue)}"><span>{e(stat)}</span>'
+                    f'<span class="bar"><i style="width:{p}"></i></span><span class="v">{e(p)}</span></div>')
+    foot = "".join(f"<span>{e(line)}</span><br>" for line in v["footer"])
+    stats = (f'\n      <div class="share-only"><div class="share-stats" aria-label="Top stats, as the card shows them">'
+             f'{"".join(rows)}</div><p class="share-foot">{foot[:-4]}</p></div>')
+    return {
+        "toggle": '<input class="share-toggle" type="checkbox" id="share-view">\n',
+        "button": ('<label class="ghost-btn share-btn" for="share-view"><span class="off">Share view</span>'
+                   '<span class="on">Leave share view</span></label>'
+                   '<a class="ghost-btn private" href="card.png">card.png</a>'),
+        "banner_class": banner_class,
+        "banner": banner,
+        "name": name,
+        "seal_class": "" if v["level"] else " private",
+        "stats": stats,
+    }
 
 
 def _wash(color: str, alpha: str = "2e") -> str:
@@ -592,8 +656,10 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
                    f'{plural(un["edits"], "edited file")}. They are not scored. Run <code>tinkerprint build</code> in a terminal to list '
                    f'the folders, then add roots to the profile if they belong.</p>')
 
-    card_note = ("Card on. Run <code>tinkerprint audit</code> to see every string it holds."
+    card_note = ('Card on: <a href="card.png">card.png</a> to post, and <a href="card.svg">card.svg</a>. '
+                 "Run <code>tinkerprint audit</code> to see every string they hold."
                  if sheet["card"].get("enabled") else e(sheet["card"].get("reason", "Card off.")))
+    share = _share_view(sheet, pix)
     work = " · work profile" if prof.get("work") else ""
     as_of = f" · as of {day_label(season['as_of'])}" if season.get("as_of") else ""
     built = f"Built {e(built_at)}. " if built_at else ""
@@ -612,31 +678,32 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <style>{CSS}</style>
 </head>
 <body>
-<div class="wrap">
+{share["toggle"]}<div class="wrap">
 <div class="top">
-  <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b> · {e(season["label"])}{as_of}{work}</div>
-  <button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button>
+  <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b><span class="private"> · {e(season["label"])}{as_of}{work}</span></div>
+  <div class="tools">{share["button"]}<button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button></div>
 </div>
 <section class="hero">
-  <div class="banner"><div class="set" style="{scene["style"]}">{scene["html"]}</div></div>
+  <div class="banner{share["banner_class"]}"><div class="set" style="{scene["style"]}">{scene["html"]}</div></div>{share["banner"]}
   <div class="plaque">
     <div class="who">
-      <h1>{e(prof["name"])}</h1>
+      <h1>{share["name"]}</h1>
       <div class="cls">{cls_html}</div>
-      <div class="cls-why">{why}</div>{evidence}{pix["costume"]}{jump}
+      <div class="private"><div class="cls-why">{why}</div>{evidence}{pix["costume"]}{jump}</div>
     </div>
     <div class="xp">
       <div class="lv">
-        <div class="seal"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
-        <div>
+        <div class="seal{share["seal_class"]}"><div class="n">{hist["level"]}</div><div class="l">Level</div></div>
+        <div class="private">
           <div class="next"><span>{hist["points"] - lo} of {hist["next_level_at"] - lo} to level {hist["level"] + 1}</span><span>{plural(need, "day")} to go</span></div>
           <span class="bar"><i style="width:{hist["level_progress"] * 100:.1f}%"></i></span>
         </div>
       </div>
-      <dl class="vitals n{len(vitals)}">{vit}</dl>
+      <dl class="vitals n{len(vitals)} private">{vit}</dl>{share["stats"]}
     </div>
   </div>
 </section>
+<div class="private">
 
 <h2>The build</h2>
 <p class="lede">Each active day is one point. It splits across the day's projects, then across each project's stats, by the log of files changed. Shares are of classified points.</p>
@@ -677,6 +744,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <p><b>Share card.</b> {card_note}</p>
 </div>
 <p class="foot">{built}{e(sheet["tool"])}, method {sheet["method"]}. Made on this machine. Nothing was uploaded.</p>
+</div>
 </div>
 <script>{JS}</script>
 </body>
