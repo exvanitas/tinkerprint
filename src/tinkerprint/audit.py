@@ -158,6 +158,18 @@ def _sheet_card(out_dir: str):
         return None
 
 
+def portrait_line(card: dict) -> str:
+    """The card fields the portrait's pixels come from, besides the set, class and shares."""
+    from .look import of_card
+    try:
+        look = of_card(card)
+    except (TypeError, ValueError, AttributeError):
+        return "The portrait's look tokens in sheet.json could not be read."
+    words = [f"presentation {look['presentation']}", f"skin {look['skin'] or 'from the art pack'}",
+             f"hair {look['hair']}", f"eyes {look['eyes']}", f"expression {look['expression']}"]
+    return "The portrait is drawn from the card's name and these look tokens: " + ", ".join(words) + "."
+
+
 def audit_card(out_dir: str, profile=None, pack=None) -> list:
     path = os.path.join(out_dir, "card.svg")
     png = os.path.join(out_dir, "card.png")
@@ -174,9 +186,12 @@ def audit_card(out_dir: str, profile=None, pack=None) -> list:
         return [f"{path} is not valid SVG ({e}). It is not certified. Run build again."]
     lines = [f"{path} holds these {len(strings)} strings and nothing else:"]
     lines += [f"  {s}" for s in strings]
+    card = _sheet_card(out_dir)
+    if isinstance(card, dict) and card.get("enabled"):
+        lines.append(portrait_line(card))
     if os.path.isfile(png):
         with open(png, "rb") as f:
-            _, message = check_png(f.read(), _sheet_card(out_dir), data, pack)
+            _, message = check_png(f.read(), card, data, pack)
         lines.append(message)
     else:
         lines.append(f"No card.png in {out_dir}. Run build again to make one.")

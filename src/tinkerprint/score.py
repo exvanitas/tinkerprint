@@ -15,6 +15,7 @@ from .achievements import evaluate
 from .chronicle import chronicle
 from .classes import card_pct, class_key, multiclass, pick_class, ranked
 from .classify import classify, is_code, is_skipped, language_of
+from .look import TOKENS as LOOK_TOKENS, resolve as resolve_look
 from .datadir import path_within
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
@@ -281,6 +282,9 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         "tool": f"tinkerprint {__version__}",
         "profile": {"name": profile.name, "set": profile.set, "work": profile.work,
                     "timezone": profile.timezone, "rollover_hour": profile.rollover_hour},
+        # The portrait's look. Its seed is the name the card shows, so the face follows a field
+        # already on the card.
+        "look": portrait_look(profile),
         "season": {"from": frm.isoformat() if frm else None, "to": to.isoformat() if to else None,
                    "as_of": as_of.isoformat() if as_of else None, "label": _season_label(frm, to)},
         "history": {
@@ -430,6 +434,8 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
         "multiclass": multi.get("display") or "",
         # The stats the class and multiclass are named for. A tie in rounded shares never hides them.
         "named": list(cls.get("stats") or []) + list(multi.get("stats") or []),
+        # The look tokens the portrait is drawn from, with the name above as its seed.
+        "look": {k: (sheet.get("look") or portrait_look(profile))[k] for k in LOOK_TOKENS},
         "stats": stats,
         "chart": public_chart,
         "method": sheet["method"],
@@ -448,6 +454,12 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
     if "projects" in profile.card_show:
         card["projects"] = [p["name"] for p in sheet["projects"][:3]]
     return card
+
+
+def portrait_look(profile) -> dict:
+    """The look in use: the profile's [look] choices, and the rest picked from the card's name."""
+    seed = getattr(profile, "card_label", profile.name)
+    return dict(resolve_look(getattr(profile, "look", {}) or {}, seed), seed=seed)
 
 
 def _card_season(frm: str | None, to: str | None) -> str:

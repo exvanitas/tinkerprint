@@ -387,11 +387,13 @@ class Built(unittest.TestCase):
 
     def test_card_portrait_matches_the_sheet_and_reads_only_the_allowlist(self):
         allowed = {"enabled", "name", "set", "class", "multiclass", "named", "level", "days", "stats", "achievements",
-                   "party", "chart", "method", "built", "season"}
+                   "party", "chart", "method", "built", "season", "look"}
         for slug, res in self.out.items():
             sheet = res["sheet"]
             card = sheet["card"]
             self.assertLessEqual(set(card), allowed | {"projects"})
+            # The look carries the portrait's tokens and nothing else: no seed, no record of picks.
+            self.assertEqual(set(card["look"]), {"presentation", "skin", "hair", "eyes", "expression"})
             self.assertEqual(art.card_look(card), art.sheet_looks(sheet)[0], slug)
             self.assertEqual(render_card(dict(card, presentation="man")), render_card(card))
             # The art never changes when anything outside the allowlist changes.

@@ -48,6 +48,14 @@ agy = false                   # experimental, presence only
 # hide = ["party", "level", "achievements"]  # any of these stay off the card
 # show = ["dates", "projects"]  # exact dates and project names stay off the card unless listed
 
+[look]
+# The portrait. Hair, eyes and expression left unset are picked from the name the card shows.
+# presentation = "neutral"    # neutral, man or woman
+# skin = "light"              # light, medium or deep. Unset is the art pack's own.
+# hair = "bob"                # neutral: bob, curtains, shag. man: crop, curls, side part. woman: braid, waves, chignon
+# eyes = "honey"              # honey, moss, slate, chestnut, plum or lagoon
+# expression = "smile"        # smile, grin, calm, determined, joy or curious
+
 # One [[project]] per project. A path belongs to the longest matching root.
 # The name is what the sheet shows. Roots never leave this machine.
 [[project]]
@@ -165,6 +173,7 @@ def cmd_build(args) -> int:
           f"in {s['season']['label'].lower()}.")
     for line in output_lines(res):
         print(line)
+    print(look_line(res["sheet"], profile, pack))
     for line in unassigned_lines(res["sheet"], res["local"], args.list_unassigned):
         print(line)
     health = res["local"].get("health") or []
@@ -193,6 +202,13 @@ def output_lines(res: dict) -> list:
     out.append("  shows    " + shows(card))
     out.append("  alt      " + visible(card)["alt"])
     return out
+
+
+def look_line(sheet: dict, profile, pack: dict | None = None) -> str:
+    """The look in use, and which parts came from the name."""
+    from .art import default_pack
+    from .look import describe
+    return describe(sheet["look"], pack or default_pack(), from_card_name=bool(profile.card_name))
 
 
 def _n(n: int, word: str) -> str:

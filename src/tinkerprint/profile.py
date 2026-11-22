@@ -11,6 +11,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 
+from .art.keepsake import EXPRESSIONS, EYES, HAIRSTYLES, SKINS
 from .sets import BUILDER_STATS, SETS, TINKERER_FROM_BUILDER
 from .timeutil import load_tz
 
@@ -25,16 +26,17 @@ class ProfileError(ValueError):
 # Every key a profile may hold, per table. Anything else is a ProfileError that names the key.
 KEYS = {
     "top": ("name", "set", "timezone", "rollover_hour", "work", "milestones", "identity", "harnesses", "card",
-            "project"),
+            "look", "project"),
     "identity": ("emails", "names", "bots"),
     "harnesses": ("claude", "codex", "agy", "claude_dir", "codex_dir", "agy_db"),
     "card": ("enabled", "allow", "name", "show", "hide"),
+    "look": ("presentation", "skin", "hair", "eyes", "expression"),
     "project": ("name", "root", "roots", "stats", "part", "override"),
     "part": ("path", "stats"),
     "override": ("glob", "stats"),
 }
 _TABLE_LABEL = {"top": "the top level", "identity": "[identity]", "harnesses": "[harnesses]", "card": "[card]",
-                "project": "[[project]]", "part": "[[project.part]]", "override": "[[project.override]]"}
+                "look": "[look]", "project": "[[project]]", "part": "[[project.part]]", "override": "[[project.override]]"}
 
 
 def toml_string(s: str) -> str:
@@ -135,6 +137,7 @@ class Profile:
     source: str = ""          # the profile file's real path, when it came from a file
     card_name: str = ""       # a handle the card shows instead of the profile name
     card_hide: tuple = ()     # fields left off the card: any of CARD_HIDE
+    look: dict = field(default_factory=dict)  # the [look] choices the person made. The rest come from the name.
 
     @property
     def card_label(self) -> str:
@@ -224,6 +227,40 @@ def _str(raw, default: str, where: str) -> str:
     return raw
 
 
+def _one_of(raw, allowed, where: str):
+    """One word from a fixed set, or None when unset. An unknown word names the closest one."""
+    if raw is None:
+        return None
+    word = _str(raw, "", where)
+    if word not in allowed:
+        raise ProfileError(f"{where}: {word!r} is not supported.{_suggest(word, allowed)} Use any of {', '.join(allowed)}")
+    return word
+
+
+def _look(raw) -> dict:
+    """[look]: presentation and skin are the person's to choose, never random. Hair, eyes and
+    expression left out are picked from the card's name at build time."""
+    table = _table(raw, "look", "look")
+    out = {}
+    presentation = _one_of(table.get("presentation"), tuple(HAIRSTYLES), "look.presentation")
+    if presentation:
+        out["presentation"] = presentation
+    for key, allowed in (("skin", tuple(SKINS)), ("eyes", EYES), ("expression", EXPRESSIONS)):
+        word = _one_of(table.get(key), allowed, f"look.{key}")
+        if word:
+            out[key] = word
+    if "hair" in table:
+        pool = HAIRSTYLES[presentation or "neutral"]
+        hair = _str(table["hair"], "", "look.hair")
+        if hair not in pool:
+            home = next((p for p, cuts in HAIRSTYLES.items() if hair in cuts), None)
+            why = f' It is a cut for presentation "{home}".' if home else _suggest(hair, pool)
+            raise ProfileError(f"look.hair: {hair!r} is not a {presentation or 'neutral'} cut.{why} "
+                               f"Use any of {', '.join(pool)}, or set look.presentation to match")
+        out["hair"] = hair
+    return out
+
+
 def _tz_error(tz) -> ProfileError:
     try:
         import zoneinfo
@@ -259,6 +296,7 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     bots = _strs(ident.get("bots"), "identity.bots")
 
     harn = _table(data.get("harnesses"), "harnesses", "harnesses")
+    look = _look(data.get("look"))
     card = _table(data.get("card"), "card", "card")
     show = _choices(card.get("show"), CARD_EXTRAS, "card.show")
     hide = _choices(card.get("hide"), CARD_HIDE, "card.hide")
@@ -324,6 +362,7 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
         card_show=tuple(sorted(set(show))),
         card_name=card_name,
         card_hide=tuple(sorted(set(hide))),
+        look=look,
         emails=emails,
         names=names,
         bots=bots,
