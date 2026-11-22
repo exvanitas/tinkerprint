@@ -54,5 +54,46 @@ class SavedHistory(unittest.TestCase):
         self.assertIn("Claude Code: +0 sessions.", html)
 
 
+class PartsStayInside(unittest.TestCase):
+    """A part is a folder inside its project's root. Nothing outside the root is ever read."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.t = os.path.realpath(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def parse(self, part):
+        from helpers import profile
+        return profile([("P", os.path.join(self.t, "root"), {"part": [{"path": part}]})])
+
+    def test_a_part_that_leaves_its_root_is_refused(self):
+        from tinkerprint.profile import ProfileError
+        for part in ("../other", "..", "web/../../other", ".", "web/..", "C:/other", "c:other"):
+            with self.subTest(part=part):
+                with self.assertRaises(ProfileError) as cm:
+                    self.parse(part)
+                self.assertIn("inside the project's root", str(cm.exception))
+        self.assertEqual(self.parse("web/./api/").projects[0].parts[0].path, "web/api")
+        self.assertEqual(self.parse("web/../api").projects[0].parts[0].path, "api")
+
+    def test_a_linked_part_is_not_read(self):
+        from tinkerprint.projects import scan_priors
+        root, other = os.path.join(self.t, "root"), os.path.join(self.t, "other")
+        os.makedirs(root)
+        os.makedirs(other)
+        with open(os.path.join(other, "package.json"), "w") as f:
+            json.dump({"name": "x", "bin": {"x": "x.js"}}, f)
+        with open(os.path.join(other, "requirements.txt"), "w") as f:
+            f.write("torch\n")
+        os.symlink(other, os.path.join(root, "web"))
+        os.makedirs(os.path.join(root, "api"))
+        os.symlink(os.path.join(other, "package.json"), os.path.join(root, "api", "package.json"))
+        from helpers import profile
+        prof = profile([("P", root, {"part": [{"path": "web"}, {"path": "api"}]})])
+        self.assertEqual(scan_priors(prof.projects)["P"], {})
+
+
 if __name__ == "__main__":
     unittest.main()

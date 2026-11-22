@@ -82,6 +82,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - `audit` exits 1 when a card is not certified.
 - The art pack is version 3. Version-1 packs are refused, and the sprite parts of a version-2 pack are ignored.
 - Unknown profile keys are errors.
+- A `[[project.part]]` path must be a folder inside its project's root. A part like `../other` is an error, and a part linked to a folder outside the root gives it no manifest prior.
 - `[card] allow = false` now turns the card off on personal profiles too. `enabled` is the new name for `allow`.
 
 ## 0.1.0 (2026-11-21)

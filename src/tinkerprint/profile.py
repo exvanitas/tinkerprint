@@ -335,8 +335,12 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
             p = p.replace(os.sep, "/").strip("/")
             if not p:
                 raise ProfileError(f"{where} part {j + 1}: needs a path")
+            norm = posixpath.normpath(p)
+            if norm == "." or norm == ".." or norm.startswith("../") or re.match(r"^[A-Za-z]:", norm):
+                raise ProfileError(f"{where} part {j + 1}: path must be a folder inside the project's root, "
+                                   f"like \"web\", not {p!r}")
             st = _weights(raw["stats"], set_name, f"{where} part {p}") if "stats" in raw else None
-            parts.append(Part(path=posixpath.normpath(p), stats=st))
+            parts.append(Part(path=norm, stats=st))
         overrides = []
         for j, raw in enumerate(_tables(rp.get("override"), "override", f"{where} override")):
             _check_keys(raw, "override", f"{where} override {j + 1}")

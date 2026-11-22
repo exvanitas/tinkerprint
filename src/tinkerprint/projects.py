@@ -7,6 +7,7 @@ import re
 import tomllib
 from functools import lru_cache
 
+from .datadir import path_within
 from .readers._common import local_path
 
 TRAINING_DEPS = {"torch", "transformers", "peft", "jax"}
@@ -111,16 +112,27 @@ class WorkTree:
     def __init__(self, base: str):
         self.base = base
 
+    def _inside(self, rel: str) -> str | None:
+        """The real path of rel, when it stays inside the root after symlinks, else None."""
+        path = os.path.realpath(os.path.join(self.base, rel) if rel else self.base)
+        return path if path_within(path, os.path.realpath(self.base)) else None
+
     def read(self, rel: str):
+        path = self._inside(rel)
+        if path is None:
+            return None
         try:
-            with open(os.path.join(self.base, rel), "rb") as f:
+            with open(path, "rb") as f:
                 return f.read()
         except OSError:
             return None
 
     def names(self, rel: str) -> list:
+        path = self._inside(rel)
+        if path is None:
+            return []
         try:
-            return sorted(os.listdir(os.path.join(self.base, rel) if rel else self.base))
+            return sorted(os.listdir(path))
         except OSError:
             return []
 
