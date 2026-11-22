@@ -111,11 +111,13 @@ def forget(home: str, profile_key: str | None, yes: bool) -> list:
     if delete:
         head = "Deleted" if yes else "This deletes"
         lines.append(f"{head}, in {home}:")
+        rows = []
         for path, what in delete:
-            rel = os.path.relpath(path, home)
             n = _count(path)
             suffix = os.sep if os.path.isdir(path) and not os.path.islink(path) else ""
-            lines.append(f"  {rel + suffix:<28} {what} ({n} file{'s' if n != 1 else ''})")
+            rows.append((os.path.relpath(path, home) + suffix, f"{what} ({n} file{'s' if n != 1 else ''})"))
+        width = max(len(r) for r, _ in rows)
+        lines += [f"  {r:<{width}}  {w}" for r, w in rows]
     else:
         lines.append(f"Nothing to forget in {home}.")
     for path, _ in keep:
