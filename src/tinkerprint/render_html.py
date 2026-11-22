@@ -439,7 +439,7 @@ def _chronicle(sheet: dict, pack: dict) -> str:
     return ('<h2>Chronicle</h2><p class="lede">One chapter per calendar quarter, over all history. Each shows the class '
             'that quarter\'s points would give on their own. Quiet quarters rest at camp.</p>'
             f'<svg class="defs" width="0" height="0" aria-hidden="true"><defs>{"".join(defs)}</defs></svg>'
-            f'<ol class="chron card"">{"".join(cards)}</ol>')
+            f'<ol class="chron card">{"".join(cards)}</ol>')
 
 
 def _wash(color: str, alpha: str = "2e") -> str:

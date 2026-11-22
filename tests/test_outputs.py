@@ -19,6 +19,19 @@ from tinkerprint.render_card import card_strings
 
 SRC = helpers.SRC
 
+_ATTR = r"""[^\s"'<>/=]+(?:=(?:"[^"<]*"|'[^'<]*'|[^\s"'=<>`]+))?"""
+_TAG = re.compile(rf"<[A-Za-z][A-Za-z0-9-]*(?:\s+{_ATTR})*\s*/?>")
+
+
+def tag_errors(page: str) -> list:
+    """Start tags whose attributes are not well quoted. Script, style and comments are skipped."""
+    body = re.sub(r"(?s)<(script|style)\b[^>]*>.*?</\1>|<!--.*?-->", "", page)
+    bad = []
+    for m in re.finditer(r"<[A-Za-z]", body):
+        if not _TAG.match(body, m.start()):
+            bad.append(body[m.start():m.start() + 80])
+    return bad
+
 
 class Built(unittest.TestCase):
     @classmethod
@@ -127,6 +140,18 @@ class Built(unittest.TestCase):
         self.assertIn("Method version 2", page)
         self.assertIn("What changed", page)
         self.assertIn('class="radar"', page)
+
+    def test_html_tags_have_well_quoted_attributes(self):
+        for slug, res in self.out.items():
+            with open(res["paths"]["html"], encoding="utf-8") as f:
+                page = f.read()
+            self.assertEqual(tag_errors(page), [], slug)
+
+    def test_tag_checker_catches_a_stray_quote(self):
+        self.assertEqual(tag_errors('<ol class="a b">x</ol><p id=x data-k=\'v\' hidden>'), [])
+        self.assertTrue(tag_errors('<ol class="chron card"">'))
+        self.assertTrue(tag_errors('<div class="a>'))
+        self.assertTrue(tag_errors('<div class="a"b="c">'))
 
     def test_cli_audit_prints_card_strings(self):
         from tinkerprint.cli import main
