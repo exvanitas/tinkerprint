@@ -715,6 +715,9 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     work = f'{dot}<span class="seg">work profile</span>' if prof.get("work") else ""
     as_of = f'{dot}<span class="seg">as of {e(day_label(season["as_of"]))}</span>' if season.get("as_of") else ""
     built = f"Built {e(built_at)}. " if built_at else ""
+    # The tab title shows in any screenshot of the window, Share view too: the card's name, else none.
+    title = (f"{e(card_visible(sheet['card'])['name'])} · tinkerprint" if sheet["card"].get("enabled")
+             else "tinkerprint sheet")
     scene = pix["scene"]
     jump = ""
     if changes and changes.get("against"):
@@ -726,7 +729,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="{CSP}">
-<title>{e(prof["name"])} · tinkerprint</title>
+<title>{title}</title>
 <style>{CSS}</style>
 </head>
 <body>

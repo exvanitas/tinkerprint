@@ -19,6 +19,7 @@ from tinkerprint.audit import audit, check_png, check_portrait_png, png_chunks
 from tinkerprint.cli import main
 from tinkerprint.render_card import portrait_gif, portrait_png, render_card, visible
 from tinkerprint.render_card_png import render_card_png
+from tinkerprint.render_html import render_html
 
 PACK = default_pack()
 
@@ -157,6 +158,23 @@ class StalePolicy(unittest.TestCase):
         self.assertIn("The audit fails", buf.getvalue())
         with redirect_stdout(io.StringIO()):
             self.assertEqual(main(["audit", "--out", self.out]), 0)
+
+
+class TabTitle(unittest.TestCase):
+    def html(self, **extra):
+        evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py")]
+        sheet = run(profile([("Kite", "/w/kite", None)], name="Ida Fenwick", **extra), evs)[0]
+        return render_html(sheet, "", None, PACK)
+
+    def test_the_handle_names_the_tab(self):
+        html = self.html(card={"name": "quillwork"})
+        self.assertIn("<title>quillwork · tinkerprint</title>", html)
+        self.assertNotIn("Ida Fenwick", html[:html.index("</head>")])
+
+    def test_no_card_gives_a_neutral_title(self):
+        html = self.html(card={"enabled": False})
+        self.assertIn("<title>tinkerprint sheet</title>", html)
+        self.assertIn("<title>Ida Fenwick · tinkerprint</title>", self.html())
 
 
 if __name__ == "__main__":
