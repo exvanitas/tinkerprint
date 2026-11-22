@@ -8,6 +8,7 @@ Schema. Records it accepts, field by field. Any other record or field is dropped
                message.content: list of tool_use {id: id, name: Edit|Write|MultiEdit|NotebookEdit,
                                                   input: {file_path | notebook_path: path}}
   user:        message.content: list of tool_result {tool_use_id: id, is_error: absent or false}
+  version:     the Claude Code version that wrote the line, for reader health only
 
 An edit counts when its result comes back with no error, at the result's time, in the session of
 the record that asked for it. A model belongs only to the assistant record that names it.
@@ -23,8 +24,8 @@ import re
 
 from ..events import Event
 from ..timeutil import iso
-from ._common import abs_path, closing, get_dict, get_id, get_list, get_str, ident, model_id, path_text, presence
-from ._common import resolve, when
+from ._common import abs_path, closing, get_dict, get_id, get_list, get_str, ident, model_id, new_health
+from ._common import path_text, presence, resolve, version_text, when
 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
@@ -47,8 +48,10 @@ def fallback_session(path: str) -> str:
     return ident(os.path.splitext(parts[-1])[0]) or "session"
 
 
-def read_file(path: str, stream=None) -> list:
-    """stream: an iterable of the file's byte lines, when the caller hashes what is parsed."""
+def read_file(path: str, stream=None, health: dict | None = None) -> list:
+    """stream: an iterable of the file's byte lines, when the caller hashes what is parsed.
+    health: a dict from new_health() to count into."""
+    hc = health if health is not None else new_health()
     fallback = fallback_session(path)
     cwd = ""
     slots: dict = {}     # (slot, model, folder) -> ts, per session
@@ -63,6 +66,8 @@ def read_file(path: str, stream=None) -> list:
         f = stream
     with closing(f):
         for raw in f:
+            if raw.strip():
+                hc["lines"] += 1
             if not _MAYBE.search(raw):
                 continue
             try:
@@ -72,6 +77,10 @@ def read_file(path: str, stream=None) -> list:
             kind_line = get_str(d, "type")
             if kind_line not in LINE_TYPES:
                 continue
+            hc["records"] += 1
+            v = version_text(d.get("version"))
+            if v:
+                hc["versions"].add(v)
             session = get_id(d, "sessionId") or fallback
             folder = abs_path(d.get("cwd"))
             if folder:
@@ -88,6 +97,9 @@ def read_file(path: str, stream=None) -> list:
                 if kind_line == "assistant" and kind == "tool_use":
                     name = get_str(item, "name")
                     tid = get_id(item, "id")
+                    hc["tool_calls"] += 1
+                    if name in EDIT_TOOLS:
+                        hc["edit_calls"] += 1
                     if name in EDIT_TOOLS and tid:
                         p = path_text(get_dict(item, "input").get(EDIT_TOOLS[name]))
                         if p:

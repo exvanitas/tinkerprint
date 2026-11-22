@@ -74,6 +74,7 @@ A build that finds nothing still makes a sheet: level 0, Unclassed. It prints a 
 - **A root is a folder of repos.** Commits are read only from the repo a root is in. List each repo as a root.
 - **A harness is on, but its folder is missing or has no sessions.** Set it to `false` under `[harnesses]`, or point `claude_dir`, `codex_dir` or `agy_db` at its logs.
 - **git is not on PATH.** No commits can be read.
+- **A harness changed its log format.** After each build a `Readers:` line per harness counts files, records, sessions and edits, with the log versions seen. It warns when logs hold no record it recognises, or many tool calls but no edit it knows. Update tinkerprint, and if that does not help, report that line. It holds counts and version numbers only.
 
 Agent sessions in folders outside every root are unassigned and not scored. The build prints their totals. `--list-unassigned 20` lists up to 20 of the folders, so you can find roots you missed. Folder names stay off the screen unless you ask.
 
@@ -102,14 +103,14 @@ Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint
 
 Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprint/`, or `$XDG_DATA_HOME/tinkerprint`, or `--data-dir`.
 
-- `cache/`: what the readers kept from each agent log (times, folders, file paths, models), so the next build skips logs that have not changed. Shared by all profiles.
+- `cache/`: what the readers kept from each agent log (times, folders, file paths, models), so the next build skips logs that have not changed. Shared by all profiles. When a log is deleted, as Claude Code does with transcripts after about a month, its entry stays here, marked gone, so its days still count. This is the only copy of those sessions.
 - `history/`: each build's sheet, per profile and season, for "what changed".
 - `last-build/`: one small file per profile naming its last output folder, for `audit`.
 - `sheets/`: builds made without `--out`.
 
 The cache, history and last-build files are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.
 
-`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. `forget --all` clears all four folders above. It deletes only files tinkerprint wrote, names any folder it leaves alone, and never touches your repos, agent logs, profiles or `--out` folders.
+`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears all four folders above. It deletes only files tinkerprint wrote, names any folder it leaves alone, and never touches your repos, agent logs, profiles or `--out` folders.
 
 ## What it will not do
 

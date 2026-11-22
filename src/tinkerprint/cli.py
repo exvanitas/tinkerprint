@@ -163,6 +163,11 @@ def cmd_build(args) -> int:
         print("  card  off: " + s["card"].get("reason", ""))
     for line in unassigned_lines(res["sheet"], res["local"], args.list_unassigned):
         print(line)
+    health = res["local"].get("health") or []
+    if health:
+        print("Readers:")
+        for line in health:
+            print("  " + line)
     for w in res.get("warnings", []):
         print("Warning: " + w)
     return 0

@@ -15,7 +15,7 @@ import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import ident, path_text
+from ._common import ident, new_health, path_text
 
 
 _DRIVE = re.compile(r"^/[A-Za-z]:(/|$)")
@@ -51,17 +51,29 @@ def _uri_path(uri: str, pathmod=os.path) -> str | None:
     return path if path and pathmod.isabs(path) else None
 
 
-def _ro_uri(path: str) -> str:
+def _ro_uri(path: str, pathmod=os.path) -> str:
+    """A read-only SQLite URI for a local file. On Windows, C:\\x\\db becomes file:///C:/x/db and
+    \\\\server\\share\\db becomes file:////server/share/db, as SQLite's URI rules want."""
     q = path.replace("%", "%25").replace("?", "%3f").replace("#", "%23")
+    if pathmod.sep == "\\":
+        q = q.replace("\\", "/")
+    if re.match(r"^[A-Za-z]:", q) and pathmod.sep == "\\":
+        q = "///" + q
+    elif q.startswith("//"):
+        q = "//" + q  # an empty authority, so the path's own leading slashes stay in the path
     return f"file:{q}?mode=ro"
 
 
-def read_db(path: str) -> list:
+def read_db(path: str, health: dict | None = None) -> list:
+    """health: a dict from new_health() to count into. A database that opens but has no table of
+    the expected shape counts its rows as none recognised and sets health["unreadable"]."""
+    hc = health if health is not None else new_health()
     if not os.path.isfile(path):
         return []
     try:
         con = sqlite3.connect(_ro_uri(path), uri=True)
     except sqlite3.Error:
+        hc["unreadable"] = True
         return []
     out = []
     try:
@@ -69,8 +81,10 @@ def read_db(path: str) -> list:
             "select conversation_id, workspace_uris, last_modified_time from conversation_summaries").fetchall()
     except sqlite3.Error:
         rows = []
+        hc["unreadable"] = True
     finally:
         con.close()
+    hc["lines"] += len(rows)
     for cid, uris, ts in rows:
         if isinstance(cid, int) and not isinstance(cid, bool):
             cid = str(cid)
@@ -80,6 +94,7 @@ def read_db(path: str) -> list:
         dt = parse_ts(ts)
         if dt is None:
             continue
+        hc["records"] += 1
         folders = []
         if isinstance(uris, (str, bytes)) and uris:
             try:

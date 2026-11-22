@@ -22,6 +22,14 @@ _MODEL = re.compile(r"^[A-Za-z0-9._:@+-]+(?:/[A-Za-z0-9._:@+-]+)?$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
+_VERSION = re.compile(r"^[0-9][0-9A-Za-z.+-]{0,31}$")
+
+
+def version_text(v) -> str:
+    """A log format version like 2.0.14 or 0.46.0-alpha.1, or ''. Anything else is dropped."""
+    return v if isinstance(v, str) and _VERSION.match(v) else ""
+
+
 def text(v) -> str:
     """A non-empty string field, or ''. Other types never become strings."""
     return v if isinstance(v, str) and v else ""
@@ -77,6 +85,15 @@ def resolve(path: str, cwd: str) -> str:
     if os.path.isabs(path) or not cwd:
         return path
     return os.path.join(cwd, path)
+
+
+# ---------------------------------------------------------------- health
+
+def new_health() -> dict:
+    """Counts a reader keeps about one log, for the build's reader health line. Never any text
+    but version numbers. lines: lines or rows seen. records: those of a shape the reader knows.
+    tool_calls: tool calls of any kind. edit_calls: calls or records of an edit kind it knows."""
+    return {"lines": 0, "records": 0, "tool_calls": 0, "edit_calls": 0, "versions": set()}
 
 
 # ---------------------------------------------------------------- presence

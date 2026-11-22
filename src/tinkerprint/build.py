@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import date, datetime, time, timedelta
 
 from . import art
@@ -11,16 +12,18 @@ from .events import Event, Inputs
 from .profile import Profile
 from .projects import Resolver, canonical, scan_priors
 from .readers import agy, claude, codex
-from .readers._common import HashingStream
+from .readers._common import HashingStream, new_health, version_text
 from .readers.git import Identity, read_git
 from .render_card import render_card
 from .render_html import render_html
 from .history import History
 from .score import compare, score_core
 from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, path_within, pretty
-from .timeutil import parse_day
+from .timeutil import parse_day, parse_ts
 
-CACHE_VERSION = 4
+# A version change re-reads every log that is still there, and keeps what earlier builds read
+# from logs that are gone, since those can never be read again.
+CACHE_VERSION = 5
 
 
 def _digest(path: str) -> str | None:
@@ -34,47 +37,103 @@ def _digest(path: str) -> str | None:
     return h.hexdigest()
 
 
-def _cached(files: list, reader, cache_path: str) -> list:
+def _health_of(entry: dict) -> dict:
+    h = entry.get("health") if isinstance(entry.get("health"), dict) else {}
+    out = new_health()
+    for k in ("lines", "records", "tool_calls", "edit_calls"):
+        v = h.get(k)
+        out[k] = v if isinstance(v, int) and not isinstance(v, bool) else 0
+    out["versions"] = {v for v in h.get("versions", []) if isinstance(v, str) and version_text(v)}
+    return out
+
+
+def new_report() -> dict:
+    """Reader health for one harness. Counts and version numbers only, never any log text."""
+    return dict(new_health(), seen=0, read=0, sessions=0, edits=0, newest=None, kept_files=0, kept_sessions=0)
+
+
+def _cached(files: list, reader, cache_path: str, base: str | None = None, report: dict | None = None) -> list:
     """Read harness files through a cache keyed on content. The cache stays in the data folder.
 
     Each entry holds the SHA-256 and size of exactly the bytes the reader parsed. It is reused
     when the file still has that size and either its stat (size, mtime, ctime, inode) is
     unchanged or its SHA-256 matches. Any other file is parsed again, so bytes that arrived
     after the reader stopped are never skipped.
+
+    Kept history: an entry under base (every entry when base is None) whose file is no longer
+    listed, or can no longer be read, is kept and marked gone, and its events still count. A
+    gone file that comes back is read as it is now. Entries outside base belong to another
+    harness folder: they stay in the cache and are not counted here.
+    report: a dict from new_report(), filled with this listing's reader health.
     """
+    rep = report if report is not None else new_report()
     try:
         with open(cache_path, encoding="utf-8") as f:
             cache = json.load(f)
-        if cache.get("v") != CACHE_VERSION:
+        if not isinstance(cache, dict) or not isinstance(cache.get("files"), dict):
             cache = {}
     except (OSError, ValueError):
         cache = {}
     old = cache.get("files", {})
+    if cache.get("v") != CACHE_VERSION:
+        old = {p: c for p, c in old.items() if isinstance(c, dict) and c.get("gone")}
     new = {}
     events = []
+    live_sessions = set()
     for path in files:
+        rep["seen"] += 1
         try:
             st = os.stat(path)
         except OSError:
             continue
         stamp = [st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino]
         c = old.get(path) or {}
-        same_size = c.get("size") == st.st_size and isinstance(c.get("sha256"), str)
+        same_size = c.get("size") == st.st_size and isinstance(c.get("sha256"), str) and "health" in c
         if same_size and (c.get("stat") == stamp or _digest(path) == c["sha256"]):
             evs = [Event.from_dict(x) for x in c.get("events", [])]
             entry = dict(c, stat=stamp)
+            entry.pop("gone", None)
         else:
+            hc = new_health()
             try:
                 with open(path, "rb") as f:
                     hs = HashingStream(f)
-                    evs = reader(path, stream=hs)
+                    evs = reader(path, stream=hs, health=hc)
             except OSError:
                 continue
             # The stat counts as proof only when it describes exactly the parsed bytes.
             entry = {"stat": stamp if hs.size == st.st_size else None, "sha256": hs.digest(), "size": hs.size,
-                     "events": [e.to_dict() for e in evs]}
+                     "events": [e.to_dict() for e in evs],
+                     "health": dict(hc, versions=sorted(hc["versions"]))}
         new[path] = entry
         events.extend(evs)
+        rep["read"] += 1
+        h = _health_of(entry)
+        for k in ("lines", "records", "tool_calls", "edit_calls"):
+            rep[k] += h[k]
+        rep["versions"] |= h["versions"]
+        live_sessions |= {e.session for e in evs if e.session}
+        rep["edits"] += sum(1 for e in evs if e.kind == "edit")
+        for e in evs:
+            if rep["newest"] is None or parse_ts(e.ts) > parse_ts(rep["newest"]):
+                rep["newest"] = e.ts
+    gone_sessions = set()
+    for path, c in old.items():
+        if path in new or not isinstance(c, dict):
+            continue
+        if base is not None and not path_within(path, base):
+            new[path] = c  # another harness folder's entry: kept, not counted
+            continue
+        try:
+            evs = [Event.from_dict(x) for x in c.get("events", [])]
+        except (TypeError, AttributeError):
+            continue
+        new[path] = dict(c, gone=True, stat=None)
+        events.extend(evs)
+        rep["kept_files"] += 1
+        gone_sessions |= {e.session for e in evs if e.session}
+    rep["sessions"] += len(live_sessions)
+    rep["kept_sessions"] += len(gone_sessions - live_sessions)
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         _write(cache_path, json.dumps({"v": CACHE_VERSION, "files": new}, sort_keys=True))
@@ -91,26 +150,36 @@ def gather(profile: Profile, home: str) -> Inputs:
     events = list(g.events)
     cache = os.path.join(home, "cache")
     harnesses = {}
+    health = {}
 
-    def note(name, where, found, evs):
+    def note(name, where, found, evs, rep):
         harnesses[name] = {"path": where, "found": found, "sessions": len({e.session for e in evs if e.session})}
+        health[name] = rep
         return evs
 
+    # Logs are read even when their folder is gone, so what earlier builds kept still counts.
     if profile.claude:
-        found = os.path.isdir(profile.claude_dir)
-        events += note("claude", profile.claude_dir, found, _cached(
+        rep = new_report()
+        events += note("claude", profile.claude_dir, os.path.isdir(profile.claude_dir), _cached(
             claude.transcript_files(profile.claude_dir), claude.read_file,
-            os.path.join(cache, "claude.json")) if found else [])
+            os.path.join(cache, "claude.json"), profile.claude_dir, rep), rep)
     if profile.codex:
-        found = os.path.isdir(profile.codex_dir)
-        events += note("codex", profile.codex_dir, found, _cached(
+        rep = new_report()
+        events += note("codex", profile.codex_dir, os.path.isdir(profile.codex_dir), _cached(
             codex.rollout_files(profile.codex_dir), codex.read_file,
-            os.path.join(cache, "codex.json")) if found else [])
+            os.path.join(cache, "codex.json"), profile.codex_dir, rep), rep)
     if profile.agy:
+        # One database, not a file per session: what it no longer holds is gone (see METHOD.md).
         found = os.path.isfile(profile.agy_db)
-        events += note("agy", profile.agy_db, found, agy.read_db(profile.agy_db) if found else [])
+        rep = new_report()
+        hc = new_health()
+        evs = agy.read_db(profile.agy_db, hc) if found else []
+        rep.update({k: v for k, v in hc.items() if k in rep}, seen=int(found),
+                   read=int(found and not hc.get("unreadable")), sessions=len({e.session for e in evs}),
+                   newest=max((e.ts for e in evs), key=parse_ts, default=None))
+        events += note("agy", profile.agy_db, found, evs, rep)
     return Inputs(events=sorted(set(events)), commits=g.commits, tags=g.tags, warnings=g.warnings,
-                  root_ids=g.root_ids, setup=dict(g.setup, harnesses=harnesses))
+                  root_ids=g.root_ids, setup=dict(g.setup, harnesses=harnesses, health=health))
 
 
 HARNESS_NAMES = {"claude": ("Claude Code", "claude", "claude_dir"), "codex": ("Codex", "codex", "codex_dir"),
@@ -174,10 +243,74 @@ def setup_warnings(profile: Profile, inputs: Inputs) -> list:
         label, flag, setting = HARNESS_NAMES[key]
         where = _tilde(h["path"])
         if not h["found"]:
+            kept = ((setup.get("health") or {}).get(key) or {}).get("kept_sessions", 0)
+            note = (f" The {kept} session{'s' if kept != 1 else ''} kept from earlier builds still count."
+                    if kept else "")
             out.append(f"{label} is on, but {where} does not exist. Set {flag} = false under [harnesses], "
-                       f"or set {setting} to where its logs are.")
+                       f"or set {setting} to where its logs are.{note}")
         elif not h["sessions"]:
             out.append(f"{label} is on, but no sessions were read from {where}.")
+    return out
+
+
+# A harness with at least this many tool calls and no edit of a kind its reader knows has
+# probably changed its log format. Fewer calls can be a session that only read files.
+HEALTH_MIN_CALLS = 20
+
+
+def _num(n: int) -> str:
+    return f"{n:,}"
+
+
+def _version_key(v: str):
+    return [(0, int(x), "") if x.isdigit() else (1, 0, x) for x in re.split(r"[.+-]", v)]
+
+
+def health_lines(profile: Profile, inputs: Inputs) -> list:
+    """One line per harness on what its reader found. Counts, dates and version numbers only.
+    Local only: printed by build, never on a sheet or the card."""
+    out = []
+    for key, rep in sorted(((inputs.setup or {}).get("health") or {}).items(),
+                           key=lambda kv: list(HARNESS_NAMES).index(kv[0])):
+        label = HARNESS_NAMES[key][0]
+        if key == "agy":
+            bits = ["database read" if rep["read"] else ("database not readable" if rep["seen"] else "no database")]
+        else:
+            bits = [f"{_num(rep['read'])} of {_num(rep['seen'])} files read"]
+        bits.append(f"{_num(rep['records'])} records recognised")
+        bits.append(f"{_num(rep['sessions'])} session{'s' if rep['sessions'] != 1 else ''}")
+        bits.append("presence only" if key == "agy" else f"{_num(rep['edits'])} edits confirmed")
+        if rep.get("newest"):
+            bits.append("newest " + parse_ts(rep["newest"]).astimezone(profile.tz).date().isoformat())
+        versions = sorted(rep.get("versions") or (), key=_version_key)
+        if len(versions) == 1:
+            bits.append(f"version {versions[0]}")
+        elif versions:
+            bits.append(f"versions {versions[0]} to {versions[-1]}")
+        line = f"{label}: " + ", ".join(bits) + "."
+        if rep.get("kept_sessions"):
+            n = rep["kept_sessions"]
+            line += f" Plus {_num(n)} session{'s' if n != 1 else ''} kept from logs that are gone."
+        out.append(line)
+    return out
+
+
+def health_warnings(inputs: Inputs) -> list:
+    """Signs that a harness changed its log format. Each says what to do next."""
+    out = []
+    step = ("Its log format may have changed. Update tinkerprint, and if that does not help, report the "
+            "versions in the reader line above.")
+    for key, rep in sorted(((inputs.setup or {}).get("health") or {}).items()):
+        label = HARNESS_NAMES[key][0]
+        if key != "agy" and rep["seen"] and not rep["read"]:
+            out.append(f"{label}: none of its {_num(rep['seen'])} log files could be read. Check that your user "
+                       "can read them.")
+        elif (rep.get("lines") and not rep["records"]) or (key == "agy" and rep["seen"] and not rep["read"]):
+            what = "its database" if key == "agy" else f"its {_num(rep['read'])} log files"
+            out.append(f"{label}: {what} held no records tinkerprint recognised. {step}")
+        elif key != "agy" and rep["tool_calls"] >= HEALTH_MIN_CALLS and not rep["edit_calls"]:
+            out.append(f"{label}: {_num(rep['tool_calls'])} tool calls, but none of an edit kind tinkerprint knows, "
+                       f"so no agent edits were counted. {step}")
     return out
 
 
@@ -273,7 +406,8 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     priors = scan_priors(profile.projects, cutoff(profile, as_of), warnings)
     sheet, local = score_core(inputs, profile, priors, season, as_of, read_milestones(profile.milestones))
     local["warnings"] = ([f"{alias_of(top, profile)}: {msg}" for top, msg in warnings]
-                         + setup_warnings(profile, inputs))
+                         + setup_warnings(profile, inputs) + health_warnings(inputs))
+    local["health"] = health_lines(profile, inputs)
     return sheet, local
 
 

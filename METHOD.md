@@ -11,7 +11,7 @@ A sheet is a picture of where your days went and who was in your party, drawn on
 - **Level** counts active days over all history. Class and radar cover a **season** you choose (default: all history).
 - The sheet never claims skill, productivity, seniority, hours worked, or who did how much of the work.
 
-Everything is deterministic. The same inputs and the same profile give the same sheet. No model scores anything, nothing is random, and ties break by the fixed stat order of the set.
+Everything is deterministic. The same inputs and the same profile give the same sheet. The inputs are your repos, the agent logs on disk and the kept history of logs that are gone (see [Kept history](#kept-history)). No model scores anything, nothing is random, and ties break by the fixed stat order of the set.
 
 ## Inputs
 
@@ -25,6 +25,16 @@ Each reader turns one source into events. Readers keep timestamps, folders, file
 | Antigravity | `~/.gemini/antigravity-cli/conversation_summaries.db` | conversation id, workspace folder, time. Experimental, off by default |
 
 Each reader declares the record shapes it accepts and drops any other record or field. A model id is letters, digits and `. _ - : @ +`, with at most one `/` and at most 80 characters. A path holds no control characters. A Codex change counts once per call id, or item id when no call id exists.
+
+### Kept history
+
+Claude Code deletes old transcripts, after about a month by default. So the harness cache keeps what the readers took from every log (times, folders, file paths, models), and when a log is gone, its events stay in the cache, marked gone, and still count. A log that cannot be read any more counts as gone too. A gone log that comes back, changed or not, is read as it is now. The build prints how many sessions came from logs that are gone. `tinkerprint forget` deletes the cache, and those sessions with it.
+
+Antigravity keeps one database, not one log per session, and the reader reads it whole each build. A conversation the database no longer holds is gone from the sheet too.
+
+### Reader health
+
+After a build, one line per harness gives files seen and read, records recognised, sessions, edits confirmed, the newest event's date and the log format versions seen, where the log records one (Claude Code's `version`, Codex's `cli_version`). It shows counts, dates and version numbers only, and only in the terminal, never on a sheet or the card. A build warns when log files exist but no record in them was recognised, and when a harness shows 20 or more tool calls but none of an edit kind its reader knows. Both suggest the log format changed.
 
 Commits are matched to a profile by its identity patterns and deduplicated by hash across refs and clones. Bot authors (`[bot]` and a configurable list) never count. A commit with you as author or co-author counts.
 

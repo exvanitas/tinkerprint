@@ -77,8 +77,8 @@ def _count(path: str) -> int:
 
 def plan(home: str, profile_key: str | None):
     """(to delete, left alone): lists of (path, what it is). profile_key None means everything."""
-    items = [(os.path.join(home, "cache"), "cache", "the harness cache, shared by all profiles. "
-                                                     "Rebuilt from the logs")]
+    items = [(os.path.join(home, "cache"), "cache", "the harness cache, shared by all profiles. Rebuilt from "
+                                                     "the logs, but sessions kept from deleted logs are lost")]
     if profile_key is None:
         items += [(os.path.join(home, "history"), "history", "saved sheets for every profile"),
                   (os.path.join(home, "last-build"), "pointers", "where each profile's last build went"),

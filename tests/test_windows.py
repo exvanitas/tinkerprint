@@ -4,6 +4,7 @@ import ntpath
 import os
 import posixpath
 import re
+import sqlite3
 import tempfile
 import tomllib
 import unittest
@@ -14,7 +15,9 @@ from helpers import profile
 from tinkerprint.cli import local_tz, starter
 from tinkerprint.datadir import inside_repo_or_root, path_within
 from tinkerprint.profile import load_profile, parse_profile, toml_string
-from tinkerprint.readers.agy import _uri_path
+from tinkerprint.demo import write_agy_db
+from tinkerprint.readers import agy
+from tinkerprint.readers.agy import _ro_uri, _uri_path
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -132,6 +135,29 @@ class AgyUris(unittest.TestCase):
         from tinkerprint.demo import file_uri
         p = os.path.join(os.sep, "w", "Ünï code", "kite#1")
         self.assertEqual(_uri_path(file_uri(p)), p)
+
+
+class RoUri(unittest.TestCase):
+    def test_windows_paths(self):
+        self.assertEqual(_ro_uri(r"C:\Users\Ana\agy\db.sqlite", ntpath), "file:///C:/Users/Ana/agy/db.sqlite?mode=ro")
+        self.assertEqual(_ro_uri(r"\\server\share\db.sqlite", ntpath), "file:////server/share/db.sqlite?mode=ro")
+        self.assertEqual(_ro_uri(r"C:\a%b\c?d#e.db", ntpath), "file:///C:/a%25b/c%3fd%23e.db?mode=ro")
+
+    def test_posix_paths(self):
+        self.assertEqual(_ro_uri("/home/ana/db.sqlite", posixpath), "file:/home/ana/db.sqlite?mode=ro")
+        self.assertEqual(_ro_uri("//odd/db.sqlite", posixpath), "file:////odd/db.sqlite?mode=ro")
+
+    def test_opens_read_only_with_odd_characters(self):
+        if os.sep == "\\":
+            self.skipTest("? is not allowed in Windows file names")
+        with tempfile.TemporaryDirectory() as t:
+            db = os.path.join(t, "a%b?c#d", "db.sqlite")
+            write_agy_db(db, [("c1", ["/w/a"], datetime(2026, 3, 2, 10, tzinfo=timezone.utc))])
+            self.assertEqual(len(agy.read_db(db)), 1)
+            con = sqlite3.connect(_ro_uri(db), uri=True)
+            with self.assertRaises(sqlite3.OperationalError):
+                con.execute("insert into conversation_summaries (conversation_id) values ('x')")
+            con.close()
 
 
 if __name__ == "__main__":

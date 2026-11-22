@@ -2,7 +2,8 @@
 
 Schema. Records it accepts, field by field. Any other record or field is dropped.
   line:            dict with type in KNOWN, payload: dict, timestamp: ISO string
-  session_meta:    id: id, cwd: absolute path, originator: id, timestamp: ISO string
+  session_meta:    id: id, cwd: absolute path, originator: id, timestamp: ISO string,
+                   cli_version: version, for reader health only
   turn_context:    model: model id, cwd: absolute path
   item_completed:  item {type: FileChange, status: completed, call_id: id, id: id, changes}
   patch_apply_end: success: true, call_id: id, changes
@@ -21,7 +22,8 @@ import os
 
 from ..events import Event
 from ..timeutil import iso
-from ._common import abs_path, closing, get_dict, get_id, get_str, model_id, path_text, presence, resolve, when
+from ._common import abs_path, closing, get_dict, get_id, get_str, model_id, new_health, path_text, presence
+from ._common import resolve, version_text, when
 
 KNOWN = {"session_meta", "turn_context", "response_item", "event_msg", "compacted"}
 
@@ -64,8 +66,10 @@ def change_paths(changes) -> list:
     return []
 
 
-def read_file(path: str, stream=None) -> list:
-    """stream: an iterable of the file's byte lines, when the caller hashes what is parsed."""
+def read_file(path: str, stream=None, health: dict | None = None) -> list:
+    """stream: an iterable of the file's byte lines, when the caller hashes what is parsed.
+    health: a dict from new_health() to count into."""
+    hc = health if health is not None else new_health()
     session = ""
     cwd = ""
     origin = ""
@@ -81,6 +85,8 @@ def read_file(path: str, stream=None) -> list:
         f = stream
     with closing(f):
         for n, raw in enumerate(f):
+            if raw.strip():
+                hc["lines"] += 1
             try:
                 d = json.loads(raw.decode("utf-8", "replace"))
             except ValueError:
@@ -89,9 +95,18 @@ def read_file(path: str, stream=None) -> list:
             if t not in KNOWN or not isinstance(d.get("payload"), dict):
                 continue  # only whole, recognized records place presence
             p = d["payload"]
+            hc["records"] += 1
+            if t == "response_item" and get_str(p, "type").endswith("_call"):
+                hc["tool_calls"] += 1
+            elif t == "event_msg" and (get_str(p, "type") == "patch_apply_end" or (
+                    get_str(p, "type") == "item_completed" and get_str(get_dict(p, "item"), "type") == "FileChange")):
+                hc["edit_calls"] += 1
             dt = when(d.get("timestamp"))
             record_model = ""
             if t == "session_meta":
+                v = version_text(p.get("cli_version"))
+                if v:
+                    hc["versions"].add(v)
                 session = session or get_id(p, "id")
                 origin = origin or get_id(p, "originator")
                 cwd = cwd or abs_path(p.get("cwd"))
