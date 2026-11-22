@@ -1,6 +1,15 @@
 # Method
 
-Method version 2. Every sheet prints the method version that made it. A change to any rule below bumps it.
+Method version 3. Every sheet prints the method version that made it. A change to any rule below bumps it.
+
+Version 3 (tinkerprint 0.2.0) changed these rules from version 2:
+
+- Sessions from agent logs that are gone still count ([Kept history](#kept-history)).
+- Full party needs any three harnesses on one day, not every harness ever seen.
+- Shipwright counts lightweight tags on your commits and reads `cli/v1.2.0` by its last part.
+- Achievements over commits and tags count only commits inside the profile's roots.
+- Party labels say only what the logs recorded: "No edits recorded" replaces "Mostly reviews", and a presence-only reader says "Presence only".
+- The sheet says how many active days the class rests on.
 
 ## What a sheet says
 

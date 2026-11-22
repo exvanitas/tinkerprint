@@ -669,7 +669,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 
 <h2>Method</h2>
 <div class="method">
-<p><b>Method version {sheet["method"]}.</b> Same inputs and profile give the same sheet. No model scores anything.</p>
+<p><b>Method version {sheet["method"]}.</b> Same inputs and profile give the same sheet. The inputs are your repos, the agent logs on disk and what earlier builds kept from logs that are gone. No model scores anything.</p>
 <p><b>Points.</b> One active day is one point. Level is the square root of all-history points, rounded down. Class and radar cover the season.</p>
 <p><b>Days</b> run from {prof["rollover_hour"]:02d}:00 to {prof["rollover_hour"]:02d}:00 in {e(prof["timezone"])}.</p>
 <p><b>Class.</b> A stat at 50% or more makes a specialist. No stat over 20% makes a generalist. Otherwise the top two make a pair when the runner-up holds 10%. When the next pair or stat sits within 2 points, the sheet names it too.</p>

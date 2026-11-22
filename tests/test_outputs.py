@@ -137,7 +137,7 @@ class Built(unittest.TestCase):
             page = f.read()
         self.assertIn("default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:", page)
         self.assertNotRegex(page, r"(?i)(src|href)=\"https?:")
-        self.assertIn("Method version 2", page)
+        self.assertIn("Method version 3", page)
         self.assertIn("What changed", page)
         self.assertIn('class="radar"', page)
 

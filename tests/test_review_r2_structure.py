@@ -141,9 +141,9 @@ class B_CloseClasses(unittest.TestCase):
         s = self.sheet({"Logic": 35, "Interface": 25, "Data": 16, "Tests": 12.5, "Docs": 11.5})
         self.assertEqual(s["multiclass"]["display"], "Assayer, close to Chronicler")
 
-    def test_no_history_fields_and_method_two(self):
+    def test_no_history_fields_and_method_three(self):
         s = self.sheet({"Logic": 1})
-        self.assertEqual(s["method"], 2)
+        self.assertEqual(s["method"], 3)  # 0.2.0 bumped the method from 2
         self.assertNotIn("held", s["class"])
         self.assertNotIn("new-class", [a["id"] for a in s["achievements"]])
 
