@@ -4,7 +4,8 @@ from __future__ import annotations
 import re
 from html import escape
 
-from . import art, radar
+from . import art, look, radar
+from .art import keepsake
 from .party import HARNESS_NAMES
 
 W, H = 1200, 630
@@ -53,6 +54,8 @@ def visible(card: dict) -> dict:
         "projects": _clip("  ·  ".join(card["projects"]), 60) if card.get("projects") else "",
         "chart": card.get("chart", "radar"),
         "footer": _footer(card, days),
+        # What the portrait is drawn from: the name above as its seed, and the look tokens.
+        "look": look.of_card(card),
     }
     if v["chart"] == "radar":
         v["spokes"] = [(s["stat"], s["pct"]) for s in card["stats"]]
@@ -137,7 +140,8 @@ FOOT_Y = (582, 604)  # baselines of the two footer lines
 RADAR_LEFT = 640  # the radar's column starts here
 RADAR_CX, RADAR_CY, RADAR_R = 850, 288, 178
 RADAR_CLIP = 150  # the widest a spoke label may draw in card.png, so the longest stat names stay on the card
-PORTRAIT_PX = 176  # the portrait's target size: an integer scale of the pack's canvas near this
+PLATE_SCALE, PLATE_PAD = 3, 4  # the 64-pixel plate at 3x, 192 px, in a 200 px frame
+MEMBER_SCALE = 3  # party instruments
 SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', P052, Georgia, serif"
 # Lantern palette, shared with the sheet's dark theme.
 BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a3542", "#f3eadb", "#c9bda8",
@@ -149,25 +153,28 @@ def multiclass_room(x: int) -> int:
     return RADAR_LEFT - 24 - x
 
 
-def portrait_box(pack: dict) -> tuple:
+def portrait_box(pack: dict | None = None) -> tuple:
     """(scale, padding, frame) of the card's portrait: an integer scale, so pixels stay crisp."""
-    resolution = pack["canvas"][0]
-    scale = max(1, round(PORTRAIT_PX / resolution))
-    padding = 4 if resolution == 48 else 8
-    return scale, padding, resolution * scale + 2 * padding
+    return PLATE_SCALE, PLATE_PAD, 64 * PLATE_SCALE + 2 * PLATE_PAD
 
 
-def familiars(members: list, pack: dict) -> list:
-    """The party's familiars, from the visible party names. Unknown names get the pack's fallback."""
+def portrait_plate(card: dict, pack: dict):
+    """The portrait: the figure in front of their own room, from allowlisted card fields only.
+    The name seeds the room's view and any trait the profile left to chance."""
+    return keepsake.plate(pack, art.card_look(card), str(card.get("name", "")), **look.options(look.of_card(card)))
+
+
+def members(names: list) -> list:
+    """The party's instruments, from the visible party names. Unknown names get the fallback."""
     by_name = {v: k for k, v in HARNESS_NAMES.items()}
-    return [art.familiar(pack, by_name.get(name, "")) for name in members[:MAX_MEMBERS]]
+    return [keepsake.instrument(by_name.get(name, "")) for name in names[:MAX_MEMBERS]]
 
 
 _PATH = re.compile(r'<path fill="(#[0-9a-fA-F]{6})" d="([^"]*)"/>')
 
 
 def _merge(paths: list) -> list:
-    """One path per ink across sprites that never overlap: the portrait and the familiars."""
+    """One path per ink across sprites that never overlap: the portrait and the instruments."""
     by_fill: dict = {}
     for p in paths:
         m = _PATH.fullmatch(p)
@@ -203,12 +210,12 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     scale, padding, frame = portrait_box(pack)
     out.append(f'<rect x="{PX - 3}" y="{PY - 3}" width="{frame + 6}" height="{frame + 6}" rx="16" fill="#0b0a0e" '
                f'stroke="{LANTERN}" stroke-opacity="0.55" stroke-width="2"/>')
-    sprites = art.card_portrait_paths(card, PX + padding, PY + padding, scale, pack)
-    # The party's familiars stand at the foot of the radar's column, before the party line.
+    sprites = portrait_plate(card, pack).svg_paths(scale, PX + padding, PY + padding)
+    # The party's instruments stand at the foot of the radar's column, before the party line.
     fx = RADAR_LEFT
-    for f in familiars(v["members"], pack):
-        sprites += f.svg_paths(2, fx, BOTTOM_Y + 4 - f.h * 2)
-        fx += f.w * 2 + 6
+    for f in members(v["members"]):
+        sprites += f.svg_paths(MEMBER_SCALE, fx, BOTTOM_Y + 4 - f.h * MEMBER_SCALE)
+        fx += f.w * MEMBER_SCALE + 6
     out.append(f'<g shape-rendering="crispEdges">{"".join(_merge(sprites))}</g>')
     if v["level"]:
         # Level: a lantern seal on the portrait's corner.

@@ -1,7 +1,7 @@
 """card.png: the share card as a PNG, for sites and chats that do not preview SVG.
 
 It draws exactly visible()'s fields, like card.svg, in the same layout, with a pixel font made in
-code (pixelfont.py). The portrait and familiars are pasted at integer scales, so their pixels stay
+code (pixelfont.py). The portrait and instruments are pasted at integer scales, so their pixels stay
 crisp. The PNG holds image data only: no text chunks, no metadata.
 """
 from __future__ import annotations
@@ -15,8 +15,8 @@ from . import art, pixelfont, radar
 from .art.pixels import Canvas, mix
 from .render_card import (ACH_STEP, ACH_Y, BG, BOTTOM_Y, CLASS_Y, COL_RIGHT, FOOT_Y, H, INK, INK2, LANTERN,
                           LANTERN2, LINE, MUTED, NAME_RIGHT, NAME_Y, PX, PY, RADAR_CLIP, RADAR_CX, RADAR_CY,
-                          RADAR_LEFT, RADAR_R, RULE_Y, SET_Y, TX, W, familiars, multiclass_room, portrait_box,
-                          visible)
+                          RADAR_LEFT, RADAR_R, RULE_Y, SET_Y, TX, W, MEMBER_SCALE, members, multiclass_room,
+                          portrait_box, portrait_plate, visible)
 
 GLOW = "#3a2a1c"
 TRACK = "#2d2b34"
@@ -72,7 +72,7 @@ def draw_card(card: dict, pack: dict | None = None) -> Canvas:
     scale, padding, frame = portrait_box(pack)
     _rounded_fill(c, PX - 3, PY - 3, PX + frame + 3, PY + frame + 3, 16, mix(BG, LANTERN, 0.55))
     _rounded_fill(c, PX - 1, PY - 1, PX + frame + 1, PY + frame + 1, 14, FRAME)
-    paste(c, art.portrait(pack, art.card_look(card)), PX + padding, PY + padding, scale)
+    paste(c, portrait_plate(card, pack), PX + padding, PY + padding, scale)
     if v["level"]:
         _seal(c, PX + frame + 14, PY + frame - 14, v["level"])
 
@@ -111,11 +111,11 @@ def draw_card(card: dict, pack: dict | None = None) -> Canvas:
             text(c, COL_RIGHT, y, when, MUTED, 2, anchor="end")
             y += ACH_STEP
 
-    # Party in the radar's column after its familiars, projects in the left column.
+    # Party in the radar's column after its instruments, projects in the left column.
     fx = RADAR_LEFT
-    for f in familiars(v["members"], pack):
-        paste(c, f, fx, BOTTOM_Y + 4 - f.h * 2, 2)
-        fx += f.w * 2 + 6
+    for f in members(v["members"]):
+        paste(c, f, fx, BOTTOM_Y + 4 - f.h * MEMBER_SCALE, MEMBER_SCALE)
+        fx += f.w * MEMBER_SCALE + 6
     # The pixel font's space is wide, so the double spaces between members draw as one.
     if v["party"]:
         x, room = fx + 6, W - 64 - fx - 6

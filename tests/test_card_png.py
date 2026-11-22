@@ -16,7 +16,7 @@ from tinkerprint.audit import audit_card, check_png, png_chunks, svg_strings
 from tinkerprint.build import build
 from tinkerprint.demo import WREN, make_person
 from tinkerprint.profile import load_profile
-from tinkerprint.render_card import H, PX, PY, W, portrait_box, render_card, shows, visible
+from tinkerprint.render_card import H, PX, PY, W, portrait_box, portrait_plate, render_card, shows, visible
 from tinkerprint.render_card_png import draw_card, render_card_png
 
 
@@ -73,9 +73,9 @@ class CardPng(unittest.TestCase):
         pack = art.default_pack()
         card = tie_card()
         scale, padding, frame = portrait_box(pack)
-        self.assertEqual(scale * pack["canvas"][0], 192)
         canvas = draw_card(card, pack)
-        sprite = art.portrait(pack, art.card_look(card))
+        sprite = portrait_plate(card, pack)
+        self.assertEqual(scale * sprite.w, 192)
         sx, sy = PX + frame + 14, PY + frame - 14  # the level seal covers the frame's corner
         checked = 0
         for j in range(0, sprite.h, 3):

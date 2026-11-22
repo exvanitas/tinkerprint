@@ -14,7 +14,7 @@ from .projects import Resolver, canonical, scan_priors
 from .readers import agy, claude, codex
 from .readers._common import HashingStream, new_health, version_text
 from .readers.git import Identity, read_git
-from .render_card import render_card
+from .render_card import portrait_plate, render_card
 from .render_card_png import render_card_png
 from .render_html import render_html
 from .history import History, scope_digests
@@ -454,8 +454,8 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
         paths["card"] = card_path
         _write(card_png, render_card_png(sheet["card"], pack), share=True)
         paths["card_png"] = card_png
-        # The portrait as a PNG, from the card's allowlisted fields only.
-        _write(png_path, art.portrait(pack, art.card_look(sheet["card"])).png(8), share=True)
+        # The portrait plate as a PNG at 6x, from the card's allowlisted fields only.
+        _write(png_path, portrait_plate(sheet["card"], pack).png(6, indexed=True), share=True)
         paths["portrait"] = png_path
     else:
         for path in (card_path, card_png, png_path):

@@ -1,8 +1,8 @@
-"""Generated pixel art: portraits, familiars, achievement icons, a banner and the chronicle strip.
+"""Generated pixel art: portraits, party instruments, achievement pins, a banner and the chronicle strip.
 
 Parts are data (see default_pack.py and docs/ART.md). The sheet's art reads sheet.json. The card's
-art reads only the card's allowlisted fields: set, class, multiclass, rounded shares.
-keepsake is the half-body edition: plates, camps, pins, trinkets and instruments.
+art reads only the card's allowlisted fields: name, set, class, multiclass, rounded shares and the
+look tokens. keepsake is the half-body edition: plates, camps, pins, trinkets and instruments.
 """
 from __future__ import annotations
 
@@ -13,8 +13,7 @@ from .pack import PackError, default_pack, export_pack, load_pack
 from . import keepsake
 
 __all__ = ["keepsake", "Look", "PackError", "default_pack", "export_pack", "load_pack", "sheet_looks", "card_look",
-           "art_rank", "banner", "banner_figure_box", "figure", "campfire", "familiar", "icon", "plate", "portrait", "shelf_counts", "stat_ramp", "trinket", "chapter_look", "sheet_pcts",
-           "card_portrait_paths"]
+           "art_rank", "banner", "banner_figure_box", "figure", "campfire", "familiar", "icon", "plate", "portrait", "shelf_counts", "stat_ramp", "trinket", "chapter_look", "sheet_pcts"]
 
 
 def sheet_pcts(sheet: dict) -> dict:
@@ -62,8 +61,3 @@ def card_look(card: dict) -> Look:
     multi = class_by_name(set_name, _base_name(card.get("multiclass", "")))
     return look_for(set_name, kind, stats, ranked, multi[1] if multi and multi[0] == "pair" else None)
 
-
-def card_portrait_paths(card: dict, x: float, y: float, scale: float, pack: dict | None = None) -> list:
-    """The card's portrait as <path> elements: fill and d only, no text."""
-    pack = pack or default_pack()
-    return portrait(pack, card_look(card)).svg_paths(scale, x, y)
