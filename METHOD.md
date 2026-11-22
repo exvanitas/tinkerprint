@@ -112,7 +112,7 @@ Eight spokes in the set's order, the same for every profile, so two profiles ove
 
 ## Party
 
-One member per harness: days together, sessions, models used, and whether its sessions mostly edit or mostly review (`exec` originator, no file changes). The party shows presence. It never shows a share of the work, and token counts never become a score. Usage limits and plan data are never read.
+One member per harness: days together, sessions and models used. Its label says only what the logs recorded: "Mostly edits" when more than half its sessions have a recorded file change, "Some edits recorded", or "No edits recorded". A session with no recorded edit may have done work its log does not show, so the sheet never calls it a review. A reader that records presence only (Antigravity) says "Presence only". The party shows presence. It never shows a share of the work, and token counts never become a score. Usage limits and plan data are never read.
 
 ## Achievements
 

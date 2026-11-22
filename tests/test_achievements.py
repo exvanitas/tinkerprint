@@ -80,7 +80,18 @@ class Achievements(unittest.TestCase):
                session(ts, "/w/a", "e1", "codex", origin="codex_exec"),
                edit(ts, "/w/a/x.py", "e1", "codex")]
         m = run(self.prof, evs)[0]["party"][0]
-        self.assertEqual((m["edit_sessions"], m["review_sessions"], m["role"]), (1, 2, "Mostly reviews"))
+        # 0.2.0: an exec session with no recorded edit is no longer called a review.
+        self.assertEqual((m["edit_sessions"], m["role"]), (1, "Some edits recorded"))
+        self.assertNotIn("review_sessions", m)
+        m = run(self.prof, evs[:2])[0]["party"][0]
+        self.assertEqual((m["edit_sessions"], m["role"]), (0, "No edits recorded"))
+        m = run(self.prof, evs[2:])[0]["party"][0]
+        self.assertEqual(m["role"], "Mostly edits")
+
+    def test_presence_only_reader(self):
+        ts = "2026-02-02T10:00:00+00:00"
+        m = run(self.prof, [session(ts, "/w/a", "g1", "agy", model="")])[0]["party"][0]
+        self.assertEqual((m["name"], m["role"], m["sessions"]), ("Antigravity", "Presence only", 1))
 
 
 if __name__ == "__main__":

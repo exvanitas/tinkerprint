@@ -535,8 +535,9 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     party = []
     for m in sheet["party"]:
         models = "".join(f'<span class="m">{e(x)}</span>' for x in m["models"][:6])
-        facts = [("Sessions", m["sessions"]), ("Edited", m["edit_sessions"]), ("Reviewed", m["review_sessions"]),
-                 ("Other", m["other_sessions"])]
+        if len(m["models"]) > 6:
+            models += f'<span class="m">+{len(m["models"]) - 6} more</span>'
+        facts = [("Sessions", m["sessions"])]
         party.append(
             f'<article class="card comp"><div class="fam">{pix["familiar"][m["harness"]]}</div>'
             f'<div><div class="nm">{e(m["name"])}</div><div class="role">{e(m["role"])}</div></div>'
@@ -630,7 +631,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 </div>
 
 <h2>Party</h2>
-<p class="lede">The agents that worked beside you. The party shows presence, never a share of the work. Sessions with no file change earn no points.</p>
+<p class="lede">The agents that worked beside you. The party shows presence, never a share of the work. Each label says only what the logs recorded. Sessions with no file change earn no points.</p>
 {party_html}
 
 <h2>Achievements</h2>
