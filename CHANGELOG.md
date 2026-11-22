@@ -48,7 +48,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - A build reads your repos without starting any program their git config names, such as a signature checker or a diff filter, and without fetching, whatever the repo or your `GIT_` variables say.
 - `demo` writes its repos only inside its own temporary folder, even when `GIT_DIR` or `GIT_WORK_TREE` is set.
-- Outputs are readable under your umask, so a web server or a copy can serve them. The cache and history stay private to you.
+- The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are readable by others, so a web server or a copy can serve them, and only you can change them. The sheet (`sheet.html`, `sheet.json`, `changes.json`), the cache and history stay private to you.
 
 ### Accuracy and achievements
 
@@ -63,6 +63,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - Paths, roots and time zones work on Windows. `init` writes your clock's UTC offset when it cannot read a time zone name.
 - Antigravity's `file:///C:/` paths and its database work on Windows.
 - On Windows, work an agent log records on a network share or a device path is left out, so a log can never send a build to another machine. Work on a drive counts as before.
+- A build on Windows passes its own audit: text outputs are written with `\n` line ends there too.
 - `tzdata` installs on Windows only, since Windows Python ships no time-zone data.
 - The demo runs on Windows.
 

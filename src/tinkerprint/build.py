@@ -460,14 +460,14 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     os.makedirs(out_dir, exist_ok=True)
     if os.path.abspath(out_dir) == os.path.abspath(default_out(home, profile)):
         mark_sheets(out_dir)  # so forget --all can tell this folder from an --out folder
-    # Everything in the output folder is for opening or sharing, so it gets the umask's usual mode.
-    # The pointer and history below stay private.
+    # The sheet holds project names, models and exact dates, so it stays private (0600) like the
+    # pointer and history below. Only the card files, made for passing on, are readable by others.
     paths = {"json": os.path.join(out_dir, "sheet.json"), "changes": os.path.join(out_dir, "changes.json"),
              "html": os.path.join(out_dir, "sheet.html")}
-    _write(paths["json"], pretty(sheet), share=True)
-    _write(paths["changes"], pretty(changes), share=True)
+    _write(paths["json"], pretty(sheet))
+    _write(paths["changes"], pretty(changes))
     pack = pack or art.default_pack()
-    _write(paths["html"], render_html(sheet, built_at, changes, pack), share=True)
+    _write(paths["html"], render_html(sheet, built_at, changes, pack))
     card_path = os.path.join(out_dir, "card.svg")
     card_png = os.path.join(out_dir, "card.png")
     png_path = os.path.join(out_dir, "portrait.png")

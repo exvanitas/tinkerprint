@@ -1,10 +1,11 @@
-"""Outputs people open or share follow the umask (0644 under 022). The cache, history and pointer stay 0600.
+"""The card files people share are 0644 less the umask. The sheet, cache, history and pointer stay 0600.
 Every name, path and email here is invented."""
 import os
 import stat
 import tempfile
 import unittest
 from datetime import date, datetime
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 import helpers  # noqa: F401
@@ -53,8 +54,10 @@ class FileModes(unittest.TestCase):
 
     def test_outputs_shared_data_private(self):
         out, home = self.build()
-        for name in ("sheet.html", "card.svg", "portrait.png", "portrait.gif", "sheet.json", "changes.json"):
+        for name in ("card.svg", "card.png", "portrait.png", "portrait.gif"):
             self.assertEqual(mode(os.path.join(out, name)), 0o644, name)
+        for name in ("sheet.html", "sheet.json", "changes.json"):
+            self.assertEqual(mode(os.path.join(out, name)), 0o600, name)
         private = list(self.private_files(home))
         self.assertTrue(any(os.sep + "cache" + os.sep in p for p in private))
         self.assertTrue(any(os.sep + "history" + os.sep in p for p in private))
@@ -66,7 +69,18 @@ class FileModes(unittest.TestCase):
     def test_strict_umask_is_respected(self):
         os.umask(0o077)
         out, _ = self.build()
+        self.assertEqual(mode(os.path.join(out, "card.png")), 0o600)
+
+    def test_a_loose_umask_never_makes_a_card_writable(self):
+        os.umask(0o002)
+        out, _ = self.build()
+        self.assertEqual(mode(os.path.join(out, "card.svg")), 0o644)
         self.assertEqual(mode(os.path.join(out, "sheet.html")), 0o600)
+
+    def test_no_umask_never_makes_a_card_writable(self):
+        os.umask(0)
+        out, _ = self.build()
+        self.assertEqual(mode(os.path.join(out, "card.png")), 0o644)
 
     def test_gallery(self):
         from tinkerprint.gallery import write_gallery
@@ -83,7 +97,42 @@ class FileModes(unittest.TestCase):
         run_demo(out, people=PEOPLE[1:])
         files = [os.path.join(f, n) for f, _, ns in os.walk(out) for n in ns]
         self.assertTrue(any(p.endswith("sheet.html") for p in files))
-        self.assertEqual({mode(p) for p in files}, {0o644})
+        sheet = {"sheet.html", "sheet.json", "changes.json"}
+        self.assertEqual({mode(p) for p in files if os.path.basename(p) not in sheet}, {0o644})
+        self.assertEqual({mode(p) for p in files if os.path.basename(p) in sheet}, {0o600})
+
+
+class CanonicalText(unittest.TestCase):
+    """Text outputs are UTF-8 with \\n newlines on every platform, so a build passes its own audit."""
+
+    def test_a_windows_newline_never_reaches_the_card(self):
+        real = os.fdopen
+
+        def windows_fdopen(fd, mode="r", *a, **kw):  # text mode as Windows does it: \\n becomes \\r\\n
+            if "b" not in mode:
+                kw["newline"] = "\r\n"
+            return real(fd, mode, *a, **kw)
+
+        from tinkerprint.audit import audit
+        with tempfile.TemporaryDirectory() as t:
+            t = os.path.realpath(t)
+            root = os.path.join(t, "repo")
+            r = RepoWriter(root)
+            r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"a.py": 2})
+            r.write()
+            path = os.path.join(t, "p.toml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(f'name = "Ida"\n[identity]\nemails = ["{ME[1]}"]\n[harnesses]\nclaude = false\n'
+                        f'codex = false\n[[project]]\nname = "P"\nroot = "{root}"\n')
+            prof = load_profile(path)
+            out = os.path.join(t, "out")
+            with mock.patch("os.fdopen", windows_fdopen):
+                build(prof, out, home=os.path.join(t, "data"), today=date(2026, 11, 1))
+            for name in ("card.svg", "sheet.html", "sheet.json"):
+                with open(os.path.join(out, name), "rb") as f:
+                    self.assertNotIn(b"\r\n", f.read(), name)
+            lines, clean = audit(out, prof)
+            self.assertTrue(clean, "\n".join(lines))
 
 
 if __name__ == "__main__":

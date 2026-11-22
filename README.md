@@ -158,7 +158,7 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 - `tinkerprint-data.txt`: says this is tinkerprint's data folder. Every build writes it.
 - `tinkerprint.lock`: lets one build at a time update the cache and `profiles.json`. A second build, or `forget`, waits for the first, and gives up with a plain message after two minutes.
 
-The cache, history, last-build files and `profiles.json` are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.
+The cache, history, last-build files, `profiles.json` and the sheet itself (`sheet.html`, `sheet.json`, `changes.json`) are private to you (mode 0600), since the sheet names your projects, models and exact dates. The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are made to pass on: others can read them (0644, less what your umask takes away), and only you can change them. Text files are UTF-8 with `\n` line ends on every system.
 
 `tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears everything above. It works only in a folder with `tinkerprint-data.txt`, or in the default data folder. It deletes only files tinkerprint wrote, one by one, never through a symlink or junction, and names any folder it leaves alone. It never touches your repos, agent logs, profiles or `--out` folders, even one inside `sheets/`.
 
