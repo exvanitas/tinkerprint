@@ -20,8 +20,8 @@ from .render_html import render_html
 from .history import History, scope_digests
 from .keys import adopt
 from .score import compare, score_core
-from .datadir import (_is_git_dir, _write, data_home, data_lock, inside_repo_or_root, mark_home, mark_sheets,
-                      path_within, pretty)
+from .datadir import (_is_git_dir, _write, claim_home, data_home, data_lock, inside_repo_or_root, path_within,
+                      pretty)
 from .timeutil import day_label, month_label, parse_day, parse_ts
 
 # A version change re-reads every log that is still there, and keeps what earlier builds read
@@ -176,13 +176,13 @@ def gather(profile: Profile, home: str) -> Inputs:
     # cache is shared: each read, merge and replace holds the data folder's lock.
     if profile.claude:
         rep = new_report()
-        with data_lock(home):
+        with data_lock(home, claimed=True):
             evs = _cached(claude.transcript_files(profile.claude_dir), claude.read_file,
                           os.path.join(cache, "claude.json"), profile.claude_dir, rep)
         events += note("claude", profile.claude_dir, os.path.isdir(profile.claude_dir), evs, rep)
     if profile.codex:
         rep = new_report()
-        with data_lock(home):
+        with data_lock(home, claimed=True):
             evs = _cached(codex.rollout_files(profile.codex_dir), codex.read_file,
                           os.path.join(cache, "codex.json"), profile.codex_dir, rep)
         events += note("codex", profile.codex_dir, os.path.isdir(profile.codex_dir), evs, rep)
@@ -422,7 +422,7 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     Returns (sheet, local)."""
     home = data_home(home)
     check_data_home(home, profile)
-    mark_home(home)
+    claim_home(home)
     inputs = inputs if inputs is not None else gather(profile, home)
     warnings = list(inputs.warnings)
     priors = scan_priors(profile.projects, cutoff(profile, as_of), warnings)
@@ -442,7 +442,7 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     """
     home = data_home(home)
     check_data_home(home, profile)
-    mark_home(home)
+    claim_home(home)
     adopt(home, profile)
     hist = History(home, profile.id, season)
     pointer = os.path.join(home, "last-build", profile.id + ".json")
@@ -457,40 +457,34 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     prev_day, prev = hist.previous(stamp)
     scope = scope_digests(profile)
     changes = compare(sheet, prev, prev_day, scope)
-    os.makedirs(out_dir, exist_ok=True)
-    if os.path.abspath(out_dir) == os.path.abspath(default_out(home, profile)):
-        mark_sheets(out_dir)  # so forget --all can tell this folder from an --out folder
     # The sheet holds project names, models and exact dates, so it stays private (0600) like the
     # pointer and history below. Only the card files, made for passing on, are readable by others.
-    paths = {"json": os.path.join(out_dir, "sheet.json"), "changes": os.path.join(out_dir, "changes.json"),
-             "html": os.path.join(out_dir, "sheet.html")}
-    _write(paths["json"], pretty(sheet))
-    _write(paths["changes"], pretty(changes))
     pack = pack or art.default_pack()
-    _write(paths["html"], render_html(sheet, built_at, changes, pack, as_of_label=day_label(stamp.isoformat())))
-    card_path = os.path.join(out_dir, "card.svg")
-    card_png = os.path.join(out_dir, "card.png")
-    png_path = os.path.join(out_dir, "portrait.png")
-    gif_path = os.path.join(out_dir, "portrait.gif")
+    files = [("json", "sheet.json", pretty(sheet), False), ("changes", "changes.json", pretty(changes), False),
+             ("html", "sheet.html", render_html(sheet, built_at, changes, pack,
+                                                as_of_label=day_label(stamp.isoformat())), False)]
+    card_files = (("card", "card.svg", render_card), ("card_png", "card.png", render_card_png),
+                  ("portrait", "portrait.png", portrait_png), ("portrait_gif", "portrait.gif", portrait_gif))
     if sheet["card"].get("enabled"):
-        # Both card files draw visible()'s fields and nothing else.
-        _write(card_path, render_card(sheet["card"], pack), share=True)
-        paths["card"] = card_path
-        _write(card_png, render_card_png(sheet["card"], pack), share=True)
-        paths["card_png"] = card_png
-        # The portrait plate at 6x, still and idling, from the card's allowlisted fields only.
-        _write(png_path, portrait_png(sheet["card"], pack), share=True)
-        paths["portrait"] = png_path
-        _write(gif_path, portrait_gif(sheet["card"], pack), share=True)
-        paths["portrait_gif"] = gif_path
-    else:
-        for path in (card_path, card_png, png_path, gif_path):
-            if os.path.exists(path):
-                os.remove(path)
-    os.makedirs(os.path.dirname(pointer), exist_ok=True)
-    _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
-    # History is published last: a build that failed anywhere earlier never becomes a comparison.
-    # The saved copy also keeps the scope digests, so the next build can say when they changed.
-    hist.save(stamp, dict(sheet, _scope=scope))
+        # Every card file draws visible()'s fields and nothing else. The portraits are the
+        # portrait plate at 6x, still and idling.
+        files += [(k, name, draw(sheet["card"], pack), True) for k, name, draw in card_files]
+    paths = {}
+    # Published under the data folder's lock, so a forget --all that ran meanwhile stops this
+    # build from writing into the folder it deleted.
+    with data_lock(home, claimed=True):
+        os.makedirs(out_dir, exist_ok=True)
+        for k, name, data, share in files:
+            paths[k] = os.path.join(out_dir, name)
+            _write(paths[k], data, share=share)
+        if not sheet["card"].get("enabled"):
+            for _, name, _ in card_files:
+                if os.path.exists(os.path.join(out_dir, name)):
+                    os.remove(os.path.join(out_dir, name))
+        os.makedirs(os.path.dirname(pointer), exist_ok=True)
+        _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
+        # History is published last: a build that failed anywhere earlier never becomes a comparison.
+        # The saved copy also keeps the scope digests, so the next build can say when they changed.
+        hist.save(stamp, dict(sheet, _scope=scope))
     return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
             "warnings": local.get("warnings", [])}

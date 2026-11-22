@@ -41,9 +41,11 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 ### Your data and privacy
 
-- `tinkerprint forget` lists what tinkerprint keeps for a profile, or everything with `--all`, and deletes it with `--yes`. It deletes only in a data folder a build has marked, and only files tinkerprint wrote. It never touches your repos, agent logs, profiles or `--out` folders.
+- `tinkerprint forget` shows what tinkerprint keeps and where: the data folder and its size, and for a profile its history, last-build file and sheets folder. It deletes nothing.
+- `tinkerprint forget --all --yes` deletes the whole data folder, when it holds only what tinkerprint keeps. Your repos, agent logs, profiles and `--out` folders are never in it.
 - Sessions from agent logs that are gone still count. Claude Code deletes old transcripts after about a month, and your sheet no longer loses those days. That includes logs 0.1 read that are gone by your first 0.2 build.
-- Two builds at once, or a build and `forget`, take turns with the cache and the profile list, so neither loses the other's sessions or profiles.
+- Two builds at once, or a build and `forget --all`, take turns with the data folder, so neither loses the other's sessions or profiles. A run that has to wait says so and keeps waiting.
+- A build moves into a `--data-dir` only when it is new, empty or a tinkerprint data folder, and writes `--out` only outside the data folder.
 - History follows a profile file you move. A copy of a profile starts its own. A profile whose name or identity changed at the same path keeps its history, and `build` says how to start afresh.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - A build reads your repos without starting any program their git config names, such as a signature checker or a diff filter, and without fetching, whatever the repo or your `GIT_` variables say.

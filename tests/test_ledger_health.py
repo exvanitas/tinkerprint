@@ -208,9 +208,9 @@ class KeptHistoryBuild(Tmp):
     def test_forget_clears_the_kept_history(self):
         self.build("o1")
         self.delete_logs()
-        text = self.cli("forget", "--profile", self.prof_path, "--data-dir", os.path.join(self.t, "data"))
-        self.assertIn("sessions kept from deleted logs are lost", text)
-        self.cli("forget", "--profile", self.prof_path, "--data-dir", os.path.join(self.t, "data"), "--yes")
+        text = self.cli("forget", "--all", "--data-dir", os.path.join(self.t, "data"))
+        self.assertIn("Deleting the cache loses the sessions kept from agent logs that are gone.", text)
+        self.cli("forget", "--all", "--data-dir", os.path.join(self.t, "data"), "--yes")
         self.build("o2")
         self.assertEqual(self.sheet("o2")["history"]["active_days"], 1)
         self.assertEqual(self.sheet("o2")["party"], [])

@@ -148,19 +148,21 @@ Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint
 
 ## What stays on disk
 
-Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprint/`, or `$XDG_DATA_HOME/tinkerprint`, or `--data-dir`.
+Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprint/`, or `$XDG_DATA_HOME/tinkerprint`, or `--data-dir`. A `--data-dir` must be new or empty the first time, or a data folder from tinkerprint 0.1.
 
 - `cache/`: what the readers kept from each agent log (times, folders, file paths, models), so the next build skips logs that have not changed. Shared by all profiles. When a log is deleted, as Claude Code does with transcripts after about a month, its entry stays here, marked gone, so its days still count. This is the only copy of those sessions.
 - `history/`: each build's sheet, per profile and season, for "what changed".
 - `last-build/`: one small file per profile naming its last output folder, for `audit`.
-- `sheets/`: builds made without `--out`. Each such folder holds a small `.tinkerprint-sheets` file, so `forget --all` can tell it from an `--out` folder you put there.
-- `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it. The path is what a profile is: a file edited or replaced at the same path keeps its history, and `build` says so when its name or identity changed. To start afresh, run `tinkerprint forget --profile PATH --yes` first. `forget` on the old path of a moved profile deletes nothing: use the new path.
-- `tinkerprint-data.txt`: says this is tinkerprint's data folder. Every build writes it.
-- `tinkerprint.lock`: lets one build at a time update the cache and `profiles.json`. A second build, or `forget`, waits for the first, and gives up with a plain message after two minutes.
+- `sheets/`: builds made without `--out`. An `--out` folder goes outside the data folder.
+- `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it. The path is what a profile is: a file edited or replaced at the same path keeps its history, and `build` says so when its name or identity changed. To start afresh, delete that profile's `history/` folder.
+- `tinkerprint-data.txt`: says this is tinkerprint's data folder.
+- `tinkerprint.lock`: lets one run at a time update the cache, `profiles.json` and history. A second run waits for the first, and says so after five seconds.
 
 The cache, history, last-build files, `profiles.json` and the sheet itself (`sheet.html`, `sheet.json`, `changes.json`) are private to you (mode 0600), since the sheet names your projects, models and exact dates. The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are made to pass on: others can read them (0644, less what your umask takes away), and only you can change them. Text files are UTF-8 with `\n` line ends on every system.
 
-`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears everything above. It works only in a folder with `tinkerprint-data.txt`, or in the default data folder. It deletes only files tinkerprint wrote, one by one, never through a symlink or junction, and names any folder it leaves alone. It never touches your repos, agent logs, profiles or `--out` folders, even one inside `sheets/`.
+`tinkerprint forget` deletes nothing. It shows the data folder and its size, and with `--profile` that profile's history folder, last-build file and sheets folder. To remove one profile's data, delete those yourself. The cache is shared by every profile.
+
+`tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt`, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them.
 
 ## What it will not do
 

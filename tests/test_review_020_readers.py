@@ -110,22 +110,16 @@ with data_lock(sys.argv[2]):
 
 
 class Locks(Tmp):
-    """Builds and forget take the data folder's lock around shared state, and give up in time."""
+    """Builds and forget take the data folder's lock around shared state, and wait for each other."""
 
     def setUp(self):
         super().setUp()
         self.data = os.path.join(self.t, "data")
-        os.makedirs(self.data)
-        from tinkerprint import datadir
-        self.wait = mock.patch.object(datadir, "LOCK_WAIT", 0.3)
-        self.wait.start()
-
-    def tearDown(self):
-        self.wait.stop()
-        super().tearDown()
+        from tinkerprint.datadir import claim_home
+        claim_home(self.data)
 
     def hold(self):
-        """Another process holds the lock until the test ends."""
+        """Another process holds the lock until the test releases it."""
         child = subprocess.Popen([sys.executable, "-c", HOLD, helpers.SRC, self.data], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, text=True)
         self.addCleanup(child.wait)
@@ -133,6 +127,11 @@ class Locks(Tmp):
         self.addCleanup(child.stdout.close)
         self.assertEqual(child.stdout.readline().strip(), "held")
         return child
+
+    def release(self, child):
+        child.stdin.write("\n")
+        child.stdin.flush()
+        child.wait()
 
     def profile(self):
         from tinkerprint.profile import load_profile
@@ -145,47 +144,90 @@ class Locks(Tmp):
                     f'root = "{os.path.join(self.t, "nowhere")}"\n')
         return load_profile(p)
 
-    def test_the_cache_waits_for_the_lock(self):
+    def in_thread(self, fn):
+        import threading
+        done = []
+        th = threading.Thread(target=lambda: done.append(fn()), daemon=True)
+        th.start()
+        return th, done
+
+    def test_the_cache_waits_for_the_lock_and_says_so(self):
+        from tinkerprint import datadir
         from tinkerprint.build import gather
-        from tinkerprint.datadir import Busy
         prof = self.profile()
-        self.hold()
-        with self.assertRaises(Busy) as cm:
-            gather(prof, self.data)
-        self.assertIn("another tinkerprint run is using", str(cm.exception))
-        self.assertFalse(os.path.exists(os.path.join(self.data, "cache")))
+        child = self.hold()
+        err = io.StringIO()
+        with mock.patch.object(datadir, "NOTICE_AFTER", 0.1), mock.patch.object(sys, "stderr", err):
+            th, done = self.in_thread(lambda: gather(prof, self.data))
+            th.join(0.6)
+            self.assertTrue(th.is_alive())
+            self.assertFalse(os.path.exists(os.path.join(self.data, "cache")))
+            self.release(child)
+            th.join(10)
+        self.assertFalse(th.is_alive())
+        self.assertIn("waiting for another tinkerprint run...", err.getvalue())
+        self.assertTrue(os.path.exists(os.path.join(self.data, "cache", "claude.json")))
 
     def test_the_profile_list_waits_for_the_lock(self):
-        from tinkerprint.datadir import Busy
         from tinkerprint.keys import adopt, read_registry
         prof = self.profile()
-        self.hold()
-        with self.assertRaises(Busy):
-            adopt(self.data, prof)
-        self.assertEqual(read_registry(self.data), {})
+        child = self.hold()
         adopt(self.data, prof, write=False)  # a read never waits
+        th, _ = self.in_thread(lambda: adopt(self.data, prof))
+        th.join(0.3)
+        self.assertTrue(th.is_alive())
+        self.assertEqual(read_registry(self.data), {})
+        self.release(child)
+        th.join(10)
+        self.assertEqual(len(read_registry(self.data)), 1)
 
-    def test_forget_waits_and_says_so(self):
+    def test_forget_waits_for_a_build(self):
         from tinkerprint.cli import main
-        from tinkerprint.datadir import mark_home
-        mark_home(self.data)
         os.makedirs(os.path.join(self.data, "cache"))
         with open(os.path.join(self.data, "cache", "claude.json"), "w") as f:
             f.write("{}")
-        self.hold()
-        err = io.StringIO()
-        with redirect_stdout(io.StringIO()), redirect_stderr(err):
-            code = main(["forget", "--all", "--yes", "--data-dir", self.data])
-        self.assertEqual(code, 2)
-        self.assertIn("another tinkerprint run is using", err.getvalue())
-        self.assertTrue(os.path.exists(os.path.join(self.data, "cache", "claude.json")))
+        child = self.hold()
+        out = io.StringIO()
+        th, done = self.in_thread(lambda: main(["forget", "--all", "--yes", "--data-dir", self.data]))
+        with redirect_stdout(out):
+            th.join(0.3)
+            self.assertTrue(th.is_alive())
+            self.assertTrue(os.path.exists(os.path.join(self.data, "cache", "claude.json")))
+            self.release(child)
+            th.join(10)
+        self.assertEqual(done, [0])
+        self.assertFalse(os.path.exists(self.data))
 
-    def test_the_lock_nests_and_forget_all_leaves_nothing(self):
+    def test_a_run_that_waited_while_forget_deleted_the_folder_stops(self):
+        from tinkerprint.datadir import Gone, data_lock
+        from tinkerprint.forget import forget_all
+        result = []
+
+        def waiter():
+            try:
+                with data_lock(self.data, claimed=True):
+                    result.append("wrote")
+            except Gone as e:
+                result.append(str(e))
+        import threading
+        with data_lock(self.data) as lock:
+            th = threading.Thread(target=waiter, daemon=True)
+            th.start()
+            th.join(0.2)
+            self.assertTrue(th.is_alive())
+            lines = forget_all(self.data, True)  # the same thread holds the lock, so this nests
+            self.assertIn("Deleted", lines[-1])
+            self.assertTrue(lock.drop)
+        th.join(10)
+        self.assertEqual(len(result), 1)
+        self.assertIn("was deleted while this run waited", result[0])
+        self.assertFalse(os.path.exists(self.data))
+
+    def test_the_lock_nests_in_its_thread_and_forget_all_leaves_nothing(self):
         from tinkerprint.cli import main
-        from tinkerprint.datadir import LOCK, data_lock, mark_home
-        mark_home(self.data)
+        from tinkerprint.datadir import LOCK, data_lock
         with data_lock(self.data):
-            with data_lock(self.data):  # the same process never waits on itself
+            with data_lock(self.data):  # the same thread never waits on itself
                 pass
         self.assertTrue(os.path.exists(os.path.join(self.data, LOCK)))
         os.makedirs(os.path.join(self.data, "cache"))
@@ -195,13 +237,67 @@ class Locks(Tmp):
             self.assertEqual(main(["forget", "--all", "--yes", "--data-dir", self.data]), 0)
         self.assertFalse(os.path.exists(self.data))
 
+    def test_another_thread_waits(self):
+        from tinkerprint.datadir import data_lock
+        order = []
+        with data_lock(self.data):
+            th, _ = self.in_thread(lambda: data_lock(self.data).__enter__() and order.append("other"))
+            th.join(0.3)
+            self.assertTrue(th.is_alive())
+            order.append("first")
+        th.join(10)
+        self.assertEqual(order, ["first", "other"])
+
+    def test_a_file_system_without_locking_warns_once_and_goes_on(self):
+        import errno
+        from tinkerprint import datadir
+        opened, closed = [], []
+        real_open, real_close = os.open, os.close
+
+        def track_open(*a, **k):
+            fd = real_open(*a, **k)
+            opened.append(fd)
+            return fd
+
+        def track_close(fd):
+            closed.append(fd)
+            return real_close(fd)
+        err = io.StringIO()
+        fail = OSError(errno.ENOLCK, "No locks available")
+        with mock.patch.object(datadir, "_try_lock", side_effect=datadir._NoLocking(fail.errno, fail.strerror)), \
+                mock.patch.object(datadir.os, "open", track_open), mock.patch.object(datadir.os, "close", track_close), \
+                mock.patch.object(datadir, "_warned", []), mock.patch.object(sys, "stderr", err):
+            for _ in range(2):
+                with datadir.data_lock(self.data) as lock:
+                    self.assertIsNone(lock.fd)
+        self.assertEqual(err.getvalue().count("cannot lock files"), 1)
+        self.assertEqual(sorted(opened), sorted(closed))
+
+    def test_an_error_while_locking_closes_the_file(self):
+        from tinkerprint import datadir
+        opened, closed = [], []
+        real_open, real_close = os.open, os.close
+
+        def track_open(*a, **k):
+            fd = real_open(*a, **k)
+            opened.append(fd)
+            return fd
+
+        def track_close(fd):
+            closed.append(fd)
+            return real_close(fd)
+        with mock.patch.object(datadir, "_try_lock", side_effect=OSError(5, "I/O error")), \
+                mock.patch.object(datadir.os, "open", track_open), mock.patch.object(datadir.os, "close", track_close):
+            with self.assertRaises(OSError):
+                with datadir.data_lock(self.data):
+                    pass
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(opened, closed)
+
     def test_a_released_lock_is_free(self):
         from tinkerprint.datadir import data_lock
-        child = self.hold()
-        child.stdin.write("\n")
-        child.stdin.flush()
-        child.wait()
-        with data_lock(self.data, wait=5):
+        self.release(self.hold())
+        with data_lock(self.data):
             pass
 
 

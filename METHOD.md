@@ -37,7 +37,7 @@ Each reader declares the record shapes it accepts and drops any other record or 
 
 ### Kept history
 
-Claude Code deletes old transcripts, after about a month by default. So the harness cache keeps what the readers took from every log (times, folders, file paths, models), and when a log is gone, its events stay in the cache, marked gone, and still count. A log that cannot be read any more counts as gone too. A gone log that comes back, changed or not, is read as it is now. The build prints how many sessions came from logs that are gone. `tinkerprint forget` deletes the cache, and those sessions with it.
+Claude Code deletes old transcripts, after about a month by default. So the harness cache keeps what the readers took from every log (times, folders, file paths, models), and when a log is gone, its events stay in the cache, marked gone, and still count. A log that cannot be read any more counts as gone too. A gone log that comes back, changed or not, is read as it is now. The build prints how many sessions came from logs that are gone. `tinkerprint forget --all --yes` deletes the cache, and those sessions with it.
 
 Antigravity keeps one database, not one log per session, and the reader reads it whole each build. A conversation the database no longer holds is gone from the sheet too.
 

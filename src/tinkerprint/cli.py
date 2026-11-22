@@ -13,7 +13,7 @@ from .art import export_pack, load_pack
 from .audit import audit
 from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
-from .datadir import data_home
+from .datadir import claim_home, data_home
 from .keys import adopt
 from .timeutil import parse_day
 
@@ -146,6 +146,13 @@ def local_tz(etc: str = "/etc", now: datetime | None = None) -> tuple:
     return f"{sign}{h:02d}:{m:02d}", True
 
 
+def _inside(path: str, home: str) -> bool:
+    """path is the data folder or inside it, by its name or after links."""
+    from .datadir import path_within
+    return (path_within(os.path.abspath(os.path.expanduser(path)), home)
+            or path_within(os.path.realpath(os.path.expanduser(path)), os.path.realpath(home)))
+
+
 def cmd_build(args) -> int:
     path = _profile_path(args)
     if path is None:
@@ -155,6 +162,10 @@ def cmd_build(args) -> int:
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
     check_dirs(profile, [home])
+    if args.out and _inside(args.out, home):
+        raise ValueError(f"{args.out} is inside tinkerprint's data folder {home}. Choose an output folder outside "
+                         "tinkerprint's data folder, or leave out --out")
+    claim_home(home)
     note = adopt(home, profile)
     if note:
         print(note)
@@ -325,22 +336,19 @@ def cmd_demo(args) -> int:
 
 
 def cmd_forget(args) -> int:
-    from .forget import forget
+    from .forget import forget_all, show
     from .keys import lookup, owner
     home = data_home(args.data_dir)
     if args.all:
-        key = None
-    else:
-        path = _profile_path(args, quiet=True)
-        if path is None:
-            raise ProfileError(f"forget needs --profile PATH or --all, or a {DEFAULT_PROFILE} in this folder")
-        key = lookup(home, path)
-        print(f"Profile: {path}")
-        if key is None:
-            print(f"Nothing to forget for it: its saved sheets went with the profile file now at {owner(home, path)}. "
-                  "Forget that one to delete them.")
-            return 0
-    for line in forget(home, key, args.yes):
+        for line in forget_all(home, args.yes):
+            print(line)
+        return 0
+    if args.yes:
+        raise ProfileError("forget deletes only with --all, and then the whole data folder. To remove one profile's "
+                           "data, delete the folders 'tinkerprint forget --profile PATH' shows")
+    path = _profile_path(args)
+    key = lookup(home, path) if path is not None else None
+    for line in show(home, args.data_dir, key, owner(home, path) if path is not None else None, path):
         print(line)
     return 0
 
@@ -367,7 +375,7 @@ def parser() -> argparse.ArgumentParser:
     b.add_argument("--profile", help=f"the profile to build. Default: ./{DEFAULT_PROFILE} when it exists")
     b.add_argument("--season", help="FROM:TO dates, for example 2025-01-01:2025-06-30. Default: all history")
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
-    b.add_argument("--out", help="output folder. Default: the data folder")
+    b.add_argument("--out", help="output folder, outside the data folder. Default: a sheets folder in the data folder")
     b.add_argument("--data-dir", help="cache and history folder. Default: $XDG_DATA_HOME/tinkerprint")
     b.add_argument("--list-unassigned", type=int, default=0, metavar="N",
                    help="list up to N folders outside every root. Default: totals only")
@@ -381,13 +389,17 @@ def parser() -> argparse.ArgumentParser:
     a.add_argument("--art-pack", metavar="PACK.json", help="the art pack the card was built with, if not the built-in one")
     a.set_defaults(func=cmd_audit)
 
-    f = sub.add_parser("forget", help="delete the cache and saved sheets for a profile, or everything")
+    f = sub.add_parser("forget", help="show what tinkerprint keeps and where. With --all --yes, delete its data folder",
+                       description="Without --all, forget deletes nothing: it shows the data folder and its size, "
+                                   "and for a profile its history, last-build file and sheets folder, so you can "
+                                   "delete those yourself. --all --yes deletes the whole data folder, but only one "
+                                   "that tinkerprint marked and that holds nothing else at its top.")
     which = f.add_mutually_exclusive_group()
-    which.add_argument("--profile", help=f"the profile to forget. Default: ./{DEFAULT_PROFILE} when it exists. "
-                                          "It need not exist any more")
-    which.add_argument("--all", action="store_true", help="everything tinkerprint keeps in the data folder")
+    which.add_argument("--profile", help=f"also show this profile's folders. Default: ./{DEFAULT_PROFILE} when it "
+                                          "exists. It need not exist any more")
+    which.add_argument("--all", action="store_true", help="the whole data folder: lists it, and deletes it with --yes")
     f.add_argument("--data-dir")
-    f.add_argument("--yes", action="store_true", help="delete. Without it, forget only lists what it would delete")
+    f.add_argument("--yes", action="store_true", help="with --all, delete. Without it, --all only lists")
     f.set_defaults(func=cmd_forget)
 
     i = sub.add_parser("init", help="write a commented starter profile")

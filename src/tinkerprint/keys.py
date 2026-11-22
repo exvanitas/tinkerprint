@@ -13,11 +13,8 @@ import hashlib
 import json
 import os
 
-from .datadir import _write, data_lock, pretty
+from .datadir import REGISTRY, _write, data_lock, pretty
 from .profile import Profile, is_key, profile_id
-
-REGISTRY = "profiles.json"
-
 
 def signature(profile: Profile) -> str:
     """What a profile is, apart from where its file lives: its name, set, work flag, identity and
@@ -66,8 +63,9 @@ def _used(home: str, key: str) -> bool:
 
 def lookup(home: str, path: str) -> str | None:
     """The key of a profile file by its path alone, without reading or writing anything else.
-    For forget, whose profile file may be gone. None when the key this path would have is
-    recorded for another profile file, as when this file moved there."""
+    For forget, which shows a profile's folders, and whose profile file may be gone. None when
+    the key this path would have is recorded for another profile file, as when this file moved
+    there."""
     real = os.path.realpath(os.path.expanduser(path))
     rows = read_registry(home)
     for key, row in sorted(rows.items()):
@@ -91,7 +89,7 @@ def resolve(home: str, profile: Profile, write: bool = True) -> tuple:
     The path is a profile's identity: a file saved in place, or replaced by an editor, keeps its
     history whatever it now says. When its name or identity changed, the caller says so."""
     if write:
-        with data_lock(home):  # the list is shared: read, claim and replace it as one step
+        with data_lock(home, claimed=True):  # the list is shared: read, claim and replace it as one step
             return _resolve(home, profile, True)
     return _resolve(home, profile, False)
 
@@ -137,17 +135,5 @@ def adopt(home: str, profile: Profile, write: bool = True) -> str | None:
         return f"This profile moved from {moved}. Its saved sheets came with it."
     if changed:
         return (f"This profile's name or identity changed since its last build, and its saved sheets carry on. "
-                f"To start afresh, run 'tinkerprint forget --profile {profile.source} --yes' and build again.")
+                f"To start afresh, delete {os.path.join(home, 'history', profile.id)} and build again.")
     return None
-
-
-def forget_key(home: str, key: str) -> None:
-    """Drop one key from the registry, so its file starts afresh."""
-    with data_lock(home):
-        rows = read_registry(home)
-        if key in rows:
-            del rows[key]
-            if rows:
-                write_registry(home, rows)
-            else:
-                os.remove(_path(home))

@@ -174,7 +174,7 @@ class Moves(Base):
         self.assertEqual(ch["against"], "2026-04-01")
         self.assertEqual(read_registry(self.data)[profile_id(p)]["path"], p)
 
-    def test_forget_follows_the_moved_key(self):
+    def test_forget_shows_the_moved_key(self):
         p = self.write(os.path.join(self.t, "a", "p.toml"), [self.r1])
         keep = self.write(os.path.join(self.t, "k", "keep.toml"), [self.r1], name="Kept")
         self.build(p, "o1", "2026-04-01")
@@ -185,13 +185,10 @@ class Moves(Base):
         os.rename(p, moved)
         self.build(moved, "o2", "2026-04-02")
         text = self.cli("forget", "--profile", moved, "--data-dir", self.data)
-        self.assertIn(os.path.join("history", key), text)
-        self.assertIn(REGISTRY + "  ", text)
-        self.assertIn("this profile's entry in the profile list", text)
-        self.cli("forget", "--profile", moved, "--data-dir", self.data, "--yes")
-        self.assertFalse(os.path.exists(os.path.join(self.data, "history", key)))
-        self.assertEqual(set(read_registry(self.data)), {lookup(self.data, keep)})
-        self.assertIn("Nothing to forget", self.cli("forget", "--profile", moved, "--data-dir", self.data))
+        self.assertIn(os.path.join(self.data, "history", key) + " (", text)
+        self.assertIn(os.path.join(self.data, "last-build", key + ".json"), text)
+        self.assertTrue(os.path.isdir(os.path.join(self.data, "history", key)))
+        self.assertEqual(set(read_registry(self.data)), {key, lookup(self.data, keep)})
         self.cli("forget", "--all", "--data-dir", self.data, "--yes")
         self.assertFalse(os.path.exists(self.data))
 
