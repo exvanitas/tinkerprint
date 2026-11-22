@@ -43,6 +43,7 @@ class Commit:
     bot: bool
     root: bool         # has no parents
     files: int = 0
+    scoped: bool = True  # touches a file inside the profile's roots (an empty commit: a root holds its repo)
 
 
 @dataclass(frozen=True, order=True)
@@ -52,6 +53,7 @@ class Tag:
     repo: str
     top: str
     mine: bool
+    scoped: bool = True  # its commit is scoped (see Commit)
 
 
 @dataclass

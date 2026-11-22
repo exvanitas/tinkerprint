@@ -158,11 +158,21 @@ class GitItems(Tmp):
         ship = [x for x in res["sheet"]["achievements"] if x["id"] == "shipwright"]
         self.assertEqual(ship[0]["count"], 1)
 
-    def test_item11_lightweight_tag_on_your_commit_is_not_yours(self):
-        root = self.repo("repo")
-        git(root, "tag", "v1.0.0")
+    def test_item11_lightweight_tag_counts_only_on_your_commit(self):
+        # 0.2.0: a lightweight tag on your commit is yours (it used to count for no one).
+        # One on someone else's commit still is not.
+        root = os.path.join(self.t, "repo")
+        r = RepoWriter(root)
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"x.py": 3})
+        r.touch(datetime(2026, 3, 3, 10, tzinfo=UTC), MATE, {"y.py": 3})
+        r.write()
+        git(root, "tag", "v2.0.0")  # on the mate's commit, at HEAD
         res = self.build(write_profile(os.path.join(self.t, "p.toml"), [("A", [root])]))
         self.assertNotIn("shipwright", [x["id"] for x in res["sheet"]["achievements"]])
+        git(root, "tag", "v1.0.0", "HEAD~1")  # on your commit
+        res = self.build(write_profile(os.path.join(self.t, "p.toml"), [("A", [root])]), out="out2")
+        ship = [x for x in res["sheet"]["achievements"] if x["id"] == "shipwright"]
+        self.assertEqual((ship[0]["count"], ship[0]["detail"]), (1, "v1.0.0 in A"))
 
     def test_item11_priors_follow_their_own_root(self):
         torch = self.repo("trainer", {"pyproject.toml": 1})

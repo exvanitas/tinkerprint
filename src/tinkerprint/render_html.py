@@ -634,7 +634,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 {party_html}
 
 <h2>Achievements</h2>
-<p class="lede">Generic rules, the same for everyone. Each shows its rule and the day it was earned.</p>
+<p class="lede">Generic rules, the same for everyone. Each shows its rule and the day it was earned. Commits and tags count only where they touch the profile's folders.</p>
 {ach_html}
 {ms_html}
 

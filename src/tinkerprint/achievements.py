@@ -11,12 +11,13 @@ RULES = {
     "first-light": ("First light", "Your first active day."),
     "founder": ("Founder", "You made the first commit of a repo."),
     "thousandfold": ("Thousandfold", "A repo reached its 1,000th commit by you."),
-    "shipwright": ("Shipwright", "You made an annotated version tag of 1.0 or higher."),
+    "shipwright": ("Shipwright", "A version tag of 1.0 or higher (v1.0.0, cli/v1.2.0): annotated by you, "
+                                 "or lightweight on your commit."),
     "long-road": ("Long road", "A streak of 30 active days."),
     "swarm-day": ("Swarm day", "100 or more of your commits in one day."),
     "necromancer": ("Necromancer", "You returned to a repo after 180 quiet days."),
     "polyglot": ("Polyglot", "Five or more languages past 1,000 added lines each."),
-    "full-party": ("Full party", "Three harnesses on the same day."),
+    "full-party": ("Full party", "Any three harnesses on the same day."),
     "seasons-turn": ("Season's turn", "Four calendar quarters with 10 or more active days each."),
 }
 ORDER = list(RULES)
@@ -33,9 +34,21 @@ def _quarter(d: date) -> tuple:
     return (d.year, (d.month - 1) // 3)
 
 
+# Achievements that judge commits and tags. They count only commits that touch a file inside the
+# profile's roots (see Commit.scoped), so a profile limited to one folder of a monorepo never earns
+# them from elsewhere in that repo. The sheet's achievements lede says so.
+SCOPED = ("founder", "thousandfold", "shipwright", "swarm-day", "necromancer")
+
+
+def version_of(tag: str):
+    """The version match of a tag's last path part: cli/v1.2.0 reads as v1.2.0."""
+    return _VERSION.match(tag.rsplit("/", 1)[-1])
+
+
 def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, dayof, repo_name,
              lines_by_day: list) -> list:
     """active_days: sorted dates. commits: Commit records (deduped). tags: Tag records.
+    Only your commits and tags in the profile's scope count.
 
     harness_days: {harness: set of dates}. dayof(ts) -> date. repo_name(top) -> display name.
     lines_by_day: sorted (date, language, added lines) for your commits.
@@ -44,7 +57,7 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
     if active_days:
         out.append(make("first-light", active_days[0]))
 
-    mine = [c for c in commits if c.mine]
+    mine = [c for c in commits if c.mine and c.scoped]
 
     roots = sorted((c for c in mine if c.root), key=lambda c: (parse_ts(c.ts), c.hash))
     if roots:
@@ -64,8 +77,8 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
 
     ships = []
     for t in tags:
-        m = _VERSION.match(t.name)
-        if t.mine and m and int(m.group(1)) >= 1:
+        m = version_of(t.name)
+        if t.mine and t.scoped and m and int(m.group(1)) >= 1:
             ships.append((dayof(t.ts), t.name, repo_name(t.top)))
     if ships:
         ships.sort()
@@ -109,10 +122,14 @@ def evaluate(active_days: list, commits: list, tags: list, harness_days: dict, d
                 out.append(make("polyglot", d, ", ".join(sorted(crossed))))
                 break
 
-    if len(harness_days) >= 3:
-        common = set.intersection(*[set(v) for v in harness_days.values()]) if harness_days else set()
-        if common:
-            out.append(make("full-party", min(common), count=len(common)))
+    # Any three harnesses on one day. A harness seen on other days never takes the badge away.
+    present = defaultdict(set)
+    for h, ds in harness_days.items():
+        for d in ds:
+            present[d].add(h)
+    full = sorted(d for d, hs in present.items() if len(hs) >= 3)
+    if full:
+        out.append(make("full-party", full[0], count=len(full)))
 
     q = defaultdict(list)
     for d in active_days:

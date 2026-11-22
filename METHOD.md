@@ -19,7 +19,7 @@ Each reader turns one source into events. Readers keep timestamps, folders, file
 
 | Reader | Source | What it reads |
 |---|---|---|
-| git | the repos a profile lists, `log --all` | commit hash, author name and email, author time, changed paths, `Co-Authored-By` trailers, annotated tags. A merge counts only the files that differ from every parent |
+| git | the repos a profile lists, `log --all` | commit hash, author name and email, author time, changed paths, `Co-Authored-By` trailers, tags. A merge counts only the files that differ from every parent |
 | Claude Code | `~/.claude/projects/*/*.jsonl` | session id, timestamps, `cwd`, model, file paths of Edit, Write, MultiEdit and NotebookEdit calls |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl` | `session_meta` (id, `cwd`, originator, time), model, file paths of applied patches when the log has them |
 | Antigravity | `~/.gemini/antigravity-cli/conversation_summaries.db` | conversation id, workspace folder, time. Experimental, off by default |
@@ -118,17 +118,19 @@ One member per harness: days together, sessions, models used, and whether its se
 
 Generic rules over events and git, the same for everyone. Each states its rule and the dated event that earned it.
 
+Achievements stay inside the profile's scope. Rules over active days and the party use only what the profile scores. Rules over commits and tags (Founder, Thousandfold, Shipwright, Swarm day, Necromancer) count only your commits that change a file inside one of the profile's roots. A commit that changes no file, like an empty first commit, counts when a root holds its whole repo. A tag counts when its commit does. So a profile of one folder in a monorepo never earns Founder from a commit elsewhere in that repo.
+
 | Achievement | Rule |
 |---|---|
 | First light | your first active day |
 | Founder | you made the first commit of a repo |
 | Thousandfold | a repo reaches its 1,000th commit by you |
-| Shipwright | you made an annotated version tag of 1.0 or higher (`v1.0.0` and up). Lightweight tags name no author, so they never count |
+| Shipwright | a version tag of 1.0 or higher (`v1.0.0` and up). An annotated tag counts when you made it. A lightweight tag names no one, so it counts when it points at your commit, dated by that commit. A prefixed tag like `cli/v1.2.0` reads by its last path part |
 | Long road | a streak of 30 active days |
 | Swarm day | 100 or more of your commits in one day |
 | Necromancer | you returned to a repo after 180 or more quiet days with no commit of yours |
 | Polyglot | 5 or more languages past 1,000 added lines |
-| Full party | three harnesses on the same day |
+| Full party | any three harnesses on the same day |
 | Season's turn | four calendar quarters, any four, with at least 10 active days each |
 
 A profile may add a milestones file (one dated line per milestone) for releases, launches or anything else the person keeps. Milestones show as the person wrote them and need no rule.

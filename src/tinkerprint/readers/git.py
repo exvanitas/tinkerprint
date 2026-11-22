@@ -221,17 +221,22 @@ def read_repo(top: str, ident: Identity, warnings: list | None = None):
 
 
 def read_tags(top: str, ident: Identity):
-    fmt = "%(refname:strip=2)%1f%(objecttype)%1f%(taggername)%1f%(taggeremail:trim)%1f%(taggerdate:iso-strict)%1f%(*objectname)%1f%(objectname)"
+    """Every tag with its target commit. An annotated tag says who made it and when. A lightweight
+    tag says neither, so it carries its commit's committer date and is judged by its commit."""
+    fmt = ("%(refname:strip=2)%1f%(objecttype)%1f%(taggername)%1f%(taggeremail:trim)%1f%(taggerdate:iso-strict)"
+           "%1f%(*objectname)%1f%(objectname)%1f%(creatordate:iso-strict)")
     out = _git(["for-each-ref", "refs/tags", "--format=" + fmt], top)
     rows = []
     for line in (out or "").splitlines():
         bits = line.split("\x1f")
-        if len(bits) != 7:
+        if len(bits) != 8:
             continue
-        name, otype, tn, te, td, deref, obj = bits
-        target = deref if otype == "tag" else obj
-        rows.append({"name": name, "annotated": otype == "tag", "tagger_me": otype == "tag" and ident.is_me(tn, te),
-                     "ts": td, "target": target})
+        name, otype, tn, te, td, deref, obj, cd = bits
+        annotated = otype == "tag"
+        if not annotated and otype != "commit":
+            continue  # a lightweight tag of a tree or blob names no commit
+        rows.append({"name": name, "annotated": annotated, "tagger_me": annotated and ident.is_me(tn, te),
+                     "ts": td if annotated else cd, "target": deref if annotated else obj})
     return rows
 
 
@@ -300,6 +305,15 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
     for top in tops:
         for c in per_top[top]:
             seen.setdefault(c["hash"], []).append((top, c))
+
+    def scoped(copies, c) -> bool:
+        # In scope when a changed file lands inside a root in any clone. A commit that changed no
+        # file (an empty or clean merge commit) is in scope when a root holds its whole repo.
+        if not c["files"]:
+            return any(in_roots(t) for t, _ in copies)
+        return any(in_roots(os.path.join(t, path)) for path, _, _ in c["files"] for t, _ in copies)
+
+    chosen = {}
     for h, copies in seen.items():
         # A shallow clone's boundary copy lacks its parents, so its diff is unreliable. Prefer a
         # complete copy for parents, files and line counts. Any complete copy proves a first commit.
@@ -310,8 +324,11 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
             continue
         ts = iso(dt)
         genuine_first = any(not cc["parents"] for _, cc in complete)
+        chosen[h] = (copies, c)
+        # Scope is worked out for your own commits only: no achievement looks at anyone else's.
         res.commits.append(Commit(ts=ts, hash=h, repo=repo_ids[top], top=top, mine=c["mine"],
-                                  bot=c["bot"], root=genuine_first, files=len(c["files"])))
+                                  bot=c["bot"], root=genuine_first, files=len(c["files"]),
+                                  scoped=c["mine"] and scoped(copies, c)))
         if not c["mine"]:
             continue
         for path, st, add in c["files"]:
@@ -321,14 +338,19 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
     tags = {}
     for top in tops:
         for t in read_tags(top, ident):
-            # Only an annotated tag names who made it. A lightweight tag on your commit could be anyone's.
-            if not t["annotated"] or not t["tagger_me"]:
+            # An annotated tag is yours when you made it. A lightweight tag names no one, so it is
+            # yours when it points at your commit.
+            target = chosen.get(t["target"])
+            if not (t["tagger_me"] if t["annotated"] else (target is not None and target[1]["mine"])):
                 continue
             dt = parse_ts(t["ts"])
             if dt is None:
                 continue
             key = (t["name"], t["target"])  # one tag, however many clones hold it
-            tags.setdefault(key, Tag(ts=iso(dt), name=t["name"], repo=repo_ids[top], top=top, mine=True))
+            # The tag is in scope when its commit is.
+            in_scope = target is not None and scoped(*target)
+            tags.setdefault(key, Tag(ts=iso(dt), name=t["name"], repo=repo_ids[top], top=top, mine=True,
+                                     scoped=in_scope))
     res.commits.sort()
     res.events.sort()
     res.tags = sorted(tags.values())
