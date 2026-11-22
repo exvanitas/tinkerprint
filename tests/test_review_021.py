@@ -118,5 +118,84 @@ class PublicMonth(unittest.TestCase):
             self.assertEqual(res["sheet"]["card"]["built"], "May 2026")
 
 
+class WindowsLogPaths(unittest.TestCase):
+    """On Windows rules (ntpath), on any OS."""
+
+    def setUp(self):
+        import ntpath
+        from unittest import mock
+        from tinkerprint.readers import _common
+        self.nt = ntpath
+        patch = mock.patch.object(_common, "PATHMOD", ntpath)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def resolver(self, roots):
+        from unittest import mock
+        from tinkerprint.projects import Resolver
+        prof = profile([("P", "/w", None)])
+        prof.projects[0].roots[:] = roots
+        res = Resolver(prof.projects, self.nt)
+        res._real = mock.Mock(side_effect=self.nt.normpath)
+        return res
+
+    def test_a_path_outside_every_root_never_reaches_the_file_system(self):
+        res = self.resolver([r"C:\w\kite"])
+        for p in (r"Z:\mapped\x.py", r"\\server\share\x.py", r"C:\w\kite2\x.py", r"C:\w\kite\..\other\x.py"):
+            self.assertIsNone(res.resolve_root(p), p)
+        res._real.assert_not_called()
+        self.assertEqual(res.resolve_root(r"c:\W\Kite\a.py")[2], "a.py")
+        res._real.assert_called_once()
+
+    def test_device_and_stream_syntax_is_refused(self):
+        from tinkerprint.readers._common import local_path
+        res = self.resolver([r"C:\work"])
+        for p in (r"C:\work\NUL:", r"C:\work\file.txt:stream", r"C:\work\a\CON.txt", r"\\.\C:\work\x",
+                  r"\\?\C:\work\x", "//?/C:/work/x", r"\work\x"):
+            self.assertEqual(local_path(p, self.nt), "", p)
+            self.assertIsNone(res.resolve_root(p), p)
+        res._real.assert_not_called()
+
+    def jsonl(self, records):
+        path = os.path.join(self.tmp.name, "log.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r) + "\n")
+        return path
+
+    def test_a_refused_codex_folder_clears_the_last_one(self):
+        from tinkerprint.readers import codex
+        local, device = r"C:\w\kite", r"\\.\pipe\x"
+        recs = [{"type": "session_meta", "timestamp": "2026-03-02T10:00:00Z", "payload": {"id": "c1", "cwd": local}},
+                {"type": "turn_context", "timestamp": "2026-03-02T10:00:01Z", "payload": {"model": "m-1",
+                                                                                        "cwd": device}},
+                {"type": "event_msg", "timestamp": "2026-03-02T10:00:02Z", "payload": {
+                    "type": "patch_apply_end", "success": True, "call_id": "k1", "changes": {"a.py": {}}}},
+                {"type": "turn_context", "timestamp": "2026-03-02T10:00:03Z", "payload": {"model": "m-1"}},
+                {"type": "event_msg", "timestamp": "2026-03-02T10:00:04Z", "payload": {
+                    "type": "patch_apply_end", "success": True, "call_id": "k2", "changes": {"b.py": {}}}}]
+        evs = codex.read_file(self.jsonl(recs))
+        self.assertEqual(sorted(e.path for e in evs if e.kind == "edit"), ["a.py", "b.py"])  # unassigned
+
+    def test_a_refused_claude_folder_clears_the_last_one(self):
+        from tinkerprint.readers import claude
+        local, device = r"C:\w\kite", r"C:\w\kite\NUL:"
+
+        def rec(cwd, i, **extra):
+            out = [{"type": "assistant", "sessionId": "s1", "timestamp": "2026-03-02T10:01:00Z",
+                    "message": {"role": "assistant", "model": "m-1", "content": [
+                        {"type": "tool_use", "id": f"t{i}", "name": "Edit", "input": {"file_path": f"f{i}.py"}}]}},
+                   {"type": "user", "sessionId": "s1", "timestamp": "2026-03-02T10:01:05Z",
+                    "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": f"t{i}"}]}}]
+            if cwd is not None:
+                out[0]["cwd"] = cwd
+            return out
+        evs = claude.read_file(self.jsonl(rec(local, 0) + rec(None, 1) + rec(device, 2) + rec(None, 3)))
+        self.assertEqual(sorted(e.path for e in evs if e.kind == "edit"),
+                         sorted([local + r"\f0.py", local + r"\f1.py", "f2.py", "f3.py"]))
+
+
 if __name__ == "__main__":
     unittest.main()

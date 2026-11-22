@@ -85,9 +85,10 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
             if v:
                 hc["versions"].add(v)
             session = get_id(d, "sessionId") or fallback
-            folder = abs_path(d.get("cwd"))
-            if folder:
-                cwd = folder
+            if d.get("cwd") is not None:
+                # A folder the record names but that is refused clears the old one, so work
+                # there never lands in the previous folder. A record without one keeps it.
+                cwd = abs_path(d.get("cwd"))
             dt = when(d.get("timestamp"))
             msg = get_dict(d, "message")
             model = model_id(msg.get("model")) if kind_line == "assistant" else ""

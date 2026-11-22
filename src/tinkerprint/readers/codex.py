@@ -116,7 +116,8 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
             elif t == "turn_context":
                 model = model_id(p.get("model"))  # this turn's model, or none
                 record_model = model
-                cwd = abs_path(p.get("cwd")) or cwd
+                if p.get("cwd") is not None:
+                    cwd = abs_path(p.get("cwd"))  # a refused folder clears the old one
             if dt is None:
                 continue
             presence(slots, dt, record_model, cwd)

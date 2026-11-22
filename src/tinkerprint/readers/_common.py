@@ -55,21 +55,31 @@ def path_text(v) -> str:
 PATHMOD = os.path
 
 _DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
+# \\server\share\..., with either separator. Device namespaces (\\?\, \\.\) never match.
+_UNC_PATH = re.compile(r"^[\\/]{2}(?![?.][\\/])[^\\/]+[\\/][^\\/]+")
 _RESERVED = ({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {f"COM{c}" for c in "123456789\u00b9\u00b2\u00b3"}
              | {f"LPT{c}" for c in "123456789\u00b9\u00b2\u00b3"})
 
 
 def local_path(p: str, pathmod=None) -> str:
-    """p when it names a place on a local disk, else ''. Every path a log gives goes through this
-    before anything, realpath included, touches the file system with it. On Windows only a drive
-    path like C:\\x is local: a share (\\\\server\\share or //server/share), a device path
-    (\\\\.\\ or \\\\?\\), a path rooted on no drive, or one naming a device such as NUL or COM1 is not."""
+    """p when it is a plain path, else ''. Every path a log gives goes through this before
+    anything touches the file system with it. On Windows a plain path is a drive path like C:\\x,
+    or a share path like \\\\server\\share\\x, which the resolver follows only inside a root
+    the profile names on that share. A device path (\\\\.\\ or \\\\?\\), a path rooted on no drive,
+    one naming a device such as NUL or COM1, and one with a colon past the drive, as a stream
+    (file.txt:stream) or a device (NUL:) has, are not."""
     pm = pathmod or PATHMOD
     if not p or pm.sep != "\\":
         return p
-    if not _DRIVE_PATH.match(p):
+    if _DRIVE_PATH.match(p):
+        rest = p[3:]
+    elif _UNC_PATH.match(p):
+        rest = p[2:]
+    else:
         return ""
-    for part in re.split(r"[\\/]", p[3:]):
+    if ":" in rest:
+        return ""
+    for part in re.split(r"[\\/]", rest):
         if part.split(".", 1)[0].rstrip(" ").upper() in _RESERVED:
             return ""
     return p

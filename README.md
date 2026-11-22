@@ -178,7 +178,7 @@ The cache, history, last-build files, `profiles.json` and the sheet itself (`she
 - Where a daylight-saving change crosses the rollover hour, as in `Pacific/Chatham`, the edge of a day can move during that hour. Work near the change may land on the next or previous day.
 - Two Codex records of one change that share no call id or item id count as two changes.
 - Roots outside git take manifest priors from the files on disk, so their sheets can change with the checkout.
-- On Windows, agent logs count only work in folders on a drive, like `C:\code`. Work they record on a network share (`\\server\share`) or a device path is left out, since following such a path could reach another machine.
+- On Windows, a path from an agent log counts only when it is inside one of your roots as written, like `C:\code\kite`, so a log never makes tinkerprint open a folder outside them. A root reached through a link under another name misses that work. Work on a network share (`\\server\share`) counts only when a root is on that share. A device path or a file stream is left out.
 
 ## Tests
 

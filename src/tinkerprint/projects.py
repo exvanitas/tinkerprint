@@ -22,7 +22,9 @@ def canonical(path: str) -> str:
 class Resolver:
     """Maps an absolute path to (project, matched root, path relative to it) by the longest
     matching root. Containment uses the platform's path rules (pathmod), compares real paths
-    with symlinks resolved, and hands back the relative path with '/' separators."""
+    with symlinks resolved, and hands back the relative path with '/' separators. On Windows a
+    path is first checked by name against the roots, so one outside them, a share included,
+    never reaches the file system."""
 
     def __init__(self, projects, pathmod=os.path):
         self.pm = pathmod
@@ -36,6 +38,10 @@ class Resolver:
                 roots.append((self._real(r), p))
         self._roots = sorted(roots, key=lambda x: (-len(x[0]), x[0], x[1].index))
         self.projects = list(projects)
+        # On Windows, a log path goes to realpath, which may reach a share or a remote drive, only
+        # when it is already inside a root by name: each root as written and as resolved.
+        self._lexical = sorted({pathmod.normcase(pathmod.normpath(x)) for p in projects for r in p.roots
+                                for x in (r, self._real(r))}) if pathmod.sep == "\\" else None
 
     def resolve(self, path: str):
         hit = self.resolve_root(path)
@@ -47,7 +53,9 @@ class Resolver:
         if not path or not pm.isabs(path):
             return None  # relative paths have no known folder: unassigned
         if not local_path(path, pm):
-            return None  # a share or device path, as an older cache may hold, is never resolved
+            return None  # a device or stream path, as an older cache may hold, is never resolved
+        if self._lexical is not None and not any(path_within(path, r, pm) for r in self._lexical):
+            return None  # outside every root by name: never touches the file system
         try:
             path = self._real(path)  # real path first, so '..' resolves after symlinks
         except (ValueError, OSError):
