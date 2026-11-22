@@ -55,7 +55,7 @@ class Item07NoFetchInPartialClones(Tmp):
         git(src, "config", "uploadpack.allowFilter", "true")
         clone = os.path.join(self.t, "clone")
         subprocess.run(["git", "clone", "-q", "--filter=blob:none", "file://" + src, clone], check=True,
-                       env=git_env(), capture_output=True)
+                       env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"), capture_output=True)
 
         def missing():
             out = git(clone, "rev-list", "--objects", "--all", "--missing=print").stdout
@@ -76,7 +76,7 @@ class Item12CloneChoiceFollowsRoots(Tmp):
         r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"back/service.py": 3, "front/app.py": 1})
         r.write()
         b = os.path.join(self.t, "bb")
-        subprocess.run(["git", "clone", "-q", a, b], check=True, env=git_env())
+        subprocess.run(["git", "clone", "-q", a, b], check=True, env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"))
         prof = load_profile(write_profile(os.path.join(self.t, "p.toml"),
                                           [os.path.join(a, "front"), os.path.join(b, "back")]))
         sheet = build(prof, os.path.join(self.t, "out"), home=os.path.join(self.t, "data"))["sheet"]

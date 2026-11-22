@@ -8,11 +8,16 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import helpers  # noqa: F401
 from tinkerprint.build import CACHE_VERSION, _cached, new_report
+from tinkerprint.demo import RepoWriter, git_env
 from tinkerprint.readers import claude
+from tinkerprint.readers import git as git_mod
+from tinkerprint.readers.git import Identity, read_git
 
 
 def write_lines(path, records):
@@ -197,6 +202,131 @@ class Locks(Tmp):
         child.wait()
         with data_lock(self.data, wait=5):
             pass
+
+
+UTC = ZoneInfo("UTC")
+ME = ("Ida Fenwick", "ida@fenwick.example.test")
+
+
+def git(cwd, *args, env=None):
+    return subprocess.run(["git", "-C", cwd, *args], check=True, capture_output=True,
+                          env=dict(env or git_env(), GIT_AUTHOR_NAME=ME[0], GIT_AUTHOR_EMAIL=ME[1],
+                                   GIT_COMMITTER_NAME=ME[0], GIT_COMMITTER_EMAIL=ME[1]))
+
+
+class GitCalls(Tmp):
+    """Every git call starts from an environment with no GIT_* variable and runs no other program."""
+
+    def repo(self, name, files):
+        path = os.path.join(self.t, name)
+        r = RepoWriter(path)
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, files)
+        r.write()
+        return path
+
+    def test_git_variables_from_outside_never_pick_the_repo(self):
+        real = self.repo("real", {"a.py": 2})
+        decoy = self.repo("decoy", {"b.py": 2, "c.py": 2})
+        env = {"GIT_DIR": os.path.join(decoy, ".git"), "GIT_WORK_TREE": decoy, "GIT_ALLOW_PROTOCOL": "file",
+               "git_ceiling_directories": "/"}
+        with mock.patch.dict(os.environ, env):
+            res = read_git([real], Identity([ME[1]], []))
+            sent = git_mod._env()
+        self.assertEqual({os.path.basename(e.path) for e in res.events}, {"a.py"})
+        self.assertEqual(sent["GIT_ALLOW_PROTOCOL"], "")
+        self.assertEqual(sent["GIT_NO_LAZY_FETCH"], "1")
+        self.assertEqual({k for k in sent if k.upper().startswith("GIT_")},
+                         {"GIT_TERMINAL_PROMPT", "GIT_OPTIONAL_LOCKS", "GIT_PAGER", "GIT_NO_LAZY_FETCH",
+                          "GIT_ALLOW_PROTOCOL"})
+
+    def test_no_transport_even_when_the_repo_allows_one(self):
+        src = self.repo("src", {"a.py": 2})
+        clone = os.path.join(self.t, "clone")
+        subprocess.run(["git", "clone", "-q", "file://" + src, clone], check=True, capture_output=True,
+                       env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"))
+        git(clone, "config", "protocol.file.allow", "always")
+        self.assertIsNone(git_mod.git_text(["fetch", "-q", "origin"], clone))
+        self.assertIsNotNone(git_mod.git_text(["rev-parse", "HEAD"], clone))
+
+    @unittest.skipUnless(os.name == "posix", "the stand-in programs are shell scripts")
+    def test_a_repo_config_starts_no_program(self):
+        root = self.repo("signed", {"a.py": 2})
+        marker = os.path.join(self.t, "ran")
+        prog = os.path.join(self.t, "prog.sh")
+        with open(prog, "w") as f:
+            f.write(f'#!/bin/sh\necho "$*" >> "{marker}"\n'
+                    'case "$*" in *-bsau*) cat >/dev/null; echo "[GNUPG:] SIG_CREATED " >&2; '
+                    "printf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZmFrZQ==\\n-----END PGP SIGNATURE-----\\n';; "
+                    '*) cat "$1" 2>/dev/null;; esac\nexit 0\n')
+        os.chmod(prog, 0o755)
+        with open(os.path.join(root, ".gitattributes"), "w") as f:
+            f.write("*.py diff=conv\n")
+        with open(os.path.join(root, "a.py"), "a") as f:
+            f.write("more\n")
+        git(root, "add", ".")
+        git(root, "-c", f"gpg.program={prog}", "commit", "-q", "-S", "-m", "signed")
+        os.remove(marker)
+        for key, value in (("log.showSignature", "true"), ("gpg.program", prog), ("diff.conv.textconv", prog),
+                           ("diff.external", prog), ("diff.conv.command", prog), ("core.pager", prog),
+                           ("core.fsmonitor", prog)):
+            git(root, "config", key, value)
+        res = read_git([root], Identity([ME[1]], []))
+        self.assertEqual(len([c for c in res.commits if c.mine]), 2)
+        from tinkerprint.projects import scan_priors
+        from helpers import profile
+        scan_priors(profile([("P", root, None)]).projects)
+        self.assertFalse(os.path.exists(marker))
+
+
+class DemoRepos(Tmp):
+    """The demo writes only repos inside its own folder, whatever GIT_* variables say."""
+
+    def victim(self):
+        path = os.path.join(self.t, "checkout")
+        os.makedirs(path)
+        git(path, "init", "-q", "-b", "trunk")
+        with open(os.path.join(path, "work.txt"), "w") as f:
+            f.write("committed\n")
+        git(path, "add", ".")
+        git(path, "commit", "-q", "-m", "x")
+        with open(os.path.join(path, "work.txt"), "w") as f:
+            f.write("unsaved work\n")
+        return path
+
+    def test_git_dir_from_outside_never_reaches_a_checkout(self):
+        victim = self.victim()
+        demo = os.path.join(self.t, "demo")
+        with mock.patch.dict(os.environ, {"GIT_DIR": os.path.join(victim, ".git"), "GIT_WORK_TREE": victim}):
+            r = RepoWriter(os.path.join(demo, "repo"), within=demo)
+            r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"a.py": 2})
+            r.write()
+        with open(os.path.join(victim, "work.txt")) as f:
+            self.assertEqual(f.read(), "unsaved work\n")
+        branches = git(victim, "branch", "--format=%(refname:short)").stdout.decode().split()
+        self.assertEqual(branches, ["trunk"])
+        self.assertTrue(os.path.isfile(os.path.join(demo, "repo", "a.py")))
+
+    def test_a_repo_outside_the_demo_folder_is_refused_before_any_write(self):
+        demo = os.path.join(self.t, "demo")
+        outside = os.path.join(self.t, "elsewhere")
+        r = RepoWriter(outside, within=demo)
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"a.py": 2})
+        with self.assertRaises(ValueError):
+            r.write()
+        self.assertFalse(os.path.exists(outside))
+
+    def test_a_dot_git_file_is_refused(self):
+        demo = os.path.join(self.t, "demo")
+        path = os.path.join(demo, "repo")
+        os.makedirs(path)
+        victim = self.victim()
+        with open(os.path.join(path, ".git"), "w") as f:
+            f.write(f"gitdir: {os.path.join(victim, '.git')}\n")
+        r = RepoWriter(path, within=demo)
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"a.py": 2})
+        with self.assertRaises(ValueError):
+            r.write()
+        self.assertEqual(git(victim, "branch", "--format=%(refname:short)").stdout.decode().split(), ["trunk"])
 
 
 if __name__ == "__main__":

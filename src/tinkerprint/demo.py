@@ -18,13 +18,17 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from .datadir import path_within
 from .profile import toml_string
+from .readers.git import SAFE, clean_env
 
 
 def git_env(home: str | None = None) -> dict:
-    env = dict(os.environ)
+    """The environment for a git call that writes a demo repo: no GIT_* variable from outside (so
+    none can point it at another repo or work tree), no user or system config, no transport."""
+    env = clean_env()
     env.update({"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "LC_ALL": "C",
-                "GIT_TERMINAL_PROMPT": "0"})
+                "GIT_TERMINAL_PROMPT": "0", "GIT_ALLOW_PROTOCOL": ""})
     if home:
         env["HOME"] = home
     return env
@@ -42,10 +46,14 @@ class FakeCommit:
 
 
 class RepoWriter:
-    """Builds a repo through fast-import. Author and committer dates are exact, so hashes are stable."""
+    """Builds a repo through fast-import. Author and committer dates are exact, so hashes are stable.
 
-    def __init__(self, path: str):
+    within: a folder the repo must be inside, checked before anything is written. The demo passes
+    its own temporary folder."""
+
+    def __init__(self, path: str, within: str | None = None):
         self.path = path
+        self.within = within
         self.commits: list = []
         self.content: dict = {}
 
@@ -63,10 +71,34 @@ class RepoWriter:
             files[path] = new
         self.commit(when, author, files, coauthors, tag)
 
+    def _git(self, *args, **kw):
+        """A git call on exactly this repo and work tree, whatever the environment says."""
+        real = os.path.realpath(self.path)
+        return subprocess.run(["git", *SAFE, f"--git-dir={os.path.join(real, '.git')}", f"--work-tree={real}",
+                               *args], check=True, env=git_env(), **kw)
+
+    def _check(self, created: bool) -> None:
+        """Refuse a repo outside self.within, or one whose .git is not its own folder."""
+        real = os.path.realpath(self.path)
+        if self.within is not None and not path_within(real, os.path.realpath(self.within)):
+            raise ValueError(f"demo repo {self.path} is outside {self.within}")
+        dot = os.path.join(real, ".git")
+        if os.path.lexists(dot) and (os.path.islink(dot) or not os.path.isdir(dot)):
+            raise ValueError(f"demo repo {self.path} has a .git that is not a folder")
+        if created:
+            r = subprocess.run(["git", *SAFE, "-C", real, "rev-parse", "--absolute-git-dir", "--show-toplevel"],
+                               check=True, env=git_env(), capture_output=True)
+            seen = [os.path.realpath(x) for x in r.stdout.decode("utf-8", "surrogateescape").splitlines()]
+            if seen != [dot, real]:
+                raise ValueError(f"demo repo {self.path} is not the repo git sees there")
+
     def write(self) -> None:
+        self._check(created=False)
         os.makedirs(self.path, exist_ok=True)
         env = git_env()
-        subprocess.run(["git", "init", "-q", "-b", "main", self.path], check=True, env=env)
+        real = os.path.realpath(self.path)
+        subprocess.run(["git", *SAFE, "init", "-q", "-b", "main", real], check=True, env=env)
+        self._check(created=True)
         buf = bytearray()
 
         def data(b: bytes) -> None:
@@ -96,8 +128,8 @@ class RepoWriter:
             if c.tag:
                 buf.extend(f"tag {c.tag}\nfrom :{i}\ntagger {who}\n".encode())
                 data(b"Release\n")
-        subprocess.run(["git", "-C", self.path, "fast-import", "--quiet"], input=bytes(buf), check=True, env=env)
-        subprocess.run(["git", "-C", self.path, "reset", "-q", "--hard", "main"], check=True, env=env)
+        self._git("fast-import", "--quiet", input=bytes(buf))
+        self._git("reset", "-q", "--hard", "main")
 
 
 # ---------------------------------------------------------------- harness logs
@@ -372,7 +404,7 @@ def make_person(base: str, person: DemoPerson) -> str:
 
     for pi, proj in enumerate(person.projects):
         root = os.path.join(code, proj.folder)
-        repo = RepoWriter(root)
+        repo = RepoWriter(root, within=base)
         first = at(proj.start, 10)
         init_files = {"README.md": f"# {proj.folder}\n"}
         init_files.update(proj.manifests)

@@ -47,7 +47,7 @@ class GitReader(unittest.TestCase):
         import subprocess
         from tinkerprint.demo import git_env
         clone = os.path.join(self.tmp.name, "repo-two")
-        subprocess.run(["git", "clone", "-q", self.root, clone], check=True, env=git_env())
+        subprocess.run(["git", "clone", "-q", self.root, clone], check=True, env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"))
         res = read_git([self.root, clone], Identity([ME[1]], []))
         self.assertEqual(len(res.commits), 5)
 

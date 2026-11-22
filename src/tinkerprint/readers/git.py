@@ -22,21 +22,32 @@ _FMT = "%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%(trailers:key=Co-authored-by,value
 _COAUTHOR = re.compile(r"^\s*(.*?)\s*<([^>]*)>\s*$")
 
 
+def clean_env() -> dict:
+    """The parent's environment without any GIT_* variable, so nothing set outside picks the repo,
+    the work tree, the config, a pager, an external diff or a transport for a git call made here."""
+    return {k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")}
+
+
 def _env() -> dict:
-    env = dict(os.environ)
-    # Local only: no prompts, no lazy fetch of missing objects in partial clones.
+    env = clean_env()
+    # Local only: no prompts, no transport at all (an empty allow list beats any protocol.*.allow
+    # setting), and no lazy fetch of missing objects in partial clones.
     env.update({"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
-                "GIT_NO_LAZY_FETCH": "1"})
+                "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""})
     return env
 
 
-# Every transport is off, so no git call made here can reach a remote.
-_NO_NET = ["-c", "protocol.allow=never"]
+# Settings no repo or user config can override for a call made here: no transport, no pager, no
+# signature check (which runs gpg), no external diff, no file-system monitor.
+SAFE = ["--no-pager", "-c", "protocol.allow=never", "-c", "log.showSignature=false", "-c", "diff.external=",
+        "-c", "core.fsmonitor=false", "-c", "core.pager=cat"]
+# For log and show: no signature check, no text conversion filter, no external diff program.
+NO_PROGRAMS = ["--no-show-signature", "--no-textconv", "--no-ext-diff"]
 
 
 def _git(args, cwd) -> str | None:
     try:
-        r = subprocess.run(["git", *_NO_NET, "-C", cwd, *args], capture_output=True, env=_env(), check=False)
+        r = subprocess.run(["git", *SAFE, "-C", cwd, *args], capture_output=True, env=_env(), check=False)
     except OSError:
         return None
     if r.returncode != 0:
@@ -48,7 +59,7 @@ def _git(args, cwd) -> str | None:
 def git_bytes(args, cwd) -> bytes | None:
     """Raw stdout of a local git command, or None on failure."""
     try:
-        r = subprocess.run(["git", *_NO_NET, "-C", cwd, *args], capture_output=True, env=_env(), check=False)
+        r = subprocess.run(["git", *SAFE, "-C", cwd, *args], capture_output=True, env=_env(), check=False)
     except OSError:
         return None
     return r.stdout if r.returncode == 0 else None
@@ -62,7 +73,11 @@ def global_config(key: str) -> str:
     """One value from the user's global git config, read-only, through the same local-only call.
     '' when it is unset, git is missing, or the value is not plain one-line text."""
     home = os.path.expanduser("~")
-    out = _git(["config", "--global", "--get", key], home if os.path.isdir(home) else os.sep)
+    # GIT_CONFIG_GLOBAL names the global config when it is set. Every git call here runs without
+    # GIT_* variables, so that file is named outright.
+    named = os.environ.get("GIT_CONFIG_GLOBAL")
+    where = ["--file", os.path.abspath(named), "--includes"] if named else ["--global"]
+    out = _git(["config", *where, "--get", key], home if os.path.isdir(home) else os.sep)
     value = (out or "").strip()
     try:
         value.encode("utf-8")
@@ -108,7 +123,7 @@ def _log(top: str, numstat: bool) -> str | None:
     # conflict resolutions and hand edits made during the merge. A clean merge counts nothing.
     # -z gives raw paths, NUL-terminated, with no quoting.
     args = ["log", "--all", "--no-renames", "--raw", "-z", "--diff-merges=dense-combined",
-            "--no-abbrev", "--format=" + _FMT]
+            "--no-abbrev", *NO_PROGRAMS, "--format=" + _FMT]
     if numstat:
         args.insert(3, "--numstat")
     return _git(args, top)

@@ -131,8 +131,8 @@ class GitTree:
         return "/".join(x for x in (self.prefix, rel) if x and x != ".")
 
     def read(self, rel: str):
-        from .readers.git import git_bytes
-        return git_bytes(["show", f"{self.rev}:{self._path(rel)}"], self.top)
+        from .readers.git import NO_PROGRAMS, git_bytes
+        return git_bytes(["show", *NO_PROGRAMS, f"{self.rev}:{self._path(rel)}"], self.top)
 
     def names(self, rel: str) -> list:
         from .readers.git import git_bytes

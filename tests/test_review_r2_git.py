@@ -134,7 +134,7 @@ class GitItems(Tmp):
         git(src, "config", "uploadpack.allowFilter", "true")
         clone = os.path.join(self.t, "client-secret")
         subprocess.run(["git", "clone", "-q", "--filter=blob:none", "file://" + src, clone], check=True,
-                       env=git_env(), capture_output=True)
+                       env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"), capture_output=True)
         res = self.build(write_profile(os.path.join(self.t, "p.toml"), [("Project A", [clone])]))
         text = "\n".join(res["warnings"])
         self.assertIn("Project A", text)
@@ -153,7 +153,7 @@ class GitItems(Tmp):
         r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"x.py": 3}, tag="v1.0.0")
         r.write()
         b = os.path.join(self.t, "b")
-        subprocess.run(["git", "clone", "-q", a, b], check=True, env=git_env())
+        subprocess.run(["git", "clone", "-q", a, b], check=True, env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"))
         res = self.build(write_profile(os.path.join(self.t, "p.toml"), [("A", [a, b])]))
         ship = [x for x in res["sheet"]["achievements"] if x["id"] == "shipwright"]
         self.assertEqual(ship[0]["count"], 1)
@@ -212,7 +212,7 @@ class GitItems(Tmp):
         r.write()
         shallow = os.path.join(self.t, "shallow")
         subprocess.run(["git", "clone", "-q", "--depth", "1", "file://" + full, shallow], check=True,
-                       env=git_env(), capture_output=True)
+                       env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"), capture_output=True)
         other = self.repo("other", {"y.py": 1})
         prof = write_profile(os.path.join(self.t, "p.toml"), [("A", [full, shallow]), ("B", [other])])
         from tinkerprint.build import gather

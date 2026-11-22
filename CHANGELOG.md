@@ -46,6 +46,8 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - Two builds at once, or a build and `forget`, take turns with the cache and the profile list, so neither loses the other's sessions or profiles.
 - History follows a profile file you move. A copy of a profile starts its own. A profile whose name or identity changed at the same path keeps its history, and `build` says how to start afresh.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
+- A build reads your repos without starting any program their git config names, such as a signature checker or a diff filter, and without fetching, whatever the repo or your `GIT_` variables say.
+- `demo` writes its repos only inside its own temporary folder, even when `GIT_DIR` or `GIT_WORK_TREE` is set.
 - Outputs are readable under your umask, so a web server or a copy can serve them. The cache and history stay private to you.
 
 ### Accuracy and achievements

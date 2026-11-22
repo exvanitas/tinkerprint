@@ -164,7 +164,8 @@ The cache, history, last-build files and `profiles.json` are private to you (mod
 
 ## What it will not do
 
-- Upload anything, or call any server.
+- Upload anything, or call any server. Git reads your repos as they are on disk, and never fetches.
+- Run a program your repo's git config names, such as a signature checker, a diff filter or a pager.
 - Keep prompt or message text.
 - Rank people, or say anything about skill, productivity or seniority. A sheet shows where your recorded time went, nothing more.
 

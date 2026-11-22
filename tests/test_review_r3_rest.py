@@ -76,7 +76,7 @@ class Item04CloneKeys(Tmp):
         r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"sub/x.py": 3})
         r.write()
         b = os.path.join(self.t, "clone2")
-        subprocess.run(["git", "clone", "-q", a, b], check=True, env=git_env())
+        subprocess.run(["git", "clone", "-q", a, b], check=True, env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"))
         other = os.path.join(self.t, "other")
         r = RepoWriter(other)
         r.touch(datetime(2026, 3, 2, 10, tzinfo=UTC), ME, {"y.py": 1})
@@ -99,7 +99,7 @@ class Item04CloneKeys(Tmp):
         r.write()
         shallow = os.path.join(self.t, names[0])
         subprocess.run(["git", "clone", "-q", "--depth", "1", "file://" + full, shallow], check=True,
-                       env=git_env(), capture_output=True)
+                       env=dict(git_env(), GIT_ALLOW_PROTOCOL="file"), capture_output=True)
         return full, shallow
 
     def test_complete_copy_supplies_the_diff(self):
