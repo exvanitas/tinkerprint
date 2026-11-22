@@ -75,15 +75,21 @@ class ShareView(unittest.TestCase):
                       page)
         self.assertIn("<h1>Test Person</h1>", render_html(sheet_of()))
 
-    def test_hidden_party_gets_a_banner_without_familiars(self):
+    def test_hidden_party_gets_a_room_without_its_instruments(self):
         plain = render_html(sheet_of())
         hidden = render_html(sheet_of(card={"hide": ["party"]}))
-        self.assertEqual(plain.count('class="banner'), 1)
-        self.assertIn('<div class="banner private">', hidden)
-        self.assertIn('<div class="banner share-only">', hidden)
-        banners = re.findall(r'<div class="banner[^"]*">(.*?)</div></div>', hidden, re.S)
-        self.assertEqual(len(banners), 2)
-        self.assertNotEqual(banners[0], banners[1])
+        self.assertEqual(plain.count('<picture class="room'), 1)
+        self.assertIn('<picture class="room">', plain)
+        self.assertIn('<picture class="room private">', hidden)
+        self.assertIn('<picture class="room share-only">', hidden)
+        rooms = re.findall(r'<picture class="room[^"]*">(.*?)</picture>', hidden, re.S)
+        self.assertEqual(len(rooms), 2)
+        self.assertNotEqual(rooms[0], rooms[1])
+        self.assertNotIn("Codex", rooms[1])
+        # The costume is drawn once and shared by both rooms. The crop follows the room in view.
+        self.assertEqual(hidden.count('<picture class="wear main">'), 1)
+        self.assertRegex(hidden, r'<div class="banner" style="--lx:\d+;--fx:\d+;--fx-share:\d+">')
+        self.assertIn(".share-toggle:checked ~ .wrap .set { --f: var(--fx-share, var(--fx)); }", CSS)
 
     def test_hidden_level_hides_the_seal(self):
         self.assertIn('<div class="seal private">', render_html(sheet_of(card={"hide": ["level"]})))

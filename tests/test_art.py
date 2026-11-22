@@ -490,7 +490,7 @@ class Built(unittest.TestCase):
             with open(res["paths"]["html"], encoding="utf-8") as f:
                 page = f.read()
             self.assertIn('class="banner"', page)
-            self.assertIn('class="portrait', page)
+            self.assertIn('class="wear main"', page)
             self.assertIn("<h2>Chronicle</h2>", page)
             self.assertEqual(page.count('class="fam"'), len(res["sheet"]["party"]))
             self.assertEqual(page.count('class="ic"'), len(res["sheet"]["achievements"]) + len(res["sheet"]["milestones"]))
@@ -503,22 +503,9 @@ class Built(unittest.TestCase):
         cls["close"] = {"kind": "pair", "stats": sorted([cls["stats"][0], other], key=SETS["builder"].index),
                         "name": PAIR["builder"][tuple(sorted([cls["stats"][0], other], key=SETS["builder"].index))]}
         page = render_html(sheet)
-        self.assertIn('class="portrait flip"', page)
-        self.assertIn('class="px alt"', page)
+        self.assertIn('class="set flip"', page)
+        self.assertIn('class="wear alt"', page)
         self.assertIn(f"the {cls['close']['name']} costume", page)
-
-    def test_hero_layers_the_figure_exactly_where_the_banner_draws_it(self):
-        """The hero draws the studio without its figure and layers the figure on top. Same pixels."""
-        for res in self.out.values():
-            sheet = res["sheet"]
-            look, _ = art.sheet_looks(sheet)
-            ranked = [("Logic", 40), ("Data", 30)]
-            whole = art.banner(PACK, look, ranked, ["claude", "codex"], "s")
-            stage = art.banner(PACK, look, ranked, ["claude", "codex"], "s", with_figure=False)
-            self.assertNotEqual(stage.px, whole.px)
-            fig = art.figure(PACK, look)
-            stage.paste(fig, *art.banner_figure_box(PACK, fig))
-            self.assertEqual(stage.px, whole.px)
 
     def test_sheet_reads_in_order_hero_first(self):
         for slug, res in self.out.items():
@@ -526,7 +513,7 @@ class Built(unittest.TestCase):
                 page = f.read()
             hero = page.index('<section class="hero">')
             # The scene, the figure layer and the nameplate sit together in the hero.
-            for part in ('class="banner"', 'class="portrait', 'class="seal"', "<h1>"):
+            for part in ('class="banner"', 'class="wear main"', 'class="seal"', "<h1>"):
                 self.assertLess(hero, page.index(part), (slug, part))
                 self.assertLess(page.index(part), page.index("<h2>The build</h2>"), (slug, part))
             heads = ["The build", "Party", "Achievements", "Chronicle", "What changed", "Projects", "Method"]
@@ -534,11 +521,8 @@ class Built(unittest.TestCase):
             self.assertGreaterEqual(len(at), 6, slug)
             self.assertEqual(at, sorted(at), slug)
             # The phone crop stays inside the scene.
-            m = re.search(r'--zoom:([\d.]+)%;--crop:(-?[\d.]+)%', page)
-            zoom, crop = float(m.group(1)), float(m.group(2))
-            self.assertGreaterEqual(zoom, 100)
-            self.assertLessEqual(crop, 0)
-            self.assertGreaterEqual(crop + zoom, 100 - 1e-6, slug)
+            m = re.search(r'--lx:(\d+);--fx:(\d+)', page)
+            self.assertTrue(0 < int(m.group(1)) < int(m.group(2)) < 252, slug)
 
     def test_each_lit_stat_gets_a_card_and_empty_stats_share_one_line(self):
         for slug, res in self.out.items():
@@ -577,19 +561,6 @@ class Built(unittest.TestCase):
         art_of = lambda svg: re.search(r'<g shape-rendering="crispEdges">(.*?)</g>', svg).group(1)
         self.assertNotEqual(art_of(odd), art_of(none))
         self.assertNotEqual(art_of(one), art_of(three))
-
-    def test_close_call_swaps_layers_instead_of_stacking_them(self):
-        """While the other costume shows, the first figure is hidden, so no tool from it peeks through."""
-        sheet = json.loads(json.dumps(self.out["tobi"]["sheet"]))
-        sheet["class"]["close"] = {"kind": "pair", "stats": ["Logic", "Tests"], "name": "Paladin"}
-        page = render_html(sheet)
-        css = re.sub(r"\s+", " ", page)
-        self.assertIn("@keyframes costume-a { 0% { opacity: 1; } 50% { opacity: 0; } }", css)
-        self.assertIn("@keyframes costume-b { 0% { opacity: 0; } 50% { opacity: 1; } }", css)
-        self.assertIn(".portrait.flip svg.main { animation: costume-a 6s steps(1) infinite; }", css)
-        self.assertIn(".portrait.flip svg.alt { animation: costume-b 6s steps(1) infinite; }", css)
-        self.assertIn('id="costumeBtn" type="button"', page)
-        self.assertIn('data-b="Paladin"', page)
 
     def test_secondary_text_and_light_bars_hold_contrast(self):
         from tinkerprint.render_html import CSS, LIGHT_TRACK, _deep, _luminance

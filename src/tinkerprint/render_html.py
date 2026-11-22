@@ -6,7 +6,9 @@ from html import escape
 
 from . import art, look as looks, radar
 from .art import keepsake
-from .art.pixels import mix
+from .art.pixels import Canvas, mix
+from .art.keepsake import berths as keepsake_berths
+from .party import HARNESS_NAMES
 from .render_card import visible as card_visible
 from .timeutil import day_label
 
@@ -59,27 +61,35 @@ code { font-family: var(--mono); font-size: .92em; }
 .bar { display: block; height: 8px; border-radius: 4px; background: var(--grid); position: relative; overflow: hidden; }
 .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; background: var(--lantern); }
 
-/* Hero: one scene. The workshop is the stage, the character stands in it, the nameplate hangs below. */
+/* Hero: one scene. The Keepsake room is the stage, the figure works its counter, the nameplate hangs below.
+   Every layer is the full 252 x 72 room, drawn at a whole-number scale --k so no pixel is wider than its
+   neighbour. A narrow screen crops the room around --fx, between the figure and the party's case, and never
+   past --lx, the figure's left edge. */
 .hero { position: relative; overflow: hidden; border-radius: 16px; background: var(--surface); border: 3px solid var(--frame);
   box-shadow: 0 22px 44px -28px rgba(40,20,0,.6); }
-.banner { position: relative; overflow: hidden; background: var(--frame); }
-.set { position: relative; }
-.set > svg { width: 100%; height: auto; }
-.portrait { position: absolute; }
-.portrait svg { width: 100%; height: auto; }
-.portrait svg.alt { position: absolute; inset: 0; }
-/* A close call swaps the costume: the two layers trade places, never both at once. */
-.portrait.flip svg.main { animation: costume-a 6s steps(1) infinite; }
-.portrait.flip svg.alt { animation: costume-b 6s steps(1) infinite; }
+.banner { --k: 1; position: relative; overflow: hidden; height: calc(72px * var(--k)); background: var(--frame); }
+@media (min-width: 289px) { .banner { --k: 2; } }
+@media (min-width: 541px) { .banner { --k: 3; } }
+@media (min-width: 795px) { .banner { --k: 4; } }
+@media (min-width: 1047px) { .banner { --k: 5; } }
+.set { --f: var(--fx); position: absolute; top: 0; height: 100%; width: calc(252px * var(--k));
+  left: min(max(100% - 252px * var(--k), 50% - var(--f) * var(--k) * 1px, var(--lx) * var(--k) * -1px),
+             max(0px, (100% - 252px * var(--k)) / 2)); }
+.set img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; pointer-events: none; }
+.set .hit { position: absolute; z-index: 1; }
+/* A close call swaps the costume: figure, hands and counter trade places together, never both at once.
+   The room keeps running underneath. */
+.flip .wear.main { animation: costume-a 6s steps(1) infinite; }
+.flip .wear.alt { animation: costume-b 6s steps(1) infinite; }
 @keyframes costume-a { 0% { opacity: 1; } 50% { opacity: 0; } }
 @keyframes costume-b { 0% { opacity: 0; } 50% { opacity: 1; } }
-.portrait.flip:hover svg.main, .portrait.flip.worn svg.main { animation: none; opacity: 0; }
-.portrait.flip:hover svg.alt, .portrait.flip.worn svg.alt { animation: none; opacity: 1; }
-.portrait.flip.held svg.main { animation: none; opacity: 1; }
-.portrait.flip.held svg.alt { animation: none; opacity: 0; }
+.flip .hit:hover ~ .wear.main, .flip.worn .wear.main { animation: none; opacity: 0; }
+.flip .hit:hover ~ .wear.alt, .flip.worn .wear.alt { animation: none; opacity: 1; }
+.flip.held .wear.main { animation: none; opacity: 1; }
+.flip.held .wear.alt { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .portrait.flip svg.main { animation: none; opacity: 1; }
-  .portrait.flip svg.alt { animation: none; opacity: 0; }
+  .flip .wear.main { animation: none; opacity: 1; }
+  .flip .wear.alt { animation: none; opacity: 0; }
 }
 .plaque { position: relative; display: grid; gap: 16px 28px; align-items: center;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 430px); grid-template-areas: "who xp";
@@ -110,7 +120,6 @@ code { font-family: var(--mono); font-size: .92em; }
   .plaque { grid-template-columns: minmax(0, 1fr); grid-template-areas: "who" "xp"; }
 }
 @media (max-width: 560px) {
-  .set { width: var(--zoom); margin-left: var(--crop); }
   .hero { border-width: 2px; border-radius: 12px; }
   .plaque { padding: 14px; gap: 12px 14px; }
   .seal { width: 64px; height: 64px; border-width: 2px; }
@@ -245,6 +254,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .share-toggle:checked ~ .wrap .share-only { display: block; }
 .share-toggle:checked ~ .wrap span.share-only { display: inline; }
 .share-toggle:checked ~ .wrap .plaque { align-items: start; }
+.share-toggle:checked ~ .wrap .set { --f: var(--fx-share, var(--fx)); }
 .share-stats { display: grid; gap: 8px; margin-top: 14px; }
 .share-stats .row { --hue-fill: var(--hue-2); display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; }
 .share-stats .row .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -265,7 +275,7 @@ JS = """
   var t = get(); apply(t);
   btn.addEventListener('click', function () { t = t === 'auto' ? 'light' : t === 'light' ? 'dark' : 'auto'; put(t); apply(t); });
   // The close-call costume: each press wears the other one and stops the automatic swap.
-  var cb = document.getElementById('costumeBtn'), fig = document.querySelector('.portrait.flip');
+  var cb = document.getElementById('costumeBtn'), fig = document.querySelector('.set.flip');
   if (cb && fig) cb.addEventListener('click', function () {
     var worn = !fig.classList.contains('worn');
     fig.classList.toggle('worn', worn); fig.classList.toggle('held', !worn);
@@ -383,32 +393,72 @@ def _and(words: list) -> str:
     return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
 
 
-def _hero_scene(sheet: dict, pack: dict, main, alt, name: str, ranked: list, harnesses: list) -> dict:
-    """The workshop banner with the character layered on its rug, so a close call can flip the costume.
-    Also the phone crop: the zoom and offset that keep the figure and familiars in view."""
-    set_name = sheet["profile"]["set"]
-    seed = "|".join([set_name, name] + [f"{s}={p}" for s, p in ranked] + harnesses)
-    stage = art.banner(pack, main, ranked, harnesses, seed, with_figure=False)
-    banner_svg = stage.svg(1, f"A workshop: shelves hold {', '.join(s for s, _ in ranked[:4]) or 'nothing yet'}", "px")
-    fig = art.figure(pack, main)
-    fx, fy = art.banner_figure_box(pack, fig)
-    figs = fig.svg(1, f"Portrait of a {name}", "px main")
+def _uri(kind: str, data: bytes) -> str:
+    return f"data:image/{kind};base64," + base64.b64encode(data).decode("ascii")
+
+
+def _layer(frames: tuple, alt: str, cls: str) -> str:
+    """One banner layer: the idle loop as a GIF, or frame zero for viewers who asked for less motion."""
+    loop = keepsake.encode(frames, keepsake.DELAYS_MS)
+    still = frames[0].png(1, indexed=True)
+    return (f'<picture class="{cls}"><source media="(prefers-reduced-motion: reduce)" srcset="{_uri("png", still)}">'
+            f'<img src="{_uri("gif", loop)}" alt="{e(alt)}"></picture>')
+
+
+def _worn(figure, foreground, box: tuple) -> tuple:
+    """A costume as one layer per beat: the figure, then the counter with its hands and tools in front.
+    One image keeps the hands on the arms whatever the browser does with its clocks."""
+    x, y, _, _ = box
+    frames = []
+    for fig, front in zip(figure.frames, foreground.frames):
+        c = Canvas(front.w, front.h)
+        c.paste(fig, x, y)
+        c.paste(front)
+        frames.append(c)
+    return tuple(frames)
+
+
+def _hero_scene(sheet: dict, pack: dict, main, alt, name: str, ranked: list, harnesses: list,
+                shown: list | None = None) -> dict:
+    """The Keepsake room with the figure at its counter and the party in the case, idling.
+    A close call adds the other costume, which swaps with the first one. shown is the party the share
+    view keeps, when it differs: that room is drawn again with only those members.
+    Also the phone crop: --fx is the native x to centre, between the figure and the party's case, and
+    --lx the figure's left edge, which stays in view."""
+    seed, tokens = looks.of_sheet(sheet)
+    layers = keepsake.banner_layers(pack, main, ranked, harnesses, seed, alternate=alt, **looks.options(tokens))
+    shelf = ", ".join(s for s, _ in ranked[:4]) or "nothing yet"
+    room = f"A workshop. Its shelves hold {shelf}"
+    x, y, w, h = layers.figure_box
+
+    # Every costume draws inside x + 8 to x + 56. The case's third berth ends by 246.
+    left = x + 8
+
+    def focus(party):
+        return (left + (246 if keepsake_berths(party) else x + w - 8)) // 2
+
+    html = _layer(layers.background.frames, room + _party_words(harnesses), "room" + (" private" if shown is not None else ""))
+    style = f"--lx:{left};--fx:{focus(harnesses)}"
+    if shown is not None:
+        bare = keepsake.banner_layers(pack, main, ranked, shown, seed, **looks.options(tokens))
+        html += _layer(bare.background.frames, room + _party_words(shown), "room share-only")
+        style += f";--fx-share:{focus(shown)}"
     flip = ""
     if alt:
-        figs += art.figure(pack, alt).svg(1, f"Portrait of a {sheet['class']['close']['name']}", "px alt")
+        html += f'<div class="hit" style="left:{x / 2.52:.3f}%;top:{y / .72:.3f}%;width:{w / 2.52:.3f}%;height:{h / .72:.3f}%"></div>'
         flip = " flip"
-    # Phone crop: centre between the figure and the last familiar, zoomed so both fill the frame.
-    right = fx + fig.w
-    if harnesses:
-        right = min(stage.w, right + 6 + sum(art.familiar(pack, h).w + 3 for h in harnesses[:3]))
-    zoom = min(1.9, stage.w / (right - fx + 24))
-    view = 1 / zoom
-    focus = (fx + right) / 2 / stage.w
-    left = min(max(focus - view / 2, 0.0), 1 - view)
-    style = f"--zoom:{zoom * 100:.1f}%;--crop:{-left * zoom * 100:.2f}%"
-    box = (f"left:{fx / stage.w * 100:.3f}%;top:{fy / stage.h * 100:.3f}%;"
-           f"width:{fig.w / stage.w * 100:.3f}%")
-    return {"style": style, "html": f'{banner_svg}<div class="portrait{flip}" style="{box}">{figs}</div>'}
+    html += _layer(_worn(layers.figure, layers.foreground, layers.figure_box), f"{name} at the counter", "wear main")
+    if alt:
+        html += _layer(_worn(layers.alternate_figure, layers.alternate_foreground, layers.figure_box),
+                       f"{sheet['class']['close']['name']} at the counter", "wear alt")
+    return {"style": style, "html": f'<div class="set{flip}">{html}</div>'}
+
+
+def _party_words(harnesses: list) -> str:
+    shown = keepsake_berths(harnesses)
+    if not shown:
+        return "."
+    return ". The party's instruments stand in the case: " + _and([HARNESS_NAMES.get(h, "another harness") for h in shown]) + "."
 
 
 def _art(sheet: dict, pack: dict) -> dict:
@@ -425,12 +475,11 @@ def _art(sheet: dict, pack: dict) -> dict:
     pcts = art.sheet_pcts(sheet)
     ranked = [(s, pcts[s]) for s in art.art_rank(pcts, set_name)]
     harnesses = [m["harness"] for m in sheet["party"]]
-    a["scene"] = _hero_scene(sheet, pack, main, alt, name, ranked, harnesses)
     card = card_visible(sheet.get("card") or {})
-    # The share view's banner holds only the familiars the card shows.
+    # The share view's room holds only the party members the card shows.
     shown = [m["harness"] for m in sheet["party"] if card and m["name"] in card["members"]]
-    a["share_scene"] = (_hero_scene(sheet, pack, main, alt, name, ranked, shown)
-                        if card and shown != harnesses else None)
+    differs = card and keepsake_berths(shown) != keepsake_berths(harnesses)
+    a["scene"] = _hero_scene(sheet, pack, main, alt, name, ranked, harnesses, shown if differs else None)
     # Party members are presence only: each instrument depends on the harness name alone.
     a["familiar"] = {m["harness"]: keepsake.instrument(m["harness"]).svg(4, f"{m['name']}'s instrument", "px")
                      for m in sheet["party"]}
@@ -494,16 +543,10 @@ def _share_view(sheet: dict, pix: dict) -> dict:
     prof_name = e(sheet["profile"]["name"])
     v = card_visible(sheet.get("card") or {})
     if not v:
-        return {"toggle": "", "button": "", "banner_class": "", "banner": "", "name": prof_name, "seal_class": "",
-                "stats": ""}
+        return {"toggle": "", "button": "", "name": prof_name, "seal_class": "", "stats": ""}
     name = prof_name
     if v["name"] != sheet["profile"]["name"]:
         name = f'<span class="private">{prof_name}</span><span class="share-only">{e(v["name"])}</span>'
-    banner, banner_class = "", ""
-    if pix.get("share_scene"):
-        sc = pix["share_scene"]
-        banner_class = " private"
-        banner = f'\n  <div class="banner share-only"><div class="set" style="{sc["style"]}">{sc["html"]}</div></div>'
     rows = []
     for stat, p in v["stats"]:
         hue = pix["hue"][stat]
@@ -517,8 +560,6 @@ def _share_view(sheet: dict, pix: dict) -> dict:
         "button": ('<label class="ghost-btn share-btn" for="share-view"><span class="off">Share view</span>'
                    '<span class="on">Leave share view</span></label>'
                    '<a class="ghost-btn private" href="card.png">card.png</a>'),
-        "banner_class": banner_class,
-        "banner": banner,
         "name": name,
         "seal_class": "" if v["level"] else " private",
         "stats": stats,
@@ -690,7 +731,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
   <div class="tools">{share["button"]}<button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button></div>
 </div>
 <section class="hero">
-  <div class="banner{share["banner_class"]}"><div class="set" style="{scene["style"]}">{scene["html"]}</div></div>{share["banner"]}
+  <div class="banner" style="{scene["style"]}">{scene["html"]}</div>
   <div class="plaque">
     <div class="who">
       <h1>{share["name"]}</h1>

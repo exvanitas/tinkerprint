@@ -27,7 +27,7 @@ SKINS = {
 EYES = tuple(EYE_RAMPS)
 
 __all__ = ["figure", "figure_frames", "plate", "plate_frames", "camp", "camp_frames",
-           "banner_layers", "pin", "trinket", "instrument", "traits", "encode",
+           "banner_layers", "berths", "pin", "trinket", "instrument", "traits", "encode",
            "SKINS", "EXPRESSIONS", "HAIRSTYLES", "EYES", "DELAYS_MS"]
 
 
@@ -163,6 +163,11 @@ def banner_layers(pack, look, stats, harnesses=(), seed=None, *, alternate=None,
     if alternate is not None:
         alt, alt_front, _ = _costume_layers(pack, alternate, *options)
     return BannerLayers(background, main, front, box, alt, alt_front)
+
+
+def berths(harnesses):
+    """The harness keys the room's case shows, in its stable order: three at most."""
+    return companions.berths(harnesses)
 
 
 def pin(pack, achievement):
