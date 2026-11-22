@@ -201,6 +201,11 @@ def output_lines(res: dict) -> list:
         return out
     out.append("  shows    " + shows(card))
     out.append("  alt      " + visible(card)["alt"])
+    from .pixelfont import missing
+    v = visible(card)
+    lost = missing(v["name"] + v["projects"])
+    if lost:
+        out.append(f'Note: card.png draws {"".join(lost)} as "?", which its pixel font lacks. card.svg keeps them.')
     return out
 
 

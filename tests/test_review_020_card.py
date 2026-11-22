@@ -177,5 +177,20 @@ class TabTitle(unittest.TestCase):
         self.assertIn("<title>Ida Fenwick · tinkerprint</title>", self.html())
 
 
+class Glyphs(unittest.TestCase):
+    def test_a_name_the_pixel_font_cannot_draw_is_noted(self):
+        from tinkerprint.cli import output_lines
+        from tinkerprint.pixelfont import missing
+        self.assertEqual(missing("Zoë Müller?"), [])
+        self.assertEqual(missing("\u674e\u96f7 \u674e"), ["\u674e", "\u96f7"])
+        card = dict(tie_card(), name="\u674e\u96f7")
+        lines = output_lines({"paths": {}, "sheet": {"card": card}})
+        self.assertIn('Note: card.png draws \u674e\u96f7 as "?", which its pixel font lacks. card.svg keeps them.',
+                      lines)
+        self.assertIn("\u674e\u96f7", render_card(card, PACK))
+        lines = output_lines({"paths": {}, "sheet": {"card": tie_card()}})
+        self.assertFalse([x for x in lines if x.startswith("Note:")])
+
+
 if __name__ == "__main__":
     unittest.main()

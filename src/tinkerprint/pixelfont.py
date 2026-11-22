@@ -140,23 +140,40 @@ for _ch, _rows in GLYPHS.items():
 _DOTLESS_I = (".", ".", "#", "#", "#", "#", "#")
 
 
+def _cell(c: str):
+    """(glyph rows, mark rows or None) for one spelled character, () for a mark drawn on nothing,
+    or None when the font has no glyph for it."""
+    if c in GLYPHS:
+        return GLYPHS[c], None
+    parts = unicodedata.normalize("NFD", c)
+    base, marks = parts[:1], [m for m in parts[1:] if m in _MARKS]
+    if base in GLYPHS and base != c:
+        rows = _DOTLESS_I if base == "i" and marks else GLYPHS[base]
+        return rows, _MARKS[marks[0]] if marks else None
+    if unicodedata.combining(c):
+        return ()
+    return None
+
+
 def _cells(text: str) -> list:
     """(glyph rows, mark rows or None) for each drawn character of text."""
     out = []
     for ch in str(text):
         for c in _SPELL.get(ch, ch):
-            if c in GLYPHS:
-                out.append((GLYPHS[c], None))
-                continue
-            parts = unicodedata.normalize("NFD", c)
-            base, marks = parts[:1], [m for m in parts[1:] if m in _MARKS]
-            if base in GLYPHS and base != c:
-                rows = _DOTLESS_I if base == "i" and marks else GLYPHS[base]
-                out.append((rows, _MARKS[marks[0]] if marks else None))
-            elif unicodedata.combining(c):
-                continue
-            else:
+            cell = _cell(c)
+            if cell is None:
                 out.append((GLYPHS["?"], None))
+            elif cell:
+                out.append(cell)
+    return out
+
+
+def missing(text: str) -> list:
+    """The characters of text the font draws as "?", in order, each once."""
+    out = []
+    for ch in str(text):
+        if any(_cell(c) is None for c in _SPELL.get(ch, ch)) and ch not in out:
+            out.append(ch)
     return out
 
 

@@ -30,7 +30,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 ### Sharing and the card
 
-- `card.png`, the file to post. Discord and most social sites preview it. It draws the same fields as `card.svg`.
+- `card.png`, the file to post. Discord and most social sites preview it. It draws the same fields as `card.svg`. Its pixel font draws Latin letters, and `build` says when a name holds others: `card.png` shows them as "?" and `card.svg` keeps them.
 - `portrait.png` and an idling `portrait.gif`: the card's portrait alone, your figure in front of your own room.
 - A `[card]` table: `enabled` turns the card on or off on any profile, `name` puts a handle on the card while the sheet keeps your name, and `hide` leaves off any of the party, the level and the achievements.
 - The card gains your portrait with a level seal, share bars, the party's instruments, a MULTICLASS label, and a footer naming tinkerprint, the method version, the build month and the active days the shares cover. A season build's footer names the season by month, or by day when `show` has `dates`.
