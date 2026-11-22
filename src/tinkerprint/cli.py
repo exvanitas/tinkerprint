@@ -188,7 +188,7 @@ def cmd_build(args) -> int:
 
 # What build prints for each output, in this order. card.png is the file to post.
 OUTPUTS = (("html", "sheet", ""), ("card_png", "card", "  (share this one)"), ("card", "card", ""),
-           ("portrait", "portrait", ""), ("json", "json", ""))
+           ("portrait", "portrait", ""), ("portrait_gif", "portrait", ""), ("json", "json", ""))
 
 
 def output_lines(res: dict) -> list:

@@ -53,7 +53,7 @@ class FileModes(unittest.TestCase):
 
     def test_outputs_shared_data_private(self):
         out, home = self.build()
-        for name in ("sheet.html", "card.svg", "portrait.png", "sheet.json", "changes.json"):
+        for name in ("sheet.html", "card.svg", "portrait.png", "portrait.gif", "sheet.json", "changes.json"):
             self.assertEqual(mode(os.path.join(out, name)), 0o644, name)
         private = list(self.private_files(home))
         self.assertTrue(any(os.sep + "cache" + os.sep in p for p in private))

@@ -149,7 +149,7 @@ class AuditPng(unittest.TestCase):
     def test_build_writes_card_png_and_audit_certifies_it(self):
         self.assertEqual(self.res["paths"]["card_png"], os.path.join(self.out, "card.png"))
         lines = audit_card(self.out, self.prof)
-        self.assertEqual(lines[-1], "card.png holds image data only, and draws exactly the fields card.svg draws.")
+        self.assertIn("card.png holds image data only, and draws exactly the fields card.svg draws.", lines)
         self.assertEqual(self.card["built"], "Nov 2026")
 
     def test_text_chunks_are_refused(self):
@@ -198,7 +198,8 @@ class AuditPng(unittest.TestCase):
                 with open(os.path.join(t, name), "wb") as f:
                     f.write(data)
             lines = audit_card(t)
-            self.assertIn("not certified", lines[-1])
+            self.assertIn("card.png holds image data only, but there are no card fields", "\n".join(lines))
+            self.assertIn("not certified", next(l for l in lines if l.startswith("card.png")))
             self.assertTrue(lines[0].endswith("strings and nothing else:"))
             os.remove(os.path.join(t, "card.svg"))
             lines = audit_card(t)
@@ -218,17 +219,17 @@ class AuditPng(unittest.TestCase):
         self.assertIn("  shows    " + shows(self.card), lines)
         self.assertIn("  alt      " + visible(self.card)["alt"], lines)
 
-    def test_card_off_removes_both_card_files(self):
+    def test_card_off_removes_every_card_file(self):
         with tempfile.TemporaryDirectory() as t:
             out = os.path.join(t, "out")
-            for name in ("card.svg", "card.png", "portrait.png"):
+            for name in ("card.svg", "card.png", "portrait.png", "portrait.gif"):
                 os.makedirs(out, exist_ok=True)
                 with open(os.path.join(out, name), "wb") as f:
                     f.write(b"old")
             prof = copy.copy(self.prof)
             prof.card_allow = False
             res = build(prof, out, home=os.path.join(self.tmp.name, "data"), today=date(2026, 11, 1))
-            for name in ("card.svg", "card.png", "portrait.png"):
+            for name in ("card.svg", "card.png", "portrait.png", "portrait.gif"):
                 self.assertFalse(os.path.exists(os.path.join(out, name)), name)
             from tinkerprint.cli import output_lines
             self.assertIn("  card     off: The profile sets [card] enabled = false.", output_lines(res))
@@ -243,9 +244,11 @@ class DemoPrints(unittest.TestCase):
                 self.assertEqual(main(["demo", "--out", os.path.join(t, "demo")]), 0)
             text = buf.getvalue()
             self.assertEqual(text.count("card.png  (share this one)"), 2)
+            self.assertEqual(text.count("portrait.gif"), 2)
             self.assertEqual(text.count("  alt      tinkerprint card for "), 2)
             for slug in ("wren", "tobi"):
-                self.assertTrue(os.path.isfile(os.path.join(t, "demo", slug, "card.png")))
+                for name in ("card.png", "portrait.gif"):
+                    self.assertTrue(os.path.isfile(os.path.join(t, "demo", slug, name)))
 
 
 if __name__ == "__main__":

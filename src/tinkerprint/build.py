@@ -14,7 +14,7 @@ from .projects import Resolver, canonical, scan_priors
 from .readers import agy, claude, codex
 from .readers._common import HashingStream, new_health, version_text
 from .readers.git import Identity, read_git
-from .render_card import portrait_plate, render_card
+from .render_card import portrait_gif, portrait_png, render_card
 from .render_card_png import render_card_png
 from .render_html import render_html
 from .history import History, scope_digests
@@ -448,17 +448,20 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     card_path = os.path.join(out_dir, "card.svg")
     card_png = os.path.join(out_dir, "card.png")
     png_path = os.path.join(out_dir, "portrait.png")
+    gif_path = os.path.join(out_dir, "portrait.gif")
     if sheet["card"].get("enabled"):
         # Both card files draw visible()'s fields and nothing else.
         _write(card_path, render_card(sheet["card"], pack), share=True)
         paths["card"] = card_path
         _write(card_png, render_card_png(sheet["card"], pack), share=True)
         paths["card_png"] = card_png
-        # The portrait plate as a PNG at 6x, from the card's allowlisted fields only.
-        _write(png_path, portrait_plate(sheet["card"], pack).png(6, indexed=True), share=True)
+        # The portrait plate at 6x, still and idling, from the card's allowlisted fields only.
+        _write(png_path, portrait_png(sheet["card"], pack), share=True)
         paths["portrait"] = png_path
+        _write(gif_path, portrait_gif(sheet["card"], pack), share=True)
+        paths["portrait_gif"] = gif_path
     else:
-        for path in (card_path, card_png, png_path):
+        for path in (card_path, card_png, png_path, gif_path):
             if os.path.exists(path):
                 os.remove(path)
     os.makedirs(os.path.dirname(pointer), exist_ok=True)

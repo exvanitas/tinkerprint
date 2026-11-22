@@ -141,6 +141,7 @@ RADAR_LEFT = 640  # the radar's column starts here
 RADAR_CX, RADAR_CY, RADAR_R = 850, 288, 178
 RADAR_CLIP = 150  # the widest a spoke label may draw in card.png, so the longest stat names stay on the card
 PLATE_SCALE, PLATE_PAD = 3, 4  # the 64-pixel plate at 3x, 192 px, in a 200 px frame
+PORTRAIT_SCALE = 6  # portrait.png and portrait.gif: the plate at 6x, 384 px
 MEMBER_SCALE = 3  # party instruments
 SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', P052, Georgia, serif"
 # Lantern palette, shared with the sheet's dark theme.
@@ -158,10 +159,22 @@ def portrait_box(pack: dict | None = None) -> tuple:
     return PLATE_SCALE, PLATE_PAD, 64 * PLATE_SCALE + 2 * PLATE_PAD
 
 
+def portrait_png(card: dict, pack: dict) -> bytes:
+    """portrait.png: the plate's still, from allowlisted card fields only."""
+    return portrait_plate(card, pack).png(PORTRAIT_SCALE, indexed=True)
+
+
 def portrait_plate(card: dict, pack: dict):
     """The portrait: the figure in front of their own room, from allowlisted card fields only.
     The name seeds the room's view and any trait the profile left to chance."""
     return keepsake.plate(pack, art.card_look(card), str(card.get("name", "")), **look.options(look.of_card(card)))
+
+
+def portrait_gif(card: dict, pack: dict) -> bytes:
+    """portrait.gif: the plate's idle loop at the scale of portrait.png, from allowlisted card fields only."""
+    frames = keepsake.plate_frames(pack, art.card_look(card), str(card.get("name", "")),
+                                   **look.options(look.of_card(card)))
+    return keepsake.encode(frames, keepsake.DELAYS_MS, PORTRAIT_SCALE)
 
 
 def members(names: list) -> list:
