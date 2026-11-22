@@ -5,9 +5,10 @@ describes the file that would be shared. Text nodes (CDATA too), comments and ev
 is not plain presentation are listed. A file that does not parse is reported and never certified.
 
 card.png holds pixels, not strings, so it is checked two ways: its chunks must be image data only
-(no tEXt, iTXt or zTXt, nothing else either), and its pixels must be exactly what the card fields
-in sheet.json draw, the same fields that draw card.svg byte for byte. Then the listing above
-covers card.png too. portrait.png is checked the same way. portrait.gif must hold image frames
+(no tEXt, iTXt or zTXt, nothing else either), and it must be, byte for byte, the file the card
+fields in sheet.json draw, the same fields that draw card.svg byte for byte. Then the listing
+above covers card.png too. Rendering is deterministic, so no byte goes unchecked, inside a chunk or
+after the image data. portrait.png is checked the same way. portrait.gif must hold image frames
 only (no comment, plain-text or other application extension) and be, byte for byte, the loop the
 card fields draw.
 
@@ -107,19 +108,6 @@ def png_chunks(data: bytes) -> list:
     return out
 
 
-def png_image(chunks: list) -> tuple:
-    """What a PNG draws: its header, palette, transparency and the decompressed image rows.
-    Two files with equal images draw the same pixels, whatever their compression."""
-    head = b"".join(b for k, b in chunks if k == b"IHDR")
-    plte = b"".join(b for k, b in chunks if k == b"PLTE")
-    trns = b"".join(b for k, b in chunks if k == b"tRNS")
-    try:
-        rows = zlib.decompress(b"".join(b for k, b in chunks if k == b"IDAT"))
-    except zlib.error as e:
-        raise NotPng(f"image data does not decompress ({e})") from None
-    return head, plte, trns, rows
-
-
 def check_png(data: bytes, card: dict | None, svg: bytes | None, pack=None) -> tuple:
     """(certified, message) for card.png. card is the card fields from sheet.json, svg the
     card.svg bytes on disk."""
@@ -142,15 +130,15 @@ def check_png(data: bytes, card: dict | None, svg: bytes | None, pack=None) -> t
     from .render_card_png import render_card_png
     try:
         same_svg = svg is not None and render_card(card, pack).encode("utf-8") == svg
-        same_png = same_svg and png_image(chunks) == png_image(png_chunks(render_card_png(card, pack)))
+        same_png = same_svg and render_card_png(card, pack) == data
     except (KeyError, TypeError, ValueError, AttributeError) as e:
         return False, f"card.png could not be checked ({type(e).__name__}). It is not certified. Run build again."
     if not same_svg:
         return False, ("card.svg is not what the card fields in sheet.json draw, so card.png cannot be matched to "
                        "it. card.png is not certified. Run build again, with the same --art-pack if you used one.")
     if not same_png:
-        return False, ("card.png does not draw the card fields that card.svg draws. It is not certified. Run build "
-                       "again, with the same --art-pack if you used one.")
+        return False, ("card.png is not, byte for byte, the image the card fields draw. It is not certified. Run "
+                       "build again, with the same --art-pack if you used one.")
     return True, "card.png holds image data only, and draws exactly the fields card.svg draws."
 
 
@@ -169,12 +157,12 @@ def check_portrait_png(data: bytes, card: dict | None, pack=None) -> tuple:
                        "to check its pixels against. It is not certified. Run build again.")
     from .render_card import portrait_png
     try:
-        same = png_image(chunks) == png_image(png_chunks(portrait_png(card, pack or _pack())))
+        same = portrait_png(card, pack or _pack()) == data
     except (KeyError, TypeError, ValueError, AttributeError) as e:
         return False, f"portrait.png could not be checked ({type(e).__name__}). It is not certified. Run build again."
     if not same:
-        return False, ("portrait.png does not draw the card's portrait. It is not certified. Run build again, with "
-                       "the same --art-pack if you used one.")
+        return False, ("portrait.png is not, byte for byte, the card's portrait. It is not certified. Run build "
+                       "again, with the same --art-pack if you used one.")
     return True, "portrait.png holds image data only, and draws exactly the card's portrait."
 
 

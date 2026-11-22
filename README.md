@@ -84,7 +84,7 @@ Presentation is neutral unless you set it. Hair, eyes and expression left out ar
 
 Post `card.png`. Discord and most social sites show it as a preview, and they do not preview SVG. `card.svg` draws the same thing. `portrait.png` is the portrait alone, for an avatar, and `portrait.gif` is the same portrait idling.
 
-After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` and both portraits hold image data only and draw the same fields. It exits 1 when a card file is missing, broken or not certified, so a script can stop on it.
+After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` and both portraits hold image data only and are, byte for byte, what the card's fields draw. It exits 1 when a card file is missing, broken or not certified, so a script can stop on it.
 
 What a card reveals:
 

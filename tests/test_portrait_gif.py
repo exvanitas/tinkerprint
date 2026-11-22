@@ -112,7 +112,7 @@ class PortraitGif(unittest.TestCase):
         self.assertTrue(check_portrait_png(png, self.card, PACK)[0])
         ok, msg = check_portrait_png(portrait_png(dict(self.card, name="Rae Quill"), PACK), self.card, PACK)
         self.assertFalse(ok)
-        self.assertIn("does not draw the card's portrait", msg)
+        self.assertIn("is not, byte for byte, the card's portrait", msg)
         self.assertFalse(check_portrait_png(png[:-3], self.card, PACK)[0])
         self.assertFalse(check_portrait_png(self.gif, self.card, PACK)[0])
 

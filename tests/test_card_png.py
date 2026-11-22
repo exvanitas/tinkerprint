@@ -168,15 +168,15 @@ class AuditPng(unittest.TestCase):
         other = render_card_png(dict(self.card, name="Rae Quill"))
         ok, msg = check_png(other, self.card, self.svg)
         self.assertFalse(ok)
-        self.assertIn("does not draw the card fields", msg)
+        self.assertIn("is not, byte for byte, the image the card fields draw", msg)
 
     def test_a_card_svg_from_other_fields_is_refused(self):
         other_svg = render_card(dict(self.card, name="Rae Quill")).encode()
         ok, _ = check_png(self.png, self.card, other_svg)
         self.assertFalse(ok)
 
-    def test_recompressed_png_still_matches(self):
-        """The check compares pixels, so another zlib build or level gives the same verdict."""
+    def test_recompressed_png_is_not_certified(self):
+        """The check compares every byte: the same pixels compressed another way are not the file build wrote."""
         out = b"\x89PNG\r\n\x1a\n"
         for k, b in png_chunks(self.png):
             if k == b"IDAT":
@@ -184,7 +184,7 @@ class AuditPng(unittest.TestCase):
             out += struct.pack(">I", len(b)) + k + b + struct.pack(">I", zlib.crc32(k + b) & 0xFFFFFFFF)
         self.assertNotEqual(out, self.png)
         ok, msg = check_png(out, self.card, self.svg)
-        self.assertTrue(ok, msg)
+        self.assertFalse(ok, msg)
 
     def test_broken_or_unmatched_pngs_are_not_certified(self):
         self.assertFalse(check_png(self.png[:-5], self.card, self.svg)[0])
