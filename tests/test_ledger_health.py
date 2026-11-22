@@ -133,7 +133,7 @@ class KeptHistory(Tmp):
         stale = {"stat": None, "sha256": "0" * 64, "size": 1, "events": [dict(kept_event, session="stale")],
                  "health": {}}
         with open(self.cache, "w", encoding="utf-8") as f:
-            json.dump({"v": CACHE_VERSION - 1, "files": {
+            json.dump({"v": 3, "files": {
                 a: stale, gone: {"gone": True, "stat": None, "sha256": "1" * 64, "size": 1,
                                  "events": [kept_event], "health": {}}}}, f)
         evs, rep = self.read([a])

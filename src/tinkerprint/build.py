@@ -27,6 +27,10 @@ from .timeutil import month_label, parse_day, parse_ts
 # A version change re-reads every log that is still there, and keeps what earlier builds read
 # from logs that are gone, since those can never be read again.
 CACHE_VERSION = 5
+# Cache versions whose events this version still reads as they are. 4 is tinkerprint 0.1's, which
+# kept the same events but never marked an entry gone. A log such a cache read that is gone now
+# keeps its events. Any other version keeps only entries it marked gone itself.
+EVENTS_VALID = (4, 5)
 
 
 def _digest(path: str) -> str | None:
@@ -78,7 +82,10 @@ def _cached(files: list, reader, cache_path: str, base: str | None = None, repor
     except (OSError, ValueError):
         cache = {}
     old = cache.get("files", {})
-    if cache.get("v") != CACHE_VERSION:
+    # Two questions: whether an entry's events still count (its log is gone), and whether it may
+    # stand in for a log that is still there. Only this version's entries may stand in.
+    reuse = cache.get("v") == CACHE_VERSION
+    if cache.get("v") not in EVENTS_VALID:
         old = {p: c for p, c in old.items() if isinstance(c, dict) and c.get("gone")}
     new = {}
     events = []
@@ -90,7 +97,9 @@ def _cached(files: list, reader, cache_path: str, base: str | None = None, repor
         except OSError:
             continue
         stamp = [st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino]
-        c = old.get(path) or {}
+        c = (old.get(path) if reuse else None) or {}
+        if not isinstance(c, dict):
+            c = {}
         same_size = c.get("size") == st.st_size and isinstance(c.get("sha256"), str) and "health" in c
         if same_size and (c.get("stat") == stamp or _digest(path) == c["sha256"]):
             evs = [Event.from_dict(x) for x in c.get("events", [])]

@@ -42,7 +42,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 ### Your data and privacy
 
 - `tinkerprint forget` lists what tinkerprint keeps for a profile, or everything with `--all`, and deletes it with `--yes`. It deletes only in a data folder a build has marked, and only files tinkerprint wrote. It never touches your repos, agent logs, profiles or `--out` folders.
-- Sessions from agent logs that are gone still count. Claude Code deletes old transcripts after about a month, and your sheet no longer loses those days.
+- Sessions from agent logs that are gone still count. Claude Code deletes old transcripts after about a month, and your sheet no longer loses those days. That includes logs 0.1 read that are gone by your first 0.2 build.
 - History follows a profile file you move. A copy of a profile starts its own. A profile whose name or identity changed at the same path keeps its history, and `build` says how to start afresh.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - Outputs are readable under your umask, so a web server or a copy can serve them. The cache and history stay private to you.
@@ -71,7 +71,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 - The method is now version 3. METHOD.md lists what changed. "What changed" does not compare a 0.1 sheet with a 0.2 one.
 - The sheet format is `tinkerprint.sheet/3`. Party members lose `review_sessions` and `other_sessions`, and season totals gain `classified_days`. `sheet.json` also gains `chronicle`, `look` and the card's build month.
-- The first build after the update re-reads every agent log once.
+- The first build after the update re-reads every agent log that is still there, once.
 - `audit` exits 1 when a card is not certified.
 - The art pack is version 3. Version-1 packs are refused, and the sprite parts of a version-2 pack are ignored.
 - Unknown profile keys are errors.
