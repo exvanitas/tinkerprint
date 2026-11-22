@@ -311,5 +311,46 @@ class Antigravity(unittest.TestCase):
         self.assertEqual({e.session for e in evs}, {"a2"})
 
 
+class DamagedHistory(unittest.TestCase):
+    def setUp(self):
+        from tinkerprint.history import History
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.hist = History(self.tmp.name, "ida-0badc0de", (None, None))
+        os.makedirs(self.hist.dir)
+
+    def put(self, name, text):
+        with open(os.path.join(self.hist.dir, name), "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def test_unusable_snapshots_are_passed_over(self):
+        from datetime import date
+        self.put("2026-02-01.json", '{"method": 1}')
+        self.put("2026-02-31.json", '{"method": 2}')  # no such day
+        self.put("2026-03-01.json", "[" * 100000 + "]" * 100000)  # too deep to load
+        self.put("2026-03-02.json", "{not json")
+        self.assertEqual(self.hist.previous(date(2026, 4, 1)), ("2026-02-01", {"method": 1}))
+
+    def test_a_huge_saved_share_is_no_share(self):
+        from tinkerprint.score import saved_view
+        view = saved_view({"stats": [{"key": "Logic", "share": 10 ** 400}, {"key": "Docs", "share": -0.5},
+                                     {"key": "Tools", "share": 0.25}, {"key": "Data", "share": float("nan")}]})
+        self.assertEqual(view["shares"], {"Logic": 0.0, "Docs": 0.0, "Tools": 0.25, "Data": 0.0})
+
+
+class ExactGrammar(unittest.TestCase):
+    def test_a_final_newline_never_passes(self):
+        from tinkerprint.datadir import own_top
+        from tinkerprint.history import _NAME
+        from tinkerprint.profile import is_key
+        from tinkerprint.readers._common import ident, model_id, version_text
+        self.assertTrue(is_key("demo-1234abcd"))
+        self.assertFalse(is_key("demo-1234abcd\n"))
+        self.assertIsNone(_NAME.fullmatch("2026-03-01.json\n"))
+        self.assertFalse(own_top(".profiles.json.abcdefgh.tmp\n"))
+        self.assertTrue(own_top(".profiles.json.abcdefgh.tmp"))
+        self.assertEqual((ident("s1\n"), model_id("m-1\n"), version_text("2.1.4\n")), ("", "", ""))
+
+
 if __name__ == "__main__":
     unittest.main()

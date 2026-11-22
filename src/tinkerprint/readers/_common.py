@@ -18,17 +18,17 @@ SLOT_MINUTES = 15
 # ---------------------------------------------------------------- field formats
 # A schema keeps a field only when it has the declared type and format. Anything else is dropped.
 
-_ID = re.compile(r"^[A-Za-z0-9._:@/+=-]{1,200}$")
-_MODEL = re.compile(r"^[A-Za-z0-9._:@+-]+(?:/[A-Za-z0-9._:@+-]+)?$")
+_ID = re.compile(r"[A-Za-z0-9._:@/+=-]{1,200}")
+_MODEL = re.compile(r"[A-Za-z0-9._:@+-]+(?:/[A-Za-z0-9._:@+-]+)?")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
-_VERSION = re.compile(r"^[0-9][0-9A-Za-z.+-]{0,31}$")
+_VERSION = re.compile(r"[0-9][0-9A-Za-z.+-]{0,31}")
 
 
 def version_text(v) -> str:
     """A log format version like 2.0.14 or 0.46.0-alpha.1, or ''. Anything else is dropped."""
-    return v if isinstance(v, str) and _VERSION.match(v) else ""
+    return v if isinstance(v, str) and _VERSION.fullmatch(v) else ""
 
 
 def text(v) -> str:
@@ -38,12 +38,12 @@ def text(v) -> str:
 
 def ident(v) -> str:
     """An id: letters, digits and . _ : @ / + = -, at most 200 characters. Free text never passes."""
-    return v if isinstance(v, str) and _ID.match(v) else ""
+    return v if isinstance(v, str) and _ID.fullmatch(v) else ""
 
 
 def model_id(v) -> str:
     """A model id: letters, digits and . _ - : @ +, at most one /, none leading, at most 80 characters."""
-    return v if isinstance(v, str) and len(v) <= 80 and _MODEL.match(v) else ""
+    return v if isinstance(v, str) and len(v) <= 80 and _MODEL.fullmatch(v) else ""
 
 
 def path_text(v) -> str:

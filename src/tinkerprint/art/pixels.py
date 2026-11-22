@@ -10,7 +10,7 @@ import re
 import struct
 import zlib
 
-HEX = re.compile(r"^#[0-9a-f]{6}$")
+HEX = re.compile(r"#[0-9a-f]{6}")
 CLEAR = "."
 
 
@@ -182,7 +182,7 @@ def _chunk(kind: bytes, data: bytes) -> bytes:
 
 
 def _rgba(c: str) -> bytes:
-    if not HEX.match(c):
+    if not HEX.fullmatch(c):
         raise ValueError(f"not a #rrggbb color: {c!r}")
     return bytes((int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16), 255))
 

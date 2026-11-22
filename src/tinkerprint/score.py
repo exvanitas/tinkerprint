@@ -359,7 +359,10 @@ def _whole(v, default=None):
 
 
 def _share(v) -> float:
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else 0.0
+    """A share in [0, 1], checked before any conversion, so a huge saved integer never overflows."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 0.0
+    return float(v) if 0 <= v <= 1 else 0.0
 
 
 def _rows(v, *keys) -> list:
