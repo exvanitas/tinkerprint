@@ -49,8 +49,11 @@ h2 { font: 600 25px/1.2 var(--serif); margin: 52px 0 4px; display: flex; align-i
 h2::before { content: ""; width: 10px; height: 10px; background: var(--lantern); transform: rotate(45deg); flex: none; }
 h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border-2), transparent); }
 .lede { color: var(--ink-2); margin: 0 0 16px; max-width: 72ch; font-size: 14px; }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+/* The top bar: the kicker beside the buttons, or above them once both no longer fit on one line.
+   The kicker breaks only between its parts, and a dot stays with the part before it. */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+.eyebrow { flex: 1 1 280px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+.eyebrow .seg { white-space: nowrap; }
 .eyebrow b { color: var(--lantern-ink); font-weight: 600; }
 .ghost-btn { background: var(--surface); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink-2); flex: none; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; }
@@ -242,7 +245,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Share view: a checkbox before the page, so CSS alone can hide everything the card would not show.
    No script. The box stays focusable; its label shows the focus ring and the state. */
-.top .tools { display: flex; gap: 8px; align-items: center; flex: none; }
+.top .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
 .top a.ghost-btn { text-decoration: none; }
 .share-toggle { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .share-btn { user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -708,8 +711,9 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
                  "Run <code>tinkerprint audit</code> to see every string they hold."
                  if sheet["card"].get("enabled") else e(sheet["card"].get("reason", "Card off.")))
     share = _share_view(sheet, pix)
-    work = " · work profile" if prof.get("work") else ""
-    as_of = f" · as of {day_label(season['as_of'])}" if season.get("as_of") else ""
+    dot = "&nbsp;· "
+    work = f'{dot}<span class="seg">work profile</span>' if prof.get("work") else ""
+    as_of = f'{dot}<span class="seg">as of {e(day_label(season["as_of"]))}</span>' if season.get("as_of") else ""
     built = f"Built {e(built_at)}. " if built_at else ""
     scene = pix["scene"]
     jump = ""
@@ -728,7 +732,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <body>
 {share["toggle"]}<div class="wrap">
 <div class="top">
-  <div class="eyebrow">tinkerprint · <b>{e(set_title)} set</b><span class="private"> · {e(season["label"])}{as_of}{work}</span></div>
+  <div class="eyebrow"><span class="seg">tinkerprint</span>{dot}<b class="seg">{e(set_title)} set</b><span class="private">{dot}<span class="seg">{e(season["label"])}</span>{as_of}{work}</span></div>
   <div class="tools">{share["button"]}<button class="ghost-btn" id="themeBtn" type="button">Theme: auto</button></div>
 </div>
 <section class="hero">

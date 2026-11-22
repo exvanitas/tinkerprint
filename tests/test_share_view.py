@@ -55,7 +55,18 @@ class ShareView(unittest.TestCase):
         self.assertIn('<div class="private"><div class="cls-why">', head)
         self.assertRegex(head, r'<div class="private">\s*<div class="next">')
         self.assertRegex(head, r'<dl class="vitals n\d private">')
-        self.assertRegex(head, r'<span class="private"> · All history')
+        self.assertIn('<span class="private">&nbsp;· <span class="seg">All history</span>', head)
+
+    def test_top_bar_wraps_between_parts(self):
+        # On a phone the kicker sits above the buttons and breaks only between its parts,
+        # each dot staying with the part before it.
+        page = render_html(sheet_of(work=True))
+        kicker = re.search(r'<div class="eyebrow">(.*?)</div>', page).group(1)
+        self.assertNotRegex(kicker, r"(?<!&nbsp;)· ")
+        self.assertIn('<span class="seg">work profile</span>', kicker)
+        self.assertIn(".eyebrow .seg { white-space: nowrap; }", CSS)
+        top = re.search(r"\.top \{([^}]*)\}", CSS).group(1)
+        self.assertIn("flex-wrap: wrap", top)
 
     def test_share_view_shows_only_card_strings(self):
         sheet = sheet_of()
