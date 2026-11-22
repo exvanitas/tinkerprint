@@ -62,6 +62,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 - Paths, roots and time zones work on Windows. `init` writes your clock's UTC offset when it cannot read a time zone name.
 - Antigravity's `file:///C:/` paths and its database work on Windows.
+- On Windows, work an agent log records on a network share or a device path is left out, so a log can never send a build to another machine. Work on a drive counts as before.
 - `tzdata` installs on Windows only, since Windows Python ships no time-zone data.
 - The demo runs on Windows.
 

@@ -15,7 +15,7 @@ import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import ident, new_health, path_text
+from ._common import ident, local_path, new_health, path_text
 
 
 _DRIVE = re.compile(r"^/[A-Za-z]:(/|$)")
@@ -48,7 +48,8 @@ def _uri_path(uri: str, pathmod=os.path) -> str | None:
             path = path[1:]
         path = path.replace("/", "\\")
     path = path_text(path)
-    return path if path and pathmod.isabs(path) else None
+    # A share, device or other path off this machine's disks never reaches the file system.
+    return path if path and pathmod.isabs(path) and local_path(path, pathmod) else None
 
 
 def _ro_uri(path: str, pathmod=os.path) -> str:

@@ -7,6 +7,8 @@ import re
 import tomllib
 from functools import lru_cache
 
+from .readers._common import local_path
+
 TRAINING_DEPS = {"torch", "transformers", "peft", "jax"}
 DATA_DEPS = {"dbt", "pandas", "polars", "duckdb", "alembic"}
 
@@ -43,6 +45,8 @@ class Resolver:
         pm = self.pm
         if not path or not pm.isabs(path):
             return None  # relative paths have no known folder: unassigned
+        if not local_path(path, pm):
+            return None  # a share or device path, as an older cache may hold, is never resolved
         try:
             path = self._real(path)  # real path first, so '..' resolves after symlinks
         except (ValueError, OSError):

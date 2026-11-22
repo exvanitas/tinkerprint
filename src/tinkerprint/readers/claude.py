@@ -102,8 +102,9 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
                         hc["edit_calls"] += 1
                     if name in EDIT_TOOLS and tid:
                         p = path_text(get_dict(item, "input").get(EDIT_TOOLS[name]))
+                        p = resolve(p, cwd) if p else ""
                         if p:
-                            pending[tid] = (session, resolve(p, cwd), model)
+                            pending[tid] = (session, p, model)
                 elif kind_line == "user" and kind == "tool_result":
                     tid = get_id(item, "tool_use_id")
                     if tid in pending:

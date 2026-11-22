@@ -2,6 +2,7 @@
 Every name, path and email here is invented."""
 import io
 import json
+import ntpath
 import os
 import subprocess
 import sys
@@ -327,6 +328,76 @@ class DemoRepos(Tmp):
         with self.assertRaises(ValueError):
             r.write()
         self.assertEqual(git(victim, "branch", "--format=%(refname:short)").stdout.decode().split(), ["trunk"])
+
+
+class WindowsLogPaths(Tmp):
+    """A path from a log that names a share or a device never reaches the file system, on Windows
+    rules (ntpath) on any OS."""
+
+    LOCAL = r"C:\w\kite"
+    SHARE = r"\\server\share\kite"
+
+    def setUp(self):
+        super().setUp()
+        from tinkerprint.readers import _common
+        patch = mock.patch.object(_common, "PATHMOD", ntpath)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def claude_file(self, cwd, edits):
+        recs = [claude_record("s1", cwd=cwd)]
+        for i, p in enumerate(edits):
+            recs.append({"type": "assistant", "sessionId": "s1", "timestamp": "2026-03-02T10:01:00Z", "cwd": cwd,
+                         "message": {"role": "assistant", "model": "m-1", "content": [
+                             {"type": "tool_use", "id": f"t{i}", "name": "Edit", "input": {"file_path": p}}]}})
+            recs.append({"type": "user", "sessionId": "s1", "timestamp": "2026-03-02T10:01:05Z", "cwd": cwd,
+                         "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": f"t{i}"}]}})
+        return write_lines(os.path.join(self.base, "p", "s1.jsonl"), recs)
+
+    def test_claude_keeps_only_drive_paths(self):
+        path = self.claude_file(self.LOCAL, [self.LOCAL + r"\a.py", self.SHARE + r"\b.py", "//server/share/c.py",
+                                             r"\\?\C:\w\d.py", r"\\.\pipe\e", r"C:\w\NUL", "f.py"])
+        evs = claude.read_file(path)
+        edits = sorted(e.path for e in evs if e.kind == "edit")
+        self.assertEqual(edits, [self.LOCAL + r"\a.py", self.LOCAL + r"\f.py"])
+
+    def test_claude_drops_a_share_as_the_folder(self):
+        path = self.claude_file(self.SHARE, ["g.py"])
+        evs = claude.read_file(path)
+        self.assertEqual([e.path for e in evs if e.kind == "edit"], ["g.py"])  # relative: unassigned
+        self.assertEqual({e.path for e in evs if e.kind == "session"}, {""})
+
+    def test_codex_keeps_only_drive_paths(self):
+        from tinkerprint.readers import codex
+        recs = [{"type": "session_meta", "timestamp": "2026-03-02T10:00:00Z",
+                 "payload": {"id": "c1", "cwd": self.SHARE, "timestamp": "2026-03-02T10:00:00Z"}},
+                {"type": "turn_context", "timestamp": "2026-03-02T10:00:01Z", "payload": {"model": "m-1",
+                                                                                        "cwd": self.LOCAL}},
+                {"type": "event_msg", "timestamp": "2026-03-02T10:00:02Z", "payload": {
+                    "type": "patch_apply_end", "success": True, "call_id": "k1",
+                    "changes": {self.LOCAL + r"\a.py": {}, self.SHARE + r"\b.py": {}, "c.py": {},
+                                r"\\?\UNC\server\share\d.py": {}}}}]
+        path = write_lines(os.path.join(self.base, "rollout-1.jsonl"), recs)
+        evs = codex.read_file(path)
+        self.assertEqual(sorted(e.path for e in evs if e.kind == "edit"),
+                         [self.LOCAL + r"\a.py", self.LOCAL + r"\c.py"])
+        self.assertNotIn(self.SHARE, {e.path for e in evs})
+
+    def test_agy_refuses_a_share_in_the_path(self):
+        from tinkerprint.readers.agy import _uri_path
+        for uri in ("file:////server/share/kite", "file:///%5C%5Cserver%5Cshare%5Ckite", "file:///C:/w/CON",
+                    "file:////%3F/C:/kite", "file:///%2F%2Fserver/share"):
+            with self.subTest(uri=uri):
+                self.assertIsNone(_uri_path(uri, ntpath))
+        self.assertEqual(_uri_path("file:///C:/w/kite", ntpath), self.LOCAL)
+
+    def test_the_resolver_never_resolves_a_share(self):
+        from helpers import profile
+        from tinkerprint.projects import Resolver
+        prof = profile([("P", "/w", None)])
+        prof.projects[0].roots[:] = [self.SHARE]
+        res = Resolver(prof.projects, ntpath)
+        self.assertIsNone(res.resolve_root(self.SHARE + r"\x.py"))  # as an older cache may hold
 
 
 if __name__ == "__main__":

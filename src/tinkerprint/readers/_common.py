@@ -50,9 +50,35 @@ def path_text(v) -> str:
     return v if isinstance(v, str) and v and len(v) <= 4096 and not _CONTROL.search(v) else ""
 
 
-def abs_path(v) -> str:
+# The platform's path rules. Tests set ntpath here to check the Windows rules on any OS.
+PATHMOD = os.path
+
+_DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
+_RESERVED = ({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {f"COM{c}" for c in "123456789\u00b9\u00b2\u00b3"}
+             | {f"LPT{c}" for c in "123456789\u00b9\u00b2\u00b3"})
+
+
+def local_path(p: str, pathmod=None) -> str:
+    """p when it names a place on a local disk, else ''. Every path a log gives goes through this
+    before anything, realpath included, touches the file system with it. On Windows only a drive
+    path like C:\\x is local: a share (\\\\server\\share or //server/share), a device path
+    (\\\\.\\ or \\\\?\\), a path rooted on no drive, or one naming a device such as NUL or COM1 is not."""
+    pm = pathmod or PATHMOD
+    if not p or pm.sep != "\\":
+        return p
+    if not _DRIVE_PATH.match(p):
+        return ""
+    for part in re.split(r"[\\/]", p[3:]):
+        if part.split(".", 1)[0].rstrip(" ").upper() in _RESERVED:
+            return ""
+    return p
+
+
+def abs_path(v, pathmod=None) -> str:
+    """An absolute local path, or ''."""
+    pm = pathmod or PATHMOD
     p = path_text(v)
-    return p if p and os.path.isabs(p) else ""
+    return local_path(p, pm) if p and pm.isabs(p) else ""
 
 
 def when(v):
@@ -78,13 +104,16 @@ def get_list(d, key) -> list:
     return v if isinstance(v, list) else []
 
 
-def resolve(path: str, cwd: str) -> str:
+def resolve(path: str, cwd: str, pathmod=None) -> str:
     """Absolute paths stay. Relative paths join the folder current at that event, unnormalized,
     so '..' resolves after symlinks. With no known folder they stay relative, which no profile
-    root matches: unassigned."""
-    if os.path.isabs(path) or not cwd:
+    root matches: unassigned. '' when the result is not a local path (see local_path)."""
+    pm = pathmod or PATHMOD
+    if pm.isabs(path):
+        return local_path(path, pm)
+    if not cwd:
         return path
-    return os.path.join(cwd, path)
+    return local_path(pm.join(cwd, path), pm)
 
 
 # ---------------------------------------------------------------- health

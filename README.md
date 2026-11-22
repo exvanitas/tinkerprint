@@ -176,6 +176,7 @@ The cache, history, last-build files and `profiles.json` are private to you (mod
 - Where a daylight-saving change crosses the rollover hour, as in `Pacific/Chatham`, the edge of a day can move during that hour. Work near the change may land on the next or previous day.
 - Two Codex records of one change that share no call id or item id count as two changes.
 - Roots outside git take manifest priors from the files on disk, so their sheets can change with the checkout.
+- On Windows, agent logs count only work in folders on a drive, like `C:\code`. Work they record on a network share (`\\server\share`) or a device path is left out, since following such a path could reach another machine.
 
 ## Tests
 

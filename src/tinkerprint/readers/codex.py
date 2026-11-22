@@ -134,7 +134,10 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
                 op = get_id(p, "call_id")
             op = op or f"line{n}"
             for fp in found:
-                key = (op, resolve(fp, cwd))
+                fp = resolve(fp, cwd)
+                if not fp:
+                    continue  # not a local path
+                key = (op, fp)
                 if key not in edits:
                     edits[key] = (iso(dt), model)
     if not session:
