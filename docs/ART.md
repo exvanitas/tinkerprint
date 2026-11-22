@@ -1,79 +1,94 @@
 # Art
 
-The Woodland Guild works the night shift. Its 48 × 48 pixel portraits show people from thirteen trades. The Artificer wears copper goggles on a leather band. The Sage wears a moon-stitched hood. The Mechanist carries a pressure tank with brass valves. Through the workshop arch, the builder sees a moonlit viaduct and the tinkerer sees a windmill above the lake.
+The art is Keepsake: pixel art made in code, with no image files. A person stands at the counter of their own workshop, half length, 64 × 64 pixels. Run `tinkerprint gallery --out art` to see every class, face, room, pin, trinket, party instrument and camp on one page. Add `--png` to save each picture.
 
-Run `tinkerprint gallery --out art` to see all 74 classes, both workshops, multiclass capes and the small pieces. Add `--png` to save individual sprites.
+## What a picture is drawn from
 
-## Dressing a figure
+Five things, and nothing else:
 
-The top stat selects the stance, clothes and headgear. The runner-up selects a tool, a sleeve pose and gear for the far shoulder. A Sage with Data carries a brass spyglass and map case. With Infra the same Sage braces a kite shield and buckles on a steel pauldron. A specialist who only has one rounded stat uses the tool of their own trade.
+- **Class.** The top stat picks the coat and hat. The runner-up picks the held tool and the gear on the far shoulder. A specialist with one rounded stat holds their own trade's tool. The generalist wears a traveling cloak and carries a crook. Unclassed has a bare head and no trade tool.
+- **Pair order.** A pair wears its top stat's outfit and holds its runner-up's tool, so the same two stats in the other order look different.
+- **Multiclass.** A cape in the first multiclass stat's colors, with a hem in the second.
+- **Set.** The builder and tinkerer sets differ in wall color and in their camp's landscape.
+- **The look and the seed.** The `[look]` tokens below, and the seed: the name the card shows (the `[card]` handle when set, else the profile name).
 
-The generalist wears a traveling cloak and carries a crook and bedroll. The unclassed traveler has a bare head and rests a hand at their side. A multiclass adds a cape with a contrasting woven border.
+Stat shares are rounded to 5% and ranked highest first, ties in the set's order. Level, points, dates and projects never reach a picture. The same inputs give the same bytes, GIFs included.
 
-The layers run from cape or pack through coat, shoulder gear, sleeve and head to the held tool. Ordinary handles use a separate hand layer. The open book, lantern, shield, spyglass and teapot include fingers drawn against their particular grips. Light comes from the upper left. A narrow dark line separates overlapping materials. The outer contour takes the color of the material along the silhouette.
+## [look]
 
-All default inks come from 63 swatches. Brass takes a yellow glint and an ochre shadow. Steel reflects ivory and blue-gray. Each stat has a four-color fabric ramp. Every face and hand uses the same four skin colors. Replacing `skin_colors` in the pack changes all of them together.
-
-## Presentation
-
-Every sheet, card and chronicle uses the neutral head. The gallery shows the Sage, Artificer and Lorekeeper in all three presentations. In the built-in pack, neutral has a tucked or cropped cut and a clean jaw. Man has a shorter cut, a heavier brow and facial hair. Woman has a bob, waves, braid or low tail fitted to the headgear, with a small change at the mouth.
-
-`art.figure` and `art.portrait` take the same optional keywords. Pass `presentation="neutral"`, `"man"` or `"woman"`. Pass `skin` with four hex colors, light to dark, to recolor the face and hands for one drawing.
-
-```python
-from tinkerprint import art
-
-pack = art.default_pack()
-sage = art.look_for("builder", "specialist", ["Logic"], ["Logic"])
-portrait = art.portrait(pack, sage, presentation="woman")
-figure = art.figure(pack, sage, skin=("#d7a471", "#a76a48", "#714a40", "#49323a"))
+```
+[look]
+presentation = "neutral"    # neutral, man or woman
+skin = "medium"             # light, medium or deep
+hair = "curtains"           # neutral: bob, curtains, shag. man: crop, curls, side part. woman: braid, waves, chignon
+eyes = "moss"               # honey, moss, slate, chestnut, plum, lagoon
+expression = "calm"         # smile, grin, calm, determined, joy, curious
 ```
 
-## On the sheet and card
+Every key is optional.
 
-| Picture | At display size |
-|---|---|
-| Workshop | A 252 × 72 room with a lantern over a drafting bench, an open arch and a stocked cabinet. The figure stands on the rug. A phone crops the scene around the figure and the party. |
-| Portrait | The card draws 4× pixels. The level seal sits at the lower right, clear of the tools. The stand-alone portrait PNG is 384 × 384. |
-| Chronicle | Each quarter shows its costume at 2×. A kettle hangs above the fire in quiet stretches. Repeated portraits share SVG definitions. |
-| Familiars | A brass storm lantern for Claude, a portable typewriter for Codex, an amethyst orrery for Antigravity and a crank gramophone for any other harness. Each stands on the studio floor and appears at 3× on its party card. |
-| Pins | Each achievement has its own 3× pin. A packet of sealed letters marks Swarm day. Four enamel quadrants share the Season's turn wheel. |
-| Trinkets | Each trade stocks a miniature in the cabinet. Folded maps, book stacks and hourglasses appear at 4× on stat cards and 2× in smaller slots. |
+- **Presentation and skin** are never random. Presentation defaults to neutral. Skin left unset uses the art pack's own skin colors, which are the light skin in the built-in pack.
+- **Hair, eyes and expression** left unset are picked from the seed, so they follow a name already on the card and never change with class or stats. `build` prints the look and says which parts it picked, so you can set them to keep them.
+- A hair must belong to the presentation. A misspelled value stops the build and suggests the right one.
 
-The sheet and card rank stat shares rounded to 5%, breaking ties in set order. The card portrait reads `set`, `class`, `multiclass` and the rounded stats. Card artwork contributes only SVG paths with `fill` and `d`. The sheet and gallery embed lossless PNGs. The chronicle uses reusable paths.
+The card keeps the five look tokens, and `audit` lists them.
 
-`banner(..., with_figure=False)` returns the furnished studio. `banner_figure_box` locates the figure layer for the close-call swap. The counter-mode SHA-256 stream places stock and companions deterministically. The sheet uses `stat_ramp` for the stat colors and deepens the bars as needed for the light theme.
+## Rooms
 
-## Replace the pack
+The sheet's banner is a 252 × 72 room: a workbench and a window on the left, the figure at a counter in the middle, a display case on the right.
+
+- **From the seed:** the view through the window (harbor, viaduct, windmill or peaks), its light (amber dawn, blue hour, rose dusk or overcast), the drapery, the wall finish, the plant and its pot, the rug's weave and wool, the hanging over the bench, and which cubbies hold stock.
+- **From the class:** the workbench's fixture and the objects on its tray. A pair keeps its top stat's fixture and borrows its runner-up's tray.
+- **From the stats:** the case's cubbies hold a trinket for each stat with a rounded share, more for the larger shares, 18 at most.
+- **From the party:** up to three party instruments stand in the bottom of the case.
+
+The card portrait and `portrait.png` crop the same room behind the figure, at the window, and show no party or stock.
+
+## The idle animation
+
+Everything moves on one 2.88-second clock of 16 frames: the figure breathes and blinks, a wisp crosses the window, the plant's leaves bend, a candle or ember flickers and one party instrument works. The sheet's banner stacks two GIFs at a whole-number scale: the room, then the figure with the counter, hands and tools in front. A close call adds the other costume as a third layer, which swaps with the first every few seconds, on hover, or with the button under the class. `portrait.gif` is the card portrait's loop at 384 × 384.
+
+Viewers who ask their system for reduced motion get frame zero of each layer as a still PNG, and no automatic costume swap. The sheet needs no script for this.
+
+## Pins, trinkets and party instruments
+
+- **Pins:** an enamel pin for each achievement, and one for milestones written by hand.
+- **Trinkets:** a miniature for each stat in its own colors, on the stat cards and the room's shelves.
+- **Party instruments:** each harness is a wind-up instrument. Claude Code is a wick lantern, Codex a typewriter, Antigravity an orrery. Gemini CLI, OpenCode, Cline, Roo Code, Copilot CLI, Cursor and Aider have their own, and any other harness gets a gramophone.
+
+A party member is presence only. Its drawing depends on the harness name alone: never on how much it was used, its models or its dates.
+
+The art draws no animals.
+
+## Quiet quarters
+
+A chronicle chapter with no activity rests at camp: a bedroll and pack by a fire under the night sky, in the set's landscape. The seed places the moon, the hearth and the blanket.
+
+## Art packs
 
 ```
 tinkerprint gallery --export-pack mypack.json
 tinkerprint gallery --art-pack mypack.json --out preview
-tinkerprint build --profile me.toml --art-pack mypack.json
+tinkerprint build --art-pack mypack.json
+tinkerprint audit --art-pack mypack.json
 ```
 
-The built-in art uses character grids and hand-placed polygons. Export resolves both into plain JSON. Each part has an `at` coordinate, rectangular `rows` and an optional local `palette`. A dot is transparent. Other characters select a fixed ink or a palette channel.
+The drawings themselves are code. A pack is JSON data that changes:
 
-| Keys | Meaning |
+| Key | What it changes |
 |---|---|
-| `A B C F` | Outfit, highlight to shadow |
-| `X Y Z H` | Equipment, highlight to shadow |
-| `T U` | Cape fabric |
-| `V W` | Cape border |
-| `@ + : ~` | Skin, highlight to shadow, in version 2 packs with `skin_colors` |
+| `stat_colors` | Each stat's four colors, highlight to shadow: coats, tools, trinkets, capes and the sheet's stat tints |
+| `wanderer_colors` | The generalist's and the unclassed figure's clothes |
+| `skin_colors` | The skin used when `[look]` sets none |
+| `sets` | Each set's `plate`, `floor` and `wall2` colors, and its camp `scene`: `ridge` or `vale` |
+| `looks` | For each stat, which built-in `hat`, `body`, `item`, `gear` and `trinket` its trade wears |
+| `generalist` | The generalist's `hat`, `body` and `item` |
+| `icons` | Which built-in pin each achievement wears |
 
-A version 2 look references its body, head (`hat`), tool, trinket and shoulder gear. The gear origin follows the costume's `shoulder`. The sleeve registers against the costume's `grip` using the reference `hand`. The tool's `offset` locates the closed fingers and handle together. A part with `seam: true` inks its contact edge where it overlaps existing paint. The `edges` table supplies lit and shaded outlines. With `mixed_gear_only: true`, the far shoulder takes extra gear when the outfit and tool come from different trades.
+Every color must be `#rrggbb`, and every name must be one the built-in art draws. The loader checks both, so a pack can change how a sheet looks and nothing else. Pack names never reach an output. Keys from older packs, such as `parts` and `familiars`, are ignored.
 
-The loader checks coordinates, colors, grid keys, flags and references. Pack names and part identifiers stay out of visible output. Earlier packs retain their original composition rules.
-
-### Add a hair or face variant
-
-In an exported pack, the `hat` part is the complete neutral head. A named entry in `presentations` maps each neutral head part to a replacement. The map covers every distinct `hat` used by the trades, the generalist's hat and the unclassed `base`. Packs without this table draw their original heads by default. Requesting an unknown presentation raises `PackError`.
-
-For example, to give the Sage a shorter braid in the woman presentation, edit `parts["logic-head-woman"]["rows"]`. Dots clear pixels. Keep the hood and its registration at `at`, use `@ + : ~` for skin and carry the hair colors through the cut. The built-in beards use three local palette keys, `^` for light, `$` for midtone and `&` for shadow.
-
-To add a separate choice, copy an existing presentation map under a new name such as `cropped`. Duplicate the head part you want to edit, point that entry in the new map at the copy, and draw its rows. Other entries can share existing parts. Load the JSON with `art.load_pack` and pass `presentation="cropped"` to draw it.
+Build and audit a card with the same pack: `audit` re-draws the card and portraits to check them.
 
 ## Size budgets
 
-The art tests keep both demo sheets under 104,000 bytes, cards under 30,000 bytes, portrait PNGs under 4,800 bytes and the gallery under 240,000 bytes.
+The art tests keep both demo sheets under 104,000 bytes, cards under 30,000 bytes, `portrait.png` under 4,800 bytes, `portrait.gif` under 24,000 bytes and the gallery under 360,000 bytes.
