@@ -89,6 +89,22 @@ class CardPng(unittest.TestCase):
                 self.assertEqual(block, {want}, (i, j))
         self.assertGreater(checked, 200)
 
+    def test_a_long_multiclass_wraps_instead_of_cutting(self):
+        from tinkerprint.render_card import INK2, multiclass_room
+        pack = art.default_pack()
+        card = dict(tie_card(), multiclass="Quartermaster, close to Quartermaster")
+        canvas = draw_card(card, pack)
+        _, _, frame = portrait_box(pack)
+        x0 = PX + frame + 58
+        rows = lambda a, b: [x for y in range(a, b) for x, c in enumerate(canvas.px[y]) if c == INK2 and x >= x0]
+        first, second = rows(PY + 26, PY + 41), rows(PY + 46, PY + 61)
+        self.assertTrue(first and second)
+        self.assertLessEqual(max(first + second), x0 + multiclass_room(x0))
+        # Both lines together draw more ink than any one-line cut would.
+        one = draw_card(dict(card, multiclass="Quartermaster"), pack)
+        self.assertGreater(len(second), 0)
+        self.assertNotEqual(one.px[PY + 55], canvas.px[PY + 55])
+
     def test_portrait_room_fits_a_64_pixel_figure_at_3x(self):
         _, padding, frame = portrait_box({"canvas": [64, 64]})
         self.assertEqual(frame - 2 * padding, 192)

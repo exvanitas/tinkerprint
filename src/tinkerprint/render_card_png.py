@@ -15,7 +15,8 @@ from . import art, pixelfont, radar
 from .art.pixels import Canvas, mix
 from .render_card import (ACH_STEP, ACH_Y, BG, BOTTOM_Y, CLASS_Y, COL_RIGHT, FOOT_Y, H, INK, INK2, LANTERN,
                           LANTERN2, LINE, MUTED, NAME_RIGHT, NAME_Y, PX, PY, RADAR_CLIP, RADAR_CX, RADAR_CY,
-                          RADAR_LEFT, RADAR_R, RULE_Y, SET_Y, TX, W, familiars, portrait_box, visible)
+                          RADAR_LEFT, RADAR_R, RULE_Y, SET_Y, TX, W, familiars, multiclass_room, portrait_box,
+                          visible)
 
 GLOW = "#3a2a1c"
 TRACK = "#2d2b34"
@@ -81,8 +82,15 @@ def draw_card(card: dict, pack: dict | None = None) -> Canvas:
     y = PY + 30
     if v["multiclass"]:
         text(c, cx0, PY + 18, "MULTICLASS", MUTED, 2, track=2)
-        s = pixelfont.fit(v["multiclass"], room, 3, 2)
-        text(c, cx0, PY + 46, pixelfont.clip(v["multiclass"], room, s), INK2, s)
+        wide = multiclass_room(cx0)
+        s = pixelfont.fit(v["multiclass"], wide, 3, 2)
+        first, close, rest = v["multiclass"].partition(", close to ")
+        if pixelfont.width(v["multiclass"], s) <= wide or not close:
+            text(c, cx0, PY + 46, pixelfont.clip(v["multiclass"], wide, s), INK2, s)
+        else:
+            # Too long for one line: the close runner-up goes on a second.
+            text(c, cx0, PY + 40, pixelfont.clip(first + ",", wide, 2), INK2, 2)
+            text(c, cx0, PY + 60, pixelfont.clip("close to " + rest, wide, 2), INK2, 2)
         y = PY + 82
     for stat, pct in v["stats"]:
         hue = art.stat_ramp(pack, stat)

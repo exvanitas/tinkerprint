@@ -144,6 +144,11 @@ BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a
                                                        "#918774", "#eba84f", "#f2bb6c")
 
 
+def multiclass_room(x: int) -> int:
+    """The multiclass line sits above the seal and may run past the stat bars, to 24 px before the radar's column."""
+    return RADAR_LEFT - 24 - x
+
+
 def portrait_box(pack: dict) -> tuple:
     """(scale, padding, frame) of the card's portrait: an integer scale, so pixels stay crisp."""
     resolution = pack["canvas"][0]
@@ -220,7 +225,8 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     y = PY + 30
     if v["multiclass"]:
         out.append(_t(cx0, PY + 18, "MULTICLASS", 12, 700, MUTED, spacing="2"))
-        out.append(_t(cx0, PY + 46, v["multiclass"], _fit(v["multiclass"], 24, room), 500, INK2, family=SERIF))
+        out.append(_t(cx0, PY + 46, v["multiclass"], _fit(v["multiclass"], 24, multiclass_room(cx0)), 500, INK2,
+                      family=SERIF))
         y = PY + 82
     for stat, pct in v["stats"]:
         hue = art.stat_ramp(pack, stat)
