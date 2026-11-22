@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tinkerprint"
-version = "0.1.0"
+version = "0.2.0"
 description = "Turn your git history and coding-agent logs into an RPG stat sheet. Local only."
 readme = "README.md"
 requires-python = ">=3.11"
