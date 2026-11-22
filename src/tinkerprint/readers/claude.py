@@ -18,14 +18,13 @@ Message text, tool inputs other than the path, and tool output are never kept.
 from __future__ import annotations
 
 import glob
-import json
 import os
 import re
 
 from ..events import Event
 from ..timeutil import iso
 from ._common import abs_path, closing, get_dict, get_id, get_list, get_str, ident, model_id, new_health
-from ._common import path_text, presence, resolve, version_text, when
+from ._common import TooLong, byte_lines, decode, path_text, presence, resolve, version_text, when
 
 EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
 LINE_TYPES = {"user", "assistant", "system", "attachment"}
@@ -62,17 +61,21 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
             f = open(path, "rb")
         except OSError:
             return []
+        lines = byte_lines(f)
     else:
-        f = stream
+        f = lines = stream
     with closing(f):
-        for raw in f:
+        for raw in lines:
             if raw.strip():
                 hc["lines"] += 1
+            if isinstance(raw, TooLong):
+                hc["rejected"] += 1
+                continue
             if not _MAYBE.search(raw):
                 continue
-            try:
-                d = json.loads(raw.decode("utf-8", "replace"))
-            except ValueError:
+            d = decode(raw)
+            if d is None:
+                hc["rejected"] += 1
                 continue
             kind_line = get_str(d, "type")
             if kind_line not in LINE_TYPES:

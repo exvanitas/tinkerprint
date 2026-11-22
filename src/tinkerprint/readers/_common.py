@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 from contextlib import contextmanager
@@ -121,8 +122,52 @@ def resolve(path: str, cwd: str, pathmod=None) -> str:
 def new_health() -> dict:
     """Counts a reader keeps about one log, for the build's reader health line. Never any text
     but version numbers. lines: lines or rows seen. records: those of a shape the reader knows.
-    tool_calls: tool calls of any kind. edit_calls: calls or records of an edit kind it knows."""
-    return {"lines": 0, "records": 0, "tool_calls": 0, "edit_calls": 0, "versions": set()}
+    tool_calls: tool calls of any kind. edit_calls: calls or records of an edit kind it knows.
+    rejected: records skipped because they would not decode, nested too deep or ran too long."""
+    return {"lines": 0, "records": 0, "tool_calls": 0, "edit_calls": 0, "rejected": 0, "versions": set()}
+
+
+# ---------------------------------------------------------------- records
+
+# The longest record a reader parses. Real records are far shorter, even ones holding a whole file.
+MAX_RECORD = 32 << 20
+
+
+class TooLong(bytes):
+    """Stands for a line longer than MAX_RECORD: its start only, never parsed."""
+
+
+def decode(raw):
+    """One JSON record, or None when it is too long, will not decode or nests too deep for the
+    decoder. A bad record is skipped and counted, never the end of a read."""
+    if isinstance(raw, TooLong) or len(raw) > MAX_RECORD:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw)
+    except (ValueError, RecursionError):
+        return None
+
+
+def byte_lines(f, seen=None):
+    """The lines of a binary file, each read at most MAX_RECORD bytes at a time, so one huge line
+    never sits in memory whole. A longer line comes back once as a TooLong. seen(chunk) gets every
+    byte read, in order."""
+    while True:
+        line = f.readline(MAX_RECORD + 1)
+        if not line:
+            return
+        if seen:
+            seen(line)
+        if len(line) <= MAX_RECORD or line.endswith(b"\n"):
+            yield line
+            continue
+        while True:  # the rest of the long line, read and dropped
+            more = f.readline(1 << 20)
+            if seen and more:
+                seen(more)
+            if not more or more.endswith(b"\n"):
+                break
+        yield TooLong(line[:64])
 
 
 # ---------------------------------------------------------------- presence
@@ -159,10 +204,11 @@ class HashingStream:
         self.size = 0
 
     def __iter__(self):
-        for line in self.f:
-            self.h.update(line)
-            self.size += len(line)
-            yield line
+        yield from byte_lines(self.f, self._seen)
+
+    def _seen(self, chunk: bytes) -> None:
+        self.h.update(chunk)
+        self.size += len(chunk)
 
     def digest(self) -> str:
         return self.h.hexdigest()

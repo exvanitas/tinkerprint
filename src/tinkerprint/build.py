@@ -44,10 +44,13 @@ def _digest(path: str) -> str | None:
     return h.hexdigest()
 
 
+HEALTH_COUNTS = ("lines", "records", "tool_calls", "edit_calls", "rejected")
+
+
 def _health_of(entry: dict) -> dict:
     h = entry.get("health") if isinstance(entry.get("health"), dict) else {}
     out = new_health()
-    for k in ("lines", "records", "tool_calls", "edit_calls"):
+    for k in HEALTH_COUNTS:
         v = h.get(k)
         out[k] = v if isinstance(v, int) and not isinstance(v, bool) else 0
     out["versions"] = {v for v in h.get("versions", []) if isinstance(v, str) and version_text(v)}
@@ -121,7 +124,7 @@ def _cached(files: list, reader, cache_path: str, base: str | None = None, repor
         events.extend(evs)
         rep["read"] += 1
         h = _health_of(entry)
-        for k in ("lines", "records", "tool_calls", "edit_calls"):
+        for k in HEALTH_COUNTS:
             rep[k] += h[k]
         rep["versions"] |= h["versions"]
         live_sessions |= {e.session for e in evs if e.session}
@@ -293,6 +296,9 @@ def health_lines(profile: Profile, inputs: Inputs) -> list:
         else:
             bits = [f"{_num(rep['read'])} of {_num(rep['seen'])} files read"]
         bits.append(f"{_num(rep['records'])} records recognised")
+        if rep.get("rejected"):
+            n = rep["rejected"]
+            bits.append(f"{_num(n)} malformed record{'s' if n != 1 else ''} skipped")
         bits.append(f"{_num(rep['sessions'])} session{'s' if rep['sessions'] != 1 else ''}")
         bits.append("presence only" if key == "agy" else f"{_num(rep['edits'])} edits confirmed")
         if rep.get("newest"):

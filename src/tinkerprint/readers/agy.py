@@ -8,14 +8,14 @@ Titles, previews, summaries and the search index are never read.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import ident, local_path, new_health, path_text
+from . import _common
+from ._common import decode, ident, local_path, new_health, path_text
 
 
 _DRIVE = re.compile(r"^/[A-Za-z]:(/|$)")
@@ -78,15 +78,17 @@ def read_db(path: str, health: dict | None = None) -> list:
         return []
     out = []
     try:
+        # A folder list longer than _common.MAX_RECORD is never loaded: its length stands in for it.
         rows = con.execute(
-            "select conversation_id, workspace_uris, last_modified_time from conversation_summaries").fetchall()
+            "select conversation_id, case when length(workspace_uris) <= ? then workspace_uris end, "
+            "length(workspace_uris), last_modified_time from conversation_summaries", (_common.MAX_RECORD,)).fetchall()
     except sqlite3.Error:
         rows = []
         hc["unreadable"] = True
     finally:
         con.close()
     hc["lines"] += len(rows)
-    for cid, uris, ts in rows:
+    for cid, uris, size, ts in rows:
         if isinstance(cid, int) and not isinstance(cid, bool):
             cid = str(cid)
         cid = ident(cid)
@@ -98,10 +100,11 @@ def read_db(path: str, health: dict | None = None) -> list:
         hc["records"] += 1
         folders = []
         if isinstance(uris, (str, bytes)) and uris:
-            try:
-                folders = json.loads(uris)
-            except ValueError:
-                folders = []
+            folders = decode(uris)
+            if folders is None:
+                hc["rejected"] += 1  # presence stays, unassigned
+        elif uris is None and isinstance(size, int) and size > _common.MAX_RECORD:
+            hc["rejected"] += 1
         if not isinstance(folders, list):
             folders = []
         # No readable folder: presence stays unassigned.

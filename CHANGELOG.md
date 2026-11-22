@@ -24,7 +24,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - `build` and `audit` use `./tinkerprint.toml` when `--profile` is left out.
 - A misspelled profile key, like `[[projects]]`, stops the build and names the right one. A wrong type or a missing profile ends with one plain line.
 - After a build, a warning for each cause of an empty sheet it can see: a root that does not exist, a repo with commits by others but none by you (with up to five of their authors), a folder of repos given as a root, git missing, and a harness with no folder or no sessions.
-- After each build, a `Readers` line per harness counts its files, records, sessions and edits, with the log versions seen, and warns when a log format looks changed.
+- After each build, a `Readers` line per harness counts its files, records, sessions and edits, with the log versions seen, and warns when a log format looks changed. A malformed record, however deep or long, is skipped and counted there, and the build goes on.
 - `--list-unassigned N` lists up to N folders outside every root. By default the build prints only their totals.
 - The README covers install with pipx, uv or a venv, update, uninstall and Windows.
 

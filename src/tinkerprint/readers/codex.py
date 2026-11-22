@@ -17,13 +17,12 @@ belongs only to the turn that names it. Tool call inputs and outputs are never r
 from __future__ import annotations
 
 import glob
-import json
 import os
 
 from ..events import Event
 from ..timeutil import iso
 from ._common import abs_path, closing, get_dict, get_id, get_str, model_id, new_health, path_text, presence
-from ._common import resolve, version_text, when
+from ._common import byte_lines, decode, resolve, version_text, when
 
 KNOWN = {"session_meta", "turn_context", "response_item", "event_msg", "compacted"}
 
@@ -81,15 +80,17 @@ def read_file(path: str, stream=None, health: dict | None = None) -> list:
             f = open(path, "rb")
         except OSError:
             return []
+        lines = byte_lines(f)
     else:
-        f = stream
+        f = lines = stream
     with closing(f):
-        for n, raw in enumerate(f):
-            if raw.strip():
-                hc["lines"] += 1
-            try:
-                d = json.loads(raw.decode("utf-8", "replace"))
-            except ValueError:
+        for n, raw in enumerate(lines):
+            if not raw.strip():
+                continue
+            hc["lines"] += 1
+            d = decode(raw)
+            if d is None:
+                hc["rejected"] += 1
                 continue
             t = get_str(d, "type")
             if t not in KNOWN or not isinstance(d.get("payload"), dict):

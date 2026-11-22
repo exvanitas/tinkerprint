@@ -400,5 +400,80 @@ class WindowsLogPaths(Tmp):
         self.assertIsNone(res.resolve_root(self.SHARE + r"\x.py"))  # as an older cache may hold
 
 
+DEEP = '{"type": "user", "sessionId": "deep", "message": ' + "[" * 200000 + "]" * 200000 + "}"
+
+
+class MalformedRecords(Tmp):
+    """A record that will not decode, nests too deep or runs too long is skipped and counted. The
+    rest of the log still counts."""
+
+    def test_claude_skips_a_record_nested_too_deep(self):
+        path = write_lines(os.path.join(self.base, "p", "s.jsonl"),
+                           [claude_record("before"), DEEP, '{"type": "user", "broken', claude_record("after")])
+        evs, rep = self.read([path])
+        self.assertEqual({e.session for e in evs}, {"before", "after"})
+        self.assertEqual((rep["records"], rep["rejected"]), (2, 2))
+
+    def test_codex_skips_a_record_nested_too_deep(self):
+        from tinkerprint.readers import codex
+        recs = [{"type": "session_meta", "timestamp": "2026-03-02T10:00:00Z",
+                 "payload": {"id": "c1", "cwd": "/w/a", "timestamp": "2026-03-02T10:00:00Z"}},
+                '{"type": "event_msg", "payload": ' + "[" * 200000 + "]" * 200000 + "}",
+                {"type": "turn_context", "timestamp": "2026-03-03T10:00:00Z", "payload": {"model": "m-1"}}]
+        path = write_lines(os.path.join(self.base, "rollout-1.jsonl"), recs)
+        from tinkerprint.readers._common import new_health
+        hc = new_health()
+        evs = codex.read_file(path, health=hc)
+        self.assertEqual({e.ts[:10] for e in evs}, {"2026-03-02", "2026-03-03"})
+        self.assertEqual((hc["records"], hc["rejected"]), (2, 1))
+
+    def test_agy_skips_a_folder_list_nested_too_deep_or_too_long(self):
+        from tinkerprint.demo import write_agy_db
+        from tinkerprint.readers import _common, agy
+        db = os.path.join(self.t, "agy.db")
+        write_agy_db(db, [("a1", ["/w/a"], datetime(2026, 3, 2, 10, tzinfo=UTC)),
+                          ("a2", ["/w/b"], datetime(2026, 3, 3, 10, tzinfo=UTC)),
+                          ("a3", ["/w/c" + "x" * 300], datetime(2026, 3, 4, 10, tzinfo=UTC))])
+        import sqlite3
+        con = sqlite3.connect(db)
+        con.execute("update conversation_summaries set workspace_uris = ? where conversation_id = 'a1'",
+                    ("[" * 200000,))
+        con.commit()
+        con.close()
+        with mock.patch.object(_common, "MAX_RECORD", 200):
+            hc = _common.new_health()
+            evs = agy.read_db(db, hc)
+        self.assertEqual(sorted((e.session, e.path) for e in evs), [("a1", ""), ("a2", "/w/b"), ("a3", "")])
+        self.assertEqual(hc["rejected"], 2)
+
+    def test_a_line_too_long_is_skipped_but_hashed(self):
+        from tinkerprint.readers import _common
+        long_rec = dict(claude_record("long"), message={"role": "user", "content": "y" * 5000})
+        path = write_lines(os.path.join(self.base, "p", "s.jsonl"), [long_rec, claude_record("short")])
+        with mock.patch.object(_common, "MAX_RECORD", 1000):
+            evs, rep = self.read([path])
+        self.assertEqual({e.session for e in evs}, {"short"})
+        self.assertEqual(rep["rejected"], 1)
+        entry = self.entries()["files"][path]
+        self.assertEqual(entry["size"], os.path.getsize(path))
+        self.assertIsNotNone(entry["stat"])
+
+    def test_a_time_at_the_edge_of_the_calendar_is_no_time(self):
+        path = write_lines(os.path.join(self.base, "p", "s.jsonl"), [
+            dict(claude_record("edge"), timestamp="0001-01-01T00:00:00+01:00"),
+            dict(claude_record("edge2"), timestamp="9999-12-31T23:59:59-05:00"), claude_record("fine")])
+        evs, _ = self.read([path])
+        self.assertEqual({e.session for e in evs}, {"fine"})
+
+    def test_the_health_line_counts_them(self):
+        from tinkerprint.build import health_lines
+        from tinkerprint.events import Inputs
+        from helpers import profile
+        path = write_lines(os.path.join(self.base, "p", "s.jsonl"), [claude_record("a"), DEEP])
+        _, rep = self.read([path])
+        line = health_lines(profile([("P", "/w", None)]), Inputs(setup={"health": {"claude": rep}}))[0]
+        self.assertIn("1 malformed record skipped", line)
+
+
 if __name__ == "__main__":
     unittest.main()

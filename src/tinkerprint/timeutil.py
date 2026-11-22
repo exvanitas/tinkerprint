@@ -41,6 +41,9 @@ def parse_ts(value) -> datetime | None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
+    # Years 1 and 9999 can overflow when moved to UTC or a profile's zone. No real record holds one.
+    if not 1 < dt.year < 9999:
+        return None
     return dt
 
 
