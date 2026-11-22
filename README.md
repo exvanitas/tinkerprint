@@ -154,7 +154,7 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 - `history/`: each build's sheet, per profile and season, for "what changed".
 - `last-build/`: one small file per profile naming its last output folder, for `audit`.
 - `sheets/`: builds made without `--out`. Each such folder holds a small `.tinkerprint-sheets` file, so `forget --all` can tell it from an `--out` folder you put there.
-- `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it.
+- `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it. The path is what a profile is: a file edited or replaced at the same path keeps its history, and `build` says so when its name or identity changed. To start afresh, run `tinkerprint forget --profile PATH --yes` first. `forget` on the old path of a moved profile deletes nothing: use the new path.
 - `tinkerprint-data.txt`: says this is tinkerprint's data folder. Every build writes it.
 
 The cache, history, last-build files and `profiles.json` are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.

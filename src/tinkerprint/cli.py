@@ -159,9 +159,9 @@ def cmd_build(args) -> int:
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
     check_dirs(profile, [home])
-    moved = adopt(home, profile)
-    if moved:
-        print(f"This profile moved from {moved}. Its saved sheets came with it.")
+    note = adopt(home, profile)
+    if note:
+        print(note)
     out = args.out or default_out(home, profile)
     if not args.out:
         check_dirs(profile, [out])
@@ -316,7 +316,7 @@ def cmd_demo(args) -> int:
 
 def cmd_forget(args) -> int:
     from .forget import forget
-    from .keys import lookup
+    from .keys import lookup, owner
     home = data_home(args.data_dir)
     if args.all:
         key = None
@@ -326,6 +326,10 @@ def cmd_forget(args) -> int:
             raise ProfileError(f"forget needs --profile PATH or --all, or a {DEFAULT_PROFILE} in this folder")
         key = lookup(home, path)
         print(f"Profile: {path}")
+        if key is None:
+            print(f"Nothing to forget for it: its saved sheets went with the profile file now at {owner(home, path)}. "
+                  "Forget that one to delete them.")
+            return 0
     for line in forget(home, key, args.yes):
         print(line)
     return 0

@@ -201,5 +201,32 @@ class Keys(Base):
             self.assertFalse(is_key(bad), bad)
 
 
+class Moves(Base):
+    def test_forgetting_the_old_path_keeps_the_moved_history(self):
+        a = self.write(os.path.join(self.t, "a", "p.toml"))
+        self.build(a)
+        key = lookup(self.data, a)
+        b = os.path.join(self.t, "b", "p.toml")
+        os.makedirs(os.path.dirname(b))
+        os.rename(a, b)
+        self.build(b)
+        self.assertEqual(lookup(self.data, b), key)
+        self.assertIsNone(lookup(self.data, a))
+        text = self.cli("forget", "--profile", a, "--data-dir", self.data, "--yes")
+        self.assertIn(f"went with the profile file now at {b}", text)
+        self.assertTrue(os.path.isdir(os.path.join(self.data, "history", key)))
+        self.assertIn(key, read_registry(self.data))
+
+    def test_a_changed_identity_at_the_same_path_is_said(self):
+        a = self.write(os.path.join(self.t, "p.toml"))
+        self.build(a)
+        self.assertNotIn("changed", self.build(a))
+        self.write(a, name="Someone Else")
+        text = self.build(a)
+        self.assertIn("This profile's name or identity changed since its last build, and its saved sheets carry on. "
+                      f"To start afresh, run 'tinkerprint forget --profile {a} --yes' and build again.", text)
+        self.assertNotIn("identity changed", self.build(a))
+
+
 if __name__ == "__main__":
     unittest.main()
