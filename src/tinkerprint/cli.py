@@ -13,7 +13,7 @@ from .art import export_pack, load_pack
 from .audit import audit
 from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
-from .datadir import claim_home, data_home
+from .datadir import claim_home, data_home, data_lock
 from .keys import adopt
 from .timeutil import parse_day
 
@@ -169,15 +169,18 @@ def cmd_build(args) -> int:
         raise ValueError(f"{args.out} is inside tinkerprint's data folder {home}. Choose an output folder outside "
                          "tinkerprint's data folder, or leave out --out")
     claim_home(home)
-    note = adopt(home, profile)
-    if note:
-        print(note)
-    out = args.out or default_out(home, profile)
-    if not args.out:
-        check_dirs(profile, [out])
     pack = load_pack(args.art_pack) if args.art_pack else None
-    # The sheet's footer gives the build's as-of date, never the clock, so the same inputs give the same file.
-    res = build(profile, out, season, as_of, home, pack=pack)
+    # One hold of the data folder's lock from the profile's registration to the build's last write,
+    # so a forget --all runs wholly before or after it. build() nests inside it.
+    with data_lock(home, claimed=True):
+        note = adopt(home, profile)
+        if note:
+            print(note)
+        out = args.out or default_out(home, profile)
+        if not args.out:
+            check_dirs(profile, [out])
+        # The sheet's footer gives the build's as-of date, never the clock, so the same inputs give the same file.
+        res = build(profile, out, season, as_of, home, pack=pack)
     s = res["sheet"]
     cls = (s.get("class") or {}).get("name", "Unclassed")
     print(f"{profile.name}: level {s['history']['level']}, {cls}, {s['season_totals']['active_days']} active days "

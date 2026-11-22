@@ -55,6 +55,62 @@ class LegacyAdoption(Base):
         self.assertFalse(os.path.exists(home))
 
 
+class BuildAndForget(Base):
+    def test_forget_waits_for_a_build_that_registered_its_profile(self):
+        prof = load_profile(self.write(os.path.join(self.t, "a.toml")))
+        started, go = threading.Event(), threading.Event()
+        real = bd.gather
+
+        def slow(profile, home):
+            started.set()
+            go.wait(10)
+            return real(profile, home)
+        done = {}
+        with mock.patch.object(bd, "gather", side_effect=slow):
+            th = threading.Thread(target=lambda: done.update(res=bd.build(prof, bd.default_out(self.data, prof),
+                                                                          home=self.data)), daemon=True)
+            th.start()
+            self.assertTrue(started.wait(10))
+            ft = threading.Thread(target=lambda: done.update(lines=fg.forget_all(self.data, True)), daemon=True)
+            ft.start()
+            ft.join(0.4)
+            self.assertTrue(ft.is_alive(), "forget ran while the build was between registering and publishing")
+            go.set()
+            th.join(20)
+            ft.join(20)
+        self.assertIn("res", done)
+        self.assertIn("Deleted", done["lines"][-1])
+        self.assertFalse(os.path.exists(self.data))
+
+    def test_a_build_after_forget_stops_before_writing(self):
+        a = self.write(os.path.join(self.t, "a.toml"))
+        self.build(a)
+        real = bd.claim_home
+
+        def claim_then_forget(home):
+            real(home)
+            fg.forget_all(home, True)
+        with mock.patch.object(bd, "claim_home", side_effect=claim_then_forget):
+            with self.assertRaises(ValueError) as cm:
+                bd.build(load_profile(a), os.path.join(self.t, "out"), home=self.data)
+        self.assertIn("was deleted while this run waited", str(cm.exception))
+        self.assertFalse(os.path.exists(self.data))
+        self.assertFalse(os.path.exists(os.path.join(self.t, "out")))
+
+    def test_the_cli_build_nests_in_one_hold(self):
+        a = self.write(os.path.join(self.t, "a.toml"))
+        done = []
+        th = threading.Thread(target=lambda: done.append(self.run_cli("build", "--profile", a, "--data-dir",
+                                                                      self.data)), daemon=True)
+        th.start()
+        th.join(60)
+        self.assertFalse(th.is_alive(), "the build waited on itself")
+        self.assertEqual(done[0][0], 0, done[0][2])
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            from tinkerprint.cli import main
+            self.assertEqual(main(["audit", "--profile", a, "--data-dir", self.data]), 0)
+
+
 class ForgetReport(Base):
     def setUp(self):
         super().setUp()

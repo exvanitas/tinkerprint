@@ -438,11 +438,18 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
           today: date | None = None, pack: dict | None = None) -> dict:
     """Score, compare with the newest earlier saved sheet, write the outputs, then save to history.
 
-    Nothing reaches history unless every output was written.
+    Nothing reaches history unless every output was written. The data folder's lock is held from
+    the profile's registration to the last write, so a forget --all either finishes first, and
+    then this build stops before writing, or waits for it.
     """
     home = data_home(home)
     check_data_home(home, profile)
     claim_home(home)
+    with data_lock(home, claimed=True):
+        return _build(profile, out_dir, season, as_of, home, built_at, inputs, today, pack)
+
+
+def _build(profile, out_dir, season, as_of, home, built_at, inputs, today, pack) -> dict:
     adopt(home, profile)
     hist = History(home, profile.id, season)
     pointer = os.path.join(home, "last-build", profile.id + ".json")
@@ -471,21 +478,18 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
         # portrait plate at 6x, still and idling.
         files += [(k, name, draw(sheet["card"], pack), True) for k, name, draw in card_files]
     paths = {}
-    # Published under the data folder's lock, so a forget --all that ran meanwhile stops this
-    # build from writing into the folder it deleted.
-    with data_lock(home, claimed=True):
-        os.makedirs(out_dir, exist_ok=True)
-        for k, name, data, share in files:
-            paths[k] = os.path.join(out_dir, name)
-            _write(paths[k], data, share=share)
-        if not sheet["card"].get("enabled"):
-            for _, name, _ in card_files:
-                if os.path.exists(os.path.join(out_dir, name)):
-                    os.remove(os.path.join(out_dir, name))
-        os.makedirs(os.path.dirname(pointer), exist_ok=True)
-        _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
-        # History is published last: a build that failed anywhere earlier never becomes a comparison.
-        # The saved copy also keeps the scope digests, so the next build can say when they changed.
-        hist.save(stamp, dict(sheet, _scope=scope))
+    os.makedirs(out_dir, exist_ok=True)
+    for k, name, data, share in files:
+        paths[k] = os.path.join(out_dir, name)
+        _write(paths[k], data, share=share)
+    if not sheet["card"].get("enabled"):
+        for _, name, _ in card_files:
+            if os.path.exists(os.path.join(out_dir, name)):
+                os.remove(os.path.join(out_dir, name))
+    os.makedirs(os.path.dirname(pointer), exist_ok=True)
+    _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
+    # History is published last: a build that failed anywhere earlier never becomes a comparison.
+    # The saved copy also keeps the scope digests, so the next build can say when they changed.
+    hist.save(stamp, dict(sheet, _scope=scope))
     return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
             "warnings": local.get("warnings", [])}

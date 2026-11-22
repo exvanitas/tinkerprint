@@ -156,7 +156,7 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 - `sheets/`: builds made without `--out`. An `--out` folder goes outside the data folder.
 - `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it. The path is what a profile is: a file edited or replaced at the same path keeps its history, and `build` says so when its name or identity changed. To start afresh, delete that profile's `history/` folder.
 - `tinkerprint-data.txt`: says this is tinkerprint's data folder.
-- `tinkerprint.lock`: lets one run at a time update the cache, `profiles.json` and history. A second run waits for the first, and says so after five seconds.
+- `tinkerprint.lock`: lets one build at a time use the data folder, from start to finish, and makes `forget --all` wait for it. A second run waits for the first, and says so after five seconds.
 
 The cache, history, last-build files, `profiles.json` and the sheet itself (`sheet.html`, `sheet.json`, `changes.json`) are private to you (mode 0600), since the sheet names your projects, models and exact dates. The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are made to pass on: others can read them (0644, less what your umask takes away), and only you can change them. Text files are UTF-8 with `\n` line ends on every system.
 
