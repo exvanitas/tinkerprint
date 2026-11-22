@@ -74,11 +74,11 @@ def show(home: str, data_dir: str | None, key: str | None = None, moved_to: str 
     if not os.path.lexists(home):
         return [f"tinkerprint keeps nothing here yet: {home} does not exist."]
     out = [f"tinkerprint keeps its data in {_where(home)}:",
-           "  cache/       what the readers kept from agent logs, shared by every profile. Sessions from logs that",
-           "               are gone live only here.",
-           "  history/     each profile's saved sheets, for \"what changed\"",
-           "  last-build/  where each profile's last build went",
-           "  sheets/      builds made without --out",
+           "  cache/         what the readers kept from agent logs, shared by every profile, and the only copy",
+           "                 of sessions from logs that are gone",
+           "  history/       each profile's saved sheets, for \"what changed\"",
+           "  last-build/    where each profile's last build went",
+           "  sheets/        builds made without --out",
            "  profiles.json  which profile file each saved history belongs to"]
     if profile is not None:
         out.append(f"Profile {profile}:")

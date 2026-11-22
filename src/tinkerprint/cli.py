@@ -349,7 +349,7 @@ def cmd_forget(args) -> int:
     if args.yes:
         raise ProfileError("forget deletes only with --all, and then the whole data folder. To remove one profile's "
                            "data, delete the folders 'tinkerprint forget --profile PATH' shows")
-    path = _profile_path(args)
+    path = _profile_path(args, quiet=True)
     key = lookup(home, path) if path is not None else None
     for line in show(home, args.data_dir, key, owner(home, path) if path is not None else None, path):
         print(line)
