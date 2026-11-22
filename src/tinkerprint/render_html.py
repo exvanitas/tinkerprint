@@ -233,7 +233,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .top .tools { display: flex; gap: 8px; align-items: center; flex: none; }
 .top a.ghost-btn { text-decoration: none; }
 .share-toggle { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
-.share-btn { user-select: none; }
+.share-btn { user-select: none; -webkit-tap-highlight-color: transparent; }
 .share-btn .on, .share-only { display: none; }
 .share-toggle:focus-visible ~ .wrap .share-btn { outline: 2px solid var(--lantern); outline-offset: 2px; }
 .share-toggle:checked ~ .wrap .share-btn { background: var(--lantern-wash); color: var(--lantern-ink); border-color: var(--lantern); }
