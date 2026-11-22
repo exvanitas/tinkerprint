@@ -26,6 +26,17 @@ def season_key(season) -> str:
     return f"{frm.isoformat() if frm else 'start'}_{to.isoformat() if to else 'now'}"
 
 
+def path_within(path: str, root: str, pathmod=os.path) -> bool:
+    """path is root or inside it, by the platform's path rules: either separator on Windows,
+    case folded where the platform folds it. Paths on different drives are never within."""
+    pm = pathmod
+    a, b = pm.normcase(pm.normpath(path)), pm.normcase(pm.normpath(root))
+    try:
+        return pm.commonpath([a, b]) == b
+    except ValueError:
+        return False
+
+
 def _is_git_dir(d: str) -> bool:
     """A worktree (.git inside) or a bare repository (HEAD, objects and refs inside)."""
     if os.path.exists(os.path.join(d, ".git")):
@@ -42,8 +53,7 @@ def inside_repo_or_root(path: str, roots=()) -> str | None:
     """
     real = os.path.realpath(path)
     for root in roots:
-        r = os.path.realpath(root)
-        if real == r or real.startswith(r.rstrip("/") + "/"):
+        if path_within(real, os.path.realpath(root)):
             return "it is inside a profile root"
     probe = real
     while True:

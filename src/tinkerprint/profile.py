@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -266,11 +267,12 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
             p = raw.get("path", "")
             if not isinstance(p, str):
                 raise ProfileError(f"{where} part {j + 1}: path must be text in quotes")
-            p = p.strip("/")
+            # Part paths compare with '/' separators, as the resolver hands them back, on every platform.
+            p = p.replace(os.sep, "/").strip("/")
             if not p:
                 raise ProfileError(f"{where} part {j + 1}: needs a path")
             st = _weights(raw["stats"], set_name, f"{where} part {p}") if "stats" in raw else None
-            parts.append(Part(path=os.path.normpath(p), stats=st))
+            parts.append(Part(path=posixpath.normpath(p), stats=st))
         overrides = []
         for j, raw in enumerate(_tables(rp.get("override"), "override", f"{where} override")):
             _check_keys(raw, "override", f"{where} override {j + 1}")

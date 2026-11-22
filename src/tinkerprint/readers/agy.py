@@ -15,12 +15,16 @@ import sqlite3
 
 from ..events import Event
 from ..timeutil import iso, parse_ts
-from ._common import abs_path, ident
+from ._common import ident, path_text
 
 
-def _uri_path(uri: str) -> str | None:
+_DRIVE = re.compile(r"^/[A-Za-z]:(/|$)")
+
+
+def _uri_path(uri: str, pathmod=os.path) -> str | None:
     """A local folder from a file:// URI. Percent escapes decode as UTF-8 bytes, literal characters
-    stay as they are. A URI naming another host gives None."""
+    stay as they are. A URI naming another host gives None. On Windows, file:///C:/x (or
+    file:///c%3A/x) becomes C:\\x."""
     if not isinstance(uri, str) or not uri.startswith("file://"):
         return None
     p = uri[len("file://"):]
@@ -38,7 +42,13 @@ def _uri_path(uri: str) -> str | None:
         else:
             raw += p[i].encode("utf-8", "surrogatepass")
             i += 1
-    return abs_path(raw.decode("utf-8", "replace")) or None
+    path = raw.decode("utf-8", "replace")
+    if pathmod.sep == "\\":
+        if _DRIVE.match(path):
+            path = path[1:]
+        path = path.replace("/", "\\")
+    path = path_text(path)
+    return path if path and pathmod.isabs(path) else None
 
 
 def _ro_uri(path: str) -> str:

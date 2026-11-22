@@ -15,6 +15,7 @@ from .achievements import evaluate
 from .chronicle import chronicle
 from .classes import card_pct, class_key, multiclass, pick_class, ranked
 from .classify import classify, is_code, is_skipped, language_of
+from .datadir import path_within
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
 from .sets import DESCRIPTIONS, TINKERER_CODE_STATS, stats_of
@@ -257,7 +258,7 @@ def score_core(inp, profile, priors: dict, season=(None, None), as_of: date | No
         if hit:
             return hit[0].name
         for p in profile.projects:
-            if any(r.startswith(top.rstrip("/") + "/") for r in p.roots):
+            if any(path_within(r, top) for r in p.roots):
                 return p.name
         return "a repo"
 

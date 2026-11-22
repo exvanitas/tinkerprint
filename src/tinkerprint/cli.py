@@ -109,8 +109,10 @@ def _no_profile() -> ProfileError:
                         f"or run 'tinkerprint init' to write {DEFAULT_PROFILE} here")
 
 
-def local_tz(etc: str = "/etc") -> tuple:
-    """(time zone for the starter, guessed). An IANA name from /etc when there is one."""
+def local_tz(etc: str = "/etc", now: datetime | None = None) -> tuple:
+    """(time zone for the starter, guessed). An IANA name from /etc when there is one. Elsewhere,
+    as on Windows, the clock's current UTC offset in quarter hours, which the profile accepts but
+    which ignores daylight saving, so the starter says to replace it."""
     try:
         with open(os.path.join(etc, "timezone"), encoding="utf-8") as f:
             name = f.read().strip()
@@ -124,7 +126,13 @@ def local_tz(etc: str = "/etc") -> tuple:
             return link.split("zoneinfo/", 1)[1], False
     except OSError:
         pass
-    return "UTC", False
+    off = (now or datetime.now().astimezone()).utcoffset()
+    minutes = round((off.total_seconds() if off else 0) / 900) * 15
+    if not minutes:
+        return "UTC", True
+    sign = "-" if minutes < 0 else "+"
+    h, m = divmod(abs(minutes), 60)
+    return f"{sign}{h:02d}:{m:02d}", True
 
 
 def _now() -> str:

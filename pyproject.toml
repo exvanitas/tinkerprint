@@ -9,7 +9,11 @@ description = "Turn your git history and coding-agent logs into an RPG stat shee
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = []
+# Windows Python ships no time-zone data, so zoneinfo needs the tzdata package there.
+dependencies = ['tzdata; sys_platform == "win32"']
+
+[project.urls]
+Homepage = "https://github.com/exvanitas/tinkerprint"
 
 [project.scripts]
 tinkerprint = "tinkerprint.cli:main"

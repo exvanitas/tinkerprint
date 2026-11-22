@@ -17,7 +17,7 @@ from .render_card import render_card
 from .render_html import render_html
 from .history import History
 from .score import compare, score_core
-from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, pretty
+from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, path_within, pretty
 from .timeutil import parse_day
 
 CACHE_VERSION = 4
@@ -243,12 +243,12 @@ def last_out(home: str, profile: Profile) -> str | None:
 
 def alias_of(folder: str, profile: Profile) -> str:
     """The profile's names for the projects in a folder. Diagnostics never print an assigned path."""
-    real = canonical(folder).rstrip("/")
+    real = canonical(folder)
     names = []
     for p in profile.projects:
         for r in p.roots:
-            cr = canonical(r).rstrip("/")
-            if cr == real or cr.startswith(real + "/") or real.startswith(cr + "/"):
+            cr = canonical(r)
+            if path_within(cr, real) or path_within(real, cr):
                 names.append(p.name)
                 break
     return ", ".join(sorted(set(names))) if names else "A repo outside the profile"

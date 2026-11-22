@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -16,6 +17,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
+
+from .profile import toml_string
 
 
 def git_env(home: str | None = None) -> dict:
@@ -111,7 +114,7 @@ def write_claude_session(base: str, cwd: str, start: datetime, model: str, edits
                          subagent_edits: list = (), errored: list = ()) -> str:
     """edits: [(datetime, absolute path, tool name)]. errored: paths whose tool call fails."""
     sid = _uuid(rng)
-    slug = cwd.replace("/", "-")
+    slug = re.sub(r"[^A-Za-z0-9-]", "-", cwd)  # like Claude Code's folder names, and valid on Windows
     folder = os.path.join(base, slug)
     os.makedirs(folder, exist_ok=True)
     lines = [
@@ -195,6 +198,18 @@ def write_codex_session(base: str, cwd: str, start: datetime, model: str, edits:
     return sid
 
 
+_URI_SAFE = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/:")
+
+
+def file_uri(path: str) -> str:
+    """A file:// URI for an absolute path, as editors write them: /x/y on POSIX, /C:/x/y on Windows.
+    Written by hand because urllib is a network module and the tool loads none."""
+    p = path.replace(os.sep, "/")
+    if not p.startswith("/"):
+        p = "/" + p
+    return "file://" + "".join(c if c in _URI_SAFE else "".join(f"%{b:02X}" for b in c.encode("utf-8")) for c in p)
+
+
 def write_agy_db(path: str, rows: list) -> None:
     """rows: [(conversation id, [folders], datetime)]."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -205,7 +220,7 @@ def write_agy_db(path: str, rows: list) -> None:
         PRIMARY KEY (`conversation_id`))""")
     for cid, folders, when in rows:
         stamp = when.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S.123456789+00:00")
-        uris = json.dumps(["file://" + f.replace(" ", "%20") for f in folders])
+        uris = json.dumps([file_uri(f) for f in folders])
         con.execute("insert into conversation_summaries (conversation_id, title, preview, last_modified_time, "
                     "workspace_uris, last_user_input_time) values (?,?,?,?,?,?)",
                     (cid, "Invented title", "Invented preview", stamp, uris, stamp))
@@ -423,17 +438,18 @@ def make_person(base: str, person: DemoPerson) -> str:
     if agy_rows:
         write_agy_db(agy_db, agy_rows)
 
+    q = toml_string  # every value goes in as a TOML string, so Windows paths like C:\\Users parse
     lines = [
-        f'name = "{person.name}"', f'set = "{person.set}"', f'timezone = "{person.tz}"', "rollover_hour = 4",
+        f"name = {q(person.name)}", f"set = {q(person.set)}", f"timezone = {q(person.tz)}", "rollover_hour = 4",
         f"work = {'true' if person.work else 'false'}", "",
-        "[identity]", f'emails = ["{person.email}"]', f'names = ["{person.name}"]', "",
+        "[identity]", f"emails = [{q(person.email)}]", f"names = [{q(person.name)}]", "",
         "[harnesses]", "claude = true", "codex = true", f"agy = {'true' if agy_rows else 'false'}",
-        f'claude_dir = "{claude_dir}"', f'codex_dir = "{codex_dir}"', f'agy_db = "{agy_db}"', "",
+        f"claude_dir = {q(claude_dir)}", f"codex_dir = {q(codex_dir)}", f"agy_db = {q(agy_db)}", "",
     ]
     if person.work:
         lines += ["[card]", "allow = true", ""]
     for proj in person.projects:
-        lines += ["[[project]]", f'name = "{proj.name}"', f'roots = ["{os.path.join(code, proj.folder)}"]']
+        lines += ["[[project]]", f"name = {q(proj.name)}", f"roots = [{q(os.path.join(code, proj.folder))}]"]
         if proj.toml:
             lines.append(proj.toml.rstrip("\n"))
         lines.append("")
