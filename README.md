@@ -148,7 +148,7 @@ Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint
 
 ## What stays on disk
 
-Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprint/`, or `$XDG_DATA_HOME/tinkerprint`, or `--data-dir`. A `--data-dir` must be new or empty the first time, or a data folder from tinkerprint 0.1.
+Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprint/`, or `$XDG_DATA_HOME/tinkerprint`, or `--data-dir`. A `--data-dir` must be new or empty the first time. A tinkerprint 0.1 data folder at the default location is adopted as it is. To adopt one you chose with `--data-dir`, create `tinkerprint-data.txt` in it with the first line `tinkerprint data folder`.
 
 - `cache/`: what the readers kept from each agent log (times, folders, file paths, models), so the next build skips logs that have not changed. Shared by all profiles. When a log is deleted, as Claude Code does with transcripts after about a month, its entry stays here, marked gone, so its days still count. This is the only copy of those sessions.
 - `history/`: each build's sheet, per profile and season, for "what changed".
@@ -162,7 +162,7 @@ The cache, history, last-build files, `profiles.json` and the sheet itself (`she
 
 `tinkerprint forget` deletes nothing. It shows the data folder and its size, and with `--profile` that profile's history folder, last-build file and sheets folder. To remove one profile's data, delete those yourself. The cache is shared by every profile.
 
-`tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt`, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them. See [Trust](#trust).
+`tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt` or is the default location, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them. See [Trust](#trust).
 
 ## What it will not do
 

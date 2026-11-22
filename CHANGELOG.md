@@ -46,7 +46,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - The README's Trust section says what tinkerprint promises and what it assumes.
 - Sessions from agent logs that are gone still count. Claude Code deletes old transcripts after about a month, and your sheet no longer loses those days. That includes logs 0.1 read that are gone by your first 0.2 build.
 - Two builds at once, or a build and `forget --all`, take turns with the data folder, so neither loses the other's sessions or profiles. A run that has to wait says so and keeps waiting.
-- A build moves into a `--data-dir` only when it is new, empty or a tinkerprint data folder, and writes `--out` only outside the data folder.
+- A build moves into a `--data-dir` only when it is new, empty or a tinkerprint data folder, and writes `--out` only outside the data folder. A 0.1 data folder at the default location is adopted as it is. To adopt one you chose with `--data-dir`, create `tinkerprint-data.txt` in it: the build says how.
 - History follows a profile file you move. A copy of a profile starts its own. A profile whose name or identity changed at the same path keeps its history, and `build` says how to start afresh.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - A build reads your repos without starting any program their git config names, such as a signature checker or a diff filter, and without fetching, whatever the repo or your `GIT_` variables say.

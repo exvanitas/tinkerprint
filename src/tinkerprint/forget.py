@@ -5,9 +5,9 @@ profile's history folder, last-build pointer and default sheets folder, so a per
 what they choose themselves.
 
 forget --all --yes deletes the whole data folder, and only when it is not a link, carries
-tinkerprint's marker, and holds at its top nothing but what tinkerprint keeps there. It takes the
-data folder's lock first, so no build is writing, then checks, then deletes. shutil.rmtree never
-follows a link inside. Repos, agent logs, profiles and --out folders are outside the data folder,
+tinkerprint's marker or is the default location, and holds at its top nothing but what
+tinkerprint keeps there. It takes the data folder's lock first, so no build is writing, then
+checks, then deletes. shutil.rmtree never follows a link inside. Repos, agent logs, profiles and --out folders are outside the data folder,
 so they are never touched.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import shutil
 
-from .datadir import LOCK, MARKER, data_lock, linked, marked, own_top
+from .datadir import LOCK, MARKER, adopt_hint, data_lock, is_default_home, linked, marked, own_top
 from .profile import is_key
 
 
@@ -102,9 +102,9 @@ def _refusal(home: str) -> tuple:
         return f"{home} is a link. forget deletes only the folder itself, so it leaves this alone.", []
     if not os.path.isdir(home):
         return f"{home} is not a folder.", []
-    if not marked(home):
-        return (f"{home} has no {MARKER}, so it is not a data folder tinkerprint marked. A build marks a data "
-                "folder from tinkerprint 0.1."), []
+    if not marked(home) and not is_default_home(home):
+        return (f"{home} has no {MARKER}, so it is not a data folder tinkerprint marked. {adopt_hint()}, then run "
+                "forget again."), []
     try:
         names = sorted(os.listdir(home))
     except OSError as e:

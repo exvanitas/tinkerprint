@@ -71,8 +71,8 @@ def inside_repo_or_root(path: str, roots=()) -> str | None:
         probe = parent
 
 
-# tinkerprint writes this file into a data folder it creates, or adopts while empty or from 0.1.
-# forget --all deletes only a folder that has it.
+# tinkerprint writes this file into a data folder it creates, or adopts while empty, or finds at
+# the default location from 0.1. forget --all deletes only a folder that has it, or the default one.
 MARKER = "tinkerprint-data.txt"
 MARKER_HEAD = "tinkerprint data folder"
 MARKER_TEXT = (MARKER_HEAD + "\n\nThis folder holds what tinkerprint keeps: its cache, saved sheets and profile "
@@ -120,12 +120,18 @@ def is_default_home(home: str) -> bool:
     return os.path.normcase(os.path.abspath(home)) == os.path.normcase(data_home())
 
 
+def adopt_hint() -> str:
+    return (f"If it is your tinkerprint 0.1 data folder, adopt it: create {MARKER} in it with the first line "
+            f"'{MARKER_HEAD}'")
+
+
 def claim_home(home: str) -> None:
     """Make the data folder, or adopt it, and mark it as tinkerprint's.
 
-    A new folder, or an empty one, is marked. So is a data folder from tinkerprint 0.1, which had
-    no marker: the default location, or a folder holding only what tinkerprint keeps. Any other
-    folder that is not empty is refused, so a build never moves into someone else's folder.
+    A new folder, or an empty one, is marked. So is the default location, which tinkerprint 0.1
+    used without a marker. Any other folder that is not empty and has no marker is refused, so a
+    build never moves into someone else's folder. A 0.1 data folder chosen with --data-dir is
+    adopted once its owner writes the marker.
     """
     try:
         names = os.listdir(home)
@@ -134,9 +140,9 @@ def claim_home(home: str) -> None:
         names = []
     if marked(home):
         return
-    if names and not is_default_home(home) and not all(own_top(n) for n in names):
+    if names and not is_default_home(home):
         raise ValueError(f"{home} is not empty and is not a tinkerprint data folder. For --data-dir, choose a new "
-                         "or empty folder, or leave it out")
+                         f"or empty folder, or leave it out. {adopt_hint()}")
     _write(os.path.join(home, MARKER), MARKER_TEXT)
 
 

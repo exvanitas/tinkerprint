@@ -232,6 +232,10 @@ class Claim(Base):
         self.build(a)
         os.remove(os.path.join(self.data, MARKER))
         os.remove(os.path.join(self.data, REGISTRY))
+        code, _, err = self.run_cli("build", "--profile", a, "--data-dir", self.data)
+        self.assertEqual(code, 2)  # a --data-dir is adopted once its owner marks it
+        self.assertIn(f"create {MARKER} in it", err)
+        self.put(os.path.join(self.data, MARKER), "tinkerprint data folder\n")
         self.build(a)
         self.assertTrue(self.exists(MARKER))
         self.cli("forget", "--all", "--data-dir", self.data, "--yes")
