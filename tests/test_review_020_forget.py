@@ -106,9 +106,20 @@ class Ownership(Base):
         self.assertFalse(os.path.exists(os.path.join(named, SHEETS_MARK)))
         text = self.cli("forget", "--all", "--data-dir", self.data, "--yes")
         self.assertIn(f"Left alone: {named}, not a folder of builds made without --out.", text)
+        self.assertNotIn("Left alone: " + os.path.join(self.data, "sheets", profile_id(a)), text)
         self.assertTrue(os.path.isfile(os.path.join(named, "sheet.html")))
         self.assertFalse(os.path.exists(os.path.join(self.data, "sheets", profile_id(a))))
         self.assertFalse(os.path.exists(os.path.join(self.data, "history")))
+
+
+class SheetsReasons(Base):
+    def test_a_default_sheets_folder_with_a_stray_file(self):
+        a = self.write(os.path.join(self.t, "a.toml"))
+        self.build(a)
+        folder = os.path.join(self.data, "sheets", profile_id(a))
+        self.put(os.path.join(folder, "notes.txt"))
+        text = self.cli("forget", "--all", "--data-dir", self.data, "--yes")
+        self.assertIn(f"Left alone: {folder} holds files tinkerprint did not write.", text)
 
 
 class Links(Base):
@@ -131,6 +142,11 @@ class Links(Base):
         text = self.cli("forget", "--all", "--data-dir", self.data, "--yes")
         self.assertIn(f"Left alone: {hist} is a link", text)
         self.assertTrue(os.path.isfile(victim))
+
+    def test_a_profile_with_something_left_keeps_its_entry(self):
+        self.put(os.path.join(self.data, "history", self.key, "start_now", "notes.txt"))
+        self.cli("forget", "--profile", self.a, "--data-dir", self.data, "--yes")
+        self.assertIn(self.key, read_registry(self.data))
 
     def test_a_linked_last_build_folder(self):
         victim = self.put(os.path.join(self.outside, self.key + ".json"), "{}")

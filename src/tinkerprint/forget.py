@@ -183,12 +183,15 @@ def plan(home: str, profile_key: str | None):
         except _Unknown:
             if not _unlinked_below(home, path):
                 why = "link"
+            elif kind == "unknown" or (kind == "sheets-folder" and not _plain_file(os.path.join(path, SHEETS_MARK))):
+                why = "sheets"
             else:
-                why = "sheets" if kind in ("sheets-folder", "unknown") else "files"
+                why = "files"
             keep.append((path, why))
             continue
         delete.append((path, what, files, dirs))
-    if (profile_key is not None and profile_key in read_registry(home)
+    # The profile keeps its entry while anything of its own is left, so its next build still finds it.
+    if (profile_key is not None and not keep and profile_key in read_registry(home)
             and _plain_file(os.path.join(home, REGISTRY))):
         delete.append((os.path.join(home, REGISTRY) + "#" + profile_key, "this profile's entry in the profile list",
                        [], []))
