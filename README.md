@@ -84,7 +84,7 @@ Presentation is neutral unless you set it. Hair, eyes and expression left out ar
 
 Post `card.png`. Discord and most social sites show it as a preview, and they do not preview SVG. `card.svg` draws the same thing. `portrait.png` is the portrait alone, for an avatar, and `portrait.gif` is the same portrait idling.
 
-After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` and both portraits hold image data only and are, byte for byte, what the card's fields draw. It exits 1 when a card file is missing, broken or not certified, so a script can stop on it.
+After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` and both portraits hold image data only and are, byte for byte, what the card's fields draw. With a profile, it also checks that the card follows the profile's current `[card]` and `[look]` settings, so change one and build again before you share. It exits 1 when a card file is missing, broken or not certified, so a script can stop on it.
 
 What a card reveals:
 
@@ -170,7 +170,7 @@ The cache, history, last-build files and `profiles.json` are private to you (mod
 ## Known limits
 
 - Two builds that write to the same output folder at the same time can leave a mix of their files. Run one build per folder at a time.
-- `audit` without `--out` reads the folder of the profile's last build. If another profile built into that folder later, it shows that card. Pass `--out` to audit a folder directly. That works even when the profile cannot be read.
+- `audit` without `--out` reads the folder of the profile's last build. If another profile built into that folder later, it shows that card. Pass `--out` to audit a folder directly. That works without a profile, but a `--profile` that cannot be read fails the audit.
 - Where a daylight-saving change crosses the rollover hour, as in `Pacific/Chatham`, the edge of a day can move during that hour. Work near the change may land on the next or previous day.
 - Two Codex records of one change that share no call id or item id count as two changes.
 - Roots outside git take manifest priors from the files on disk, so their sheets can change with the checkout.

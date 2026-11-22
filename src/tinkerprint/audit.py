@@ -12,6 +12,10 @@ after the image data. portrait.png is checked the same way. portrait.gif must ho
 only (no comment, plain-text or other application extension) and be, byte for byte, the loop the
 card fields draw.
 
+Given the profile, audit also checks that the saved card follows the profile's current [card] and
+[look] settings: the name or handle, show, hide, enabled and the look. A card built under other
+settings is not certified until it is built again.
+
 audit() also says whether every card file is there and certified, for the exit code.
 """
 from __future__ import annotations
@@ -255,12 +259,36 @@ def _pack():
     return default_pack()
 
 
-def _sheet_card(out_dir: str):
+def _sheet(out_dir: str) -> dict | None:
     try:
         with open(os.path.join(out_dir, "sheet.json"), encoding="utf-8") as f:
-            return json.load(f).get("card")
-    except (OSError, ValueError, AttributeError):
+            sheet = json.load(f)
+    except (OSError, ValueError):
         return None
+    return sheet if isinstance(sheet, dict) else None
+
+
+def _sheet_card(out_dir: str):
+    return (_sheet(out_dir) or {}).get("card")
+
+
+# Card fields that come from the shares alone, or from the build date, not from a setting.
+_NOT_SETTINGS = {"stats", "chart", "built"}
+
+
+def stale_fields(sheet: dict | None, profile) -> list | None:
+    """The card fields in sheet.json that the profile's current [card] and [look] settings would
+    draw differently, [] when none, None when the sheet cannot be checked."""
+    from .score import card_fields, portrait_look
+    card = (sheet or {}).get("card")
+    if not isinstance(card, dict):
+        return None
+    try:
+        now = dict(sheet, look=portrait_look(profile))
+        want = card_fields(now, profile)
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
+        return None
+    return sorted(k for k in set(want) | set(card) if k not in _NOT_SETTINGS and want.get(k) != card.get(k))
 
 
 def portrait_line(card: dict) -> str:
@@ -294,7 +322,8 @@ def audit(out_dir: str, profile=None, pack=None) -> tuple:
         return [f"{path} is not valid SVG ({e}). It is not certified. Run build again."], False
     lines = [f"{path} holds these {len(strings)} strings and nothing else:"]
     lines += [f"  {s}" for s in strings]
-    card = _sheet_card(out_dir)
+    sheet = _sheet(out_dir)
+    card = (sheet or {}).get("card")
     if isinstance(card, dict) and card.get("enabled"):
         lines.append(portrait_line(card))
     clean = True
@@ -312,6 +341,16 @@ def audit(out_dir: str, profile=None, pack=None) -> tuple:
     if profile is not None and not profile.card_enabled:
         lines.append("Warning: the profile no longer allows a card, but the card files are still there. Run build again.")
         clean = False
+    elif profile is not None:
+        stale = stale_fields(sheet, profile)
+        if stale is None:
+            lines.append("The card could not be checked against the profile's [card] and [look] settings. It is not "
+                         "certified. Run build again.")
+            clean = False
+        elif stale:
+            lines.append(f"The card was built with other [card] or [look] settings than the profile has now "
+                         f"({', '.join(stale)} differ). It is not certified. Run build again.")
+            clean = False
     return lines, clean
 
 

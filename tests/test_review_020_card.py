@@ -1,8 +1,13 @@
 """0.2.0 review: the card audit, the card's dates, its seed, the sheet's title and non-Latin names.
 Every name, path and email here is invented."""
+import io
+import json
+import os
 import struct
+import tempfile
 import unittest
 import zlib
+from contextlib import redirect_stdout
 from datetime import date
 
 import helpers  # noqa: F401
@@ -10,8 +15,9 @@ from helpers import commit, profile, run
 from test_card_options import tie_card
 from tinkerprint.art import default_pack
 from tinkerprint.look import of_sheet
-from tinkerprint.audit import check_png, check_portrait_png, png_chunks
-from tinkerprint.render_card import portrait_png, render_card, visible
+from tinkerprint.audit import audit, check_png, check_portrait_png, png_chunks
+from tinkerprint.cli import main
+from tinkerprint.render_card import portrait_gif, portrait_png, render_card, visible
 from tinkerprint.render_card_png import render_card_png
 
 PACK = default_pack()
@@ -98,6 +104,59 @@ class Seed(unittest.TestCase):
         self.assertEqual(portrait_png(a["card"], PACK), portrait_png(b["card"], PACK))
         self.assertEqual(render_card_png(a["card"], PACK), render_card_png(b["card"], PACK))
         self.assertEqual(of_sheet(a), of_sheet(b))
+
+
+class StalePolicy(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.out = os.path.join(self.tmp.name, "out")
+        os.makedirs(self.out)
+        self.evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py"),
+                    commit("2026-03-03T10:00:00+00:00", "/w/kite/app.py", h="c2")]
+        self.base = {"name": "Ida Fenwick", "card": {"show": ["projects"]}}
+        sheet = run(self.prof(), self.evs)[0]
+        self.assertIn("projects", sheet["card"])
+        files = {"sheet.json": json.dumps(sheet).encode(), "card.svg": render_card(sheet["card"], PACK).encode(),
+                 "card.png": render_card_png(sheet["card"], PACK), "portrait.png": portrait_png(sheet["card"], PACK),
+                 "portrait.gif": portrait_gif(sheet["card"], PACK)}
+        for name, data in files.items():
+            with open(os.path.join(self.out, name), "wb") as f:
+                f.write(data)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def prof(self, **change):
+        extra = json.loads(json.dumps(self.base))
+        for k, v in change.items():
+            if k == "card":
+                extra["card"] = dict(extra["card"], **v)
+            else:
+                extra[k] = v
+        return profile([("Kite", "/w/kite", None)], **extra)
+
+    def test_the_same_settings_certify(self):
+        lines, clean = audit(self.out, self.prof())
+        self.assertTrue(clean, lines)
+
+    def test_changed_settings_do_not(self):
+        for change, field in (({"card": {"show": []}}, "projects"), ({"card": {"name": "quillwork"}}, "name"),
+                              ({"card": {"hide": ["level"]}}, "level"), ({"look": {"skin": "deep"}}, "look"),
+                              ({"card": {"hide": ["party"], "show": ["projects", "dates"]}}, "")):
+            lines, clean = audit(self.out, self.prof(**change))
+            self.assertFalse(clean, change)
+            self.assertIn("built with other [card] or [look] settings", lines[-1])
+            self.assertIn(field, lines[-1])
+
+    def test_an_unreadable_profile_given_by_name_fails(self):
+        missing = os.path.join(self.tmp.name, "missing.toml")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = main(["audit", "--profile", missing, "--out", self.out])
+        self.assertEqual(code, 1)
+        self.assertIn("The audit fails", buf.getvalue())
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(main(["audit", "--out", self.out]), 0)
 
 
 if __name__ == "__main__":

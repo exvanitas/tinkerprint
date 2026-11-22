@@ -251,14 +251,18 @@ def cmd_audit(args) -> int:
     if path is None and not args.out:
         raise _no_profile()
     profile = None
+    unread = False
     if path is not None:
         try:
             profile = load_profile(path)
         except (ProfileError, OSError) as e:
             if not args.out:
                 raise
-            # An explicit card folder can be audited without its profile.
-            print(f"Profile not readable ({e}). Auditing {args.out} alone.")
+            # An explicit card folder can be audited without its profile. A profile asked for by
+            # name that cannot be read fails the audit: its settings were never checked.
+            unread = bool(args.profile)
+            more = " The audit fails, since the card cannot be checked against it." if unread else ""
+            print(f"Profile not readable ({e}). Auditing {args.out} alone.{more}")
     if args.out:
         out = args.out
     else:
@@ -269,7 +273,7 @@ def cmd_audit(args) -> int:
     lines, clean = audit(out, profile, pack)
     print("\n".join(lines))
     # Non-zero when any card file is missing, malformed or not certified, so a script can stop a share.
-    return 0 if clean else 1
+    return 0 if clean and not unread else 1
 
 
 def cmd_init(args) -> int:
