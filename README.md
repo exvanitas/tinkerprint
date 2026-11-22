@@ -184,6 +184,7 @@ What tinkerprint promises:
 What it assumes:
 
 - Your user account and your own folders are yours. Someone who can already write to your data folder or your repos already acts as you, and tinkerprint does not defend against them.
+- tinkerprint follows links inside your project folders, as it follows your own setup.
 - On Windows, a new file takes the permissions of its folder. Keep `--out` and `--data-dir` in your own user folder, so the sheet and the cache stay private.
 - Git reads each repo's own config. A config include there can make git read another file the repo names. tinkerprint stops git from starting other programs or fetching, but it leaves that reading to git.
 
