@@ -22,7 +22,7 @@ from .keys import adopt
 from .score import compare, score_core
 from .datadir import (_is_git_dir, _write, data_home, data_lock, inside_repo_or_root, mark_home, mark_sheets,
                       path_within, pretty)
-from .timeutil import month_label, parse_day, parse_ts
+from .timeutil import day_label, month_label, parse_day, parse_ts
 
 # A version change re-reads every log that is still there, and keeps what earlier builds read
 # from logs that are gone, since those can never be read again.
@@ -467,7 +467,7 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     _write(paths["json"], pretty(sheet))
     _write(paths["changes"], pretty(changes))
     pack = pack or art.default_pack()
-    _write(paths["html"], render_html(sheet, built_at, changes, pack))
+    _write(paths["html"], render_html(sheet, built_at, changes, pack, as_of_label=day_label(stamp.isoformat())))
     card_path = os.path.join(out_dir, "card.svg")
     card_png = os.path.join(out_dir, "card.png")
     png_path = os.path.join(out_dir, "portrait.png")

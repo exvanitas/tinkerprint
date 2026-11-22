@@ -612,7 +612,10 @@ def _deep(ramp: list) -> str:
     return ramp[3]
 
 
-def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pack: dict | None = None) -> str:
+def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pack: dict | None = None,
+                as_of_label: str = "") -> str:
+    """built_at: a label for the footer, as the demo gives. Else as_of_label, the build's effective as-of
+    date, so a page made from the same inputs is the same page whenever it is built."""
     pack = pack or art.default_pack()
     pix = _art(sheet, pack)
     prof = sheet["profile"]
@@ -732,7 +735,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
     dot = "&nbsp;· "
     work = f'{dot}<span class="seg">work profile</span>' if prof.get("work") else ""
     as_of = f'{dot}<span class="seg">as of {e(day_label(season["as_of"]))}</span>' if season.get("as_of") else ""
-    built = f"Built {e(built_at)}. " if built_at else ""
+    built = f"Built {e(built_at)}. " if built_at else (f"As of {e(as_of_label)}. " if as_of_label else "")
     # The tab title shows in any screenshot of the window, Share view too: the card's name, else none.
     title = (f"{e(card_visible(sheet['card'])['name'])} · tinkerprint" if sheet["card"].get("enabled")
              else "tinkerprint sheet")

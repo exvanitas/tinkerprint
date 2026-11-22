@@ -95,5 +95,71 @@ class PartsStayInside(unittest.TestCase):
         self.assertEqual(scan_priors(prof.projects)["P"], {})
 
 
+class SmallOnes(unittest.TestCase):
+    def test_list_unassigned_prints_at_most_n_once_each(self):
+        from tinkerprint.cli import unassigned_lines
+        sheet = {"unassigned": {"sessions": 3, "folders": 4, "edits": 3}}
+        local = {"unassigned_folders": [("/w/a", 2), ("/w/b", 1)],
+                 "unassigned_edit_folders": ["/w/a", "/w/c", "/w/c", "/w/d"]}
+        one = unassigned_lines(sheet, local, 1)
+        self.assertEqual(one[1:], ["     2  /w/a", "  ... 3 more. Use --list-unassigned N to see them."])
+        three = unassigned_lines(sheet, local, 3)
+        self.assertEqual(three[1:], ["     2  /w/a", "     1  /w/b", "        /w/c",
+                                     "  ... 1 more. Use --list-unassigned N to see them."])
+        every = unassigned_lines(sheet, local, 10)
+        self.assertEqual(every[1:], ["     2  /w/a", "     1  /w/b", "        /w/c", "        /w/d"])
+        self.assertIn("Use --list-unassigned N", unassigned_lines(sheet, local, 0)[0])
+
+    def test_a_project_name_must_be_text(self):
+        from helpers import profile
+        from tinkerprint.profile import ProfileError
+        for name in (False, 0, "", ["x"]):
+            with self.subTest(name=name):
+                with self.assertRaises(ProfileError) as cm:
+                    profile([("P", "/w", None)], project=[{"name": name, "root": "/w"}])
+                self.assertIn("name must be", str(cm.exception))
+        prof = profile([("P", "/w", None)], project=[{"root": "/w"}])
+        self.assertEqual(prof.projects[0].name, "Project 1")
+
+
+class SameInputsSameSheet(unittest.TestCase):
+    """The footer says the build's as-of date, so a fixed --as-of gives the same sheet.html."""
+
+    def test_two_builds_minutes_apart_are_identical(self):
+        import io
+        from contextlib import redirect_stdout
+        from datetime import datetime as real_dt, timedelta
+        from unittest import mock
+        from zoneinfo import ZoneInfo
+        from tinkerprint import cli
+        from tinkerprint.demo import RepoWriter
+        ticks = iter(range(100))
+
+        class Clock(real_dt):
+            @classmethod
+            def now(cls, tz=None):
+                return real_dt(2026, 11, 23, 10, next(ticks), tzinfo=tz or ZoneInfo("UTC"))
+
+        with tempfile.TemporaryDirectory() as t:
+            t = os.path.realpath(t)
+            root = os.path.join(t, "repo")
+            r = RepoWriter(root)
+            r.touch(real_dt(2026, 3, 2, 10, tzinfo=ZoneInfo("UTC")), ("Ida", "ida@fenwick.example.test"), {"a.py": 2})
+            r.write()
+            path = os.path.join(t, "p.toml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write('name = "Ida"\n[identity]\nemails = ["ida@fenwick.example.test"]\n[harnesses]\n'
+                        f'claude = false\ncodex = false\n[[project]]\nname = "P"\nroot = "{root}"\n')
+            pages = []
+            for out in ("o1", "o2"):
+                with mock.patch.object(cli, "datetime", Clock), redirect_stdout(io.StringIO()):
+                    self.assertEqual(cli.main(["build", "--profile", path, "--data-dir", os.path.join(t, "data"),
+                                               "--out", os.path.join(t, out), "--as-of", "2026-09-15"]), 0)
+                with open(os.path.join(t, out, "sheet.html"), "rb") as f:
+                    pages.append(f.read())
+        self.assertEqual(pages[0], pages[1])
+        self.assertIn(b"As of Sep 15, 2026.", pages[0])
+
+
 if __name__ == "__main__":
     unittest.main()

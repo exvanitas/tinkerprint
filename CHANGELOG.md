@@ -59,6 +59,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - Commit and tag achievements count only commits that change a file inside one of the profile's roots.
 - Party labels say only what the logs recorded: "No edits recorded" replaces "Mostly reviews", and Antigravity says "Presence only". Past six models a party card shows "+N more".
 - The sheet says how many active days the class rests on: "Based on N of M active days".
+- The sheet's footer gives the build's as-of date, not the clock time, so the same inputs make the same `sheet.html`.
 
 ### Windows
 

@@ -319,9 +319,10 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
         roots = [_path(r, base_dir) for r in _strs(roots, f"{where}.roots")]
         if not roots:
             raise ProfileError(f"{where}: needs root or roots")
-        name = rp.get("name") or f"Project {i + 1}"
-        if not isinstance(name, str):
-            raise ProfileError(f"{where}: name must be a string")
+        # The default is for a missing name only. A name that is given must be text.
+        name = rp["name"] if "name" in rp else f"Project {i + 1}"
+        if not isinstance(name, str) or not name:
+            raise ProfileError(f"{where}: name must be text in quotes, not empty")
         where = f"project {name!r}"
         parts = []
         for j, raw in enumerate(_tables(rp.get("part"), "part", f"{where} part", allow_str=True)):

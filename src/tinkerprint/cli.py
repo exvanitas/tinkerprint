@@ -146,10 +146,6 @@ def local_tz(etc: str = "/etc", now: datetime | None = None) -> tuple:
     return f"{sign}{h:02d}:{m:02d}", True
 
 
-def _now() -> str:
-    return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z").strip()
-
-
 def cmd_build(args) -> int:
     path = _profile_path(args)
     if path is None:
@@ -166,7 +162,8 @@ def cmd_build(args) -> int:
     if not args.out:
         check_dirs(profile, [out])
     pack = load_pack(args.art_pack) if args.art_pack else None
-    res = build(profile, out, season, as_of, home, built_at=_now(), pack=pack)
+    # The sheet's footer gives the build's as-of date, never the clock, so the same inputs give the same file.
+    res = build(profile, out, season, as_of, home, pack=pack)
     s = res["sheet"]
     cls = (s.get("class") or {}).get("name", "Unclassed")
     print(f"{profile.name}: level {s['history']['level']}, {cls}, {s['season_totals']['active_days']} active days "
@@ -240,10 +237,12 @@ def unassigned_lines(sheet: dict, local: dict, limit: int = 0) -> list:
     out = [f"Unassigned: {_n(un['sessions'], 'session')} in {_n(un['folders'], 'folder')}, "
            f"{_n(un['edits'], 'changed file')}, outside every root. Not scored."]
     sessions = local.get("unassigned_folders", [])
-    out += [f"  {n:>4}  {folder}" for folder, n in sessions[:limit]]
-    edits = [f for f in local.get("unassigned_edit_folders", []) if f not in dict(sessions)]
-    out += [f"        {folder}" for folder in edits[:limit]]
-    hidden = max(0, len(sessions) - limit) + max(0, len(edits) - limit)
+    seen = {folder for folder, _ in sessions}
+    # Folders with sessions first, then folders with edits only, each once, N in all.
+    edits = [f for f in dict.fromkeys(local.get("unassigned_edit_folders", [])) if f not in seen]
+    rows = [f"  {n:>4}  {folder}" for folder, n in sessions] + [f"        {folder}" for folder in edits]
+    out += rows[:limit]
+    hidden = max(0, len(rows) - limit)
     if hidden and not limit:
         out[0] += " Use --list-unassigned N to list the folders."
     elif hidden:
