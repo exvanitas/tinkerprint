@@ -177,7 +177,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .unlit .trinket { width: 34px; height: 34px; border-radius: 8px; filter: grayscale(1); opacity: .7; }
 .unlit b { color: var(--ink-2); }
 
-/* Party: each familiar on its own patch of floor. */
+/* Party: each instrument on its own patch of floor. */
 .party { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .comp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px 14px; align-items: center; }
 .comp .fam { width: 96px; height: 84px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px;

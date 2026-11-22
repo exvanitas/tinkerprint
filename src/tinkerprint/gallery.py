@@ -1,60 +1,66 @@
-"""gallery: one page with every class portrait of both sets, every familiar, icon and trinket, and a
-few banners, so a pack can be judged at a glance. Everything on it is invented."""
+"""gallery: one page with the Keepsake art a pack draws, so a pack can be judged at a glance.
+
+Every class of both sets in the neutral presentation, the three presentations, every expression,
+hairstyle, eye color and skin, every pair in both orders, a room for each set, the pins, trinkets
+and party instruments, and the camp. Everything on it is invented.
+"""
 from __future__ import annotations
 
+import base64
 import os
 from html import escape
 
 from . import art
 from .achievements import RULES
+from .art import keepsake
 from .art.compose import look_for
 from .art.pixels import Canvas
 from .datadir import _write
-from .party import HARNESS_NAMES
-from .render_html import CSP, CSS, JS, _chronicle
+from .render_html import CSP, CSS, JS, _chronicle, _layer, _worn
 from .sets import GENERALIST, PAIR, SETS, SPECIALIST
 
 GALLERY_CSS = """
 .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.grid.small { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 .tile { padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
-.tile svg { width: 96px; height: 96px; border-radius: 6px; }
-.tile .portrait { margin: 0 auto; }
-.tile.small svg { width: 54px; height: 54px; border-radius: 0; }
+.tile img { width: 128px; height: 128px; image-rendering: pixelated; border-radius: 6px; background: var(--surface-2); }
+.grid.small .tile img { width: auto; height: auto; background: none; border-radius: 0; }
 .tile .nm { font-weight: 600; font-size: 14px; }
 .tile .why { font-size: 11px; color: var(--muted); }
-.banners { display: grid; gap: 12px; }
-.banners figure { margin: 0; }
-.banners svg { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border-2); }
-.banners figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
-.sample { margin: 0; padding: 10px; text-align: center; }
-.sample h3 { margin: 0 0 6px; }
-.sample svg, .sample figcaption { width: min(100%, 288px); margin: auto; }
-.sample svg { display: block; height: auto; }
-.sample figcaption { display: grid; grid-template-columns: repeat(3, 1fr); font-size: 12px; }
+.rooms { display: grid; gap: 12px; }
+.rooms figure { margin: 0; }
+.rooms .room-box { position: relative; aspect-ratio: 252 / 72; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-2); }
+.rooms img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.rooms figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
 """
 
-BANNERS = (
-    ("tinkerer", "pair", ["Art", "Worlds"], [("Art", 30), ("Worlds", 25), ("Lore", 15), ("Community", 10),
-                                             ("Systems", 10), ("Tools", 10)], ["Lore", "Community"],
-     ["claude", "codex", "agy"], "A tinkerer pair with a multiclass and a full party"),
-    ("builder", "pair", ["Logic", "Tests"], [("Logic", 40), ("Tests", 20), ("Data", 15), ("Infra", 15), ("Docs", 10)],
-     ["Data", "Infra"], ["claude", "codex"], "A builder pair with two harnesses"),
-    ("builder", "specialist", ["Infra"], [("Infra", 60), ("Tools", 25), ("Docs", 15)], None, ["codex"],
-     "A builder specialist"),
-    ("tinkerer", "generalist", [], [("Tools", 20), ("Art", 15), ("Systems", 15), ("Worlds", 15), ("Lore", 15),
-                                    ("Interface", 10), ("Community", 10)], None, [], "A generalist with no party"),
+# Each room: set, class, stats with their rounded shares, multiclass, party and caption.
+ROOMS = (
+    ("builder", "pair", ["Logic", "Data"], [("Logic", 40), ("Data", 30), ("Tests", 15), ("Docs", 15)],
+     ["Tests", "Docs"], ["claude", "codex"], "Marigold Loom", "A builder pair with a multiclass and two party members"),
+    ("tinkerer", "specialist", ["Art"], [("Art", 55), ("Worlds", 25), ("Lore", 20)], None,
+     ["claude", "codex", "agy"], "Tansy Forge", "A tinkerer specialist with a full case"),
 )
+
+SAMPLE = ("builder", "Logic")  # the class that models expressions, hair, eyes and skins
 
 
 def _e(x) -> str:
     return escape(str(x), quote=True)
 
 
-def _tile(svg: str, name: str, why: str = "", small: bool = False) -> str:
-    cls = "card tile small" if small else "card tile"
+def _img(pic: Canvas, scale: int = 1, alt: str = "") -> str:
+    data = base64.b64encode(pic.png(scale, indexed=True)).decode("ascii")
+    return f'<img src="data:image/png;base64,{data}" width="{pic.w * scale}" height="{pic.h * scale}" alt="{_e(alt)}">'
+
+
+def _tile(img: str, name: str, why: str = "") -> str:
     w = f'<div class="why">{_e(why)}</div>' if why else ""
-    return f'<article class="{cls}">{svg}<div class="nm">{_e(name)}</div>{w}</article>'
+    return f'<article class="card tile">{img}<div class="nm">{_e(name)}</div>{w}</article>'
+
+
+def _grid(tiles: list, small: bool = False) -> str:
+    return f'<div class="grid{" small" if small else ""}">{"".join(tiles)}</div>'
 
 
 def class_looks(set_name: str) -> list:
@@ -68,101 +74,110 @@ def class_looks(set_name: str) -> list:
     return out
 
 
-def _presentation_samples(pack, pngs):
-    choices = ("neutral", "man", "woman")
-    if not all(mode in pack.get("presentations", {}) for mode in choices[1:]):
-        return ""
-    samples = []
-    w, h = pack["canvas"]
-    captions = "".join(f"<span>{mode.capitalize()}</span>" for mode in choices)
-    for set_name, stat in (("builder", "Logic"), ("builder", "Tools"), ("tinkerer", "Lore")):
-        name = SPECIALIST[set_name][stat]
-        look = look_for(set_name, "specialist", [stat], [stat])
-        strip = Canvas(w * len(choices), h)
-        for index, mode in enumerate(choices):
-            fig = art.figure(pack, look, presentation=mode)
-            pngs[f"{set_name}-{name.lower()}-{mode}.png"] = fig
-            strip.paste(fig, index * w, 0)
-        image = strip.svg(1, f"{name} in neutral, man and woman presentations")
-        samples.append(f'<figure class="card sample"><h3>{name}</h3>{image}<figcaption>{captions}</figcaption></figure>')
-    return ('<h2>Presentation</h2><p class="lede">Each class has three presentations. '
-            'Sheets and cards use neutral.</p><div class="samples">' + "".join(samples) + '</div>')
-
-
 def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list:
     pack = pack or art.default_pack()
     os.makedirs(out, exist_ok=True)
     pngs: dict = {}
     sections = []
+
+    def figure(key, look, **kw):
+        pic = keepsake.figure(pack, look, **kw)
+        pngs[key + ".png"] = pic
+        return _img(pic)
+
     for set_name in SETS:
-        tiles = []
-        for name, look, why in class_looks(set_name):
-            pic = art.portrait(pack, look)
-            pngs[f"{set_name}-{name.lower()}.png"] = pic
-            tiles.append(_tile(pic.svg(2, f"Portrait of a {name}", "px"), name, why))
-        sections.append(f'<h2>{set_name.capitalize()} set</h2><p class="lede">Every class: 8 specialists, 28 pairs and '
-                        f'the generalist. A pair wears its top stat’s outfit and its runner-up’s equipment, so the same pair '
-                        f'with the order swapped looks different.</p><div class="grid">{"".join(tiles)}</div>')
-    sections.append(_presentation_samples(pack, pngs))
+        tiles = [_tile(figure(f"{set_name}-{name.lower()}", look), name, why)
+                 for name, look, why in class_looks(set_name)]
+        sections.append(f'<h2>{set_name.capitalize()} set</h2><p class="lede">Every class in the neutral '
+                        f'presentation: 8 specialists, 28 pairs and the generalist. A pair wears its top stat’s '
+                        f'outfit and holds its runner-up’s tool.</p>{_grid(tiles)}')
+    # Each pair the other way round: the same two stats, the other outfit and tool.
+    for set_name in SETS:
+        tiles = [_tile(figure(f"{set_name}-{b.lower()}-{a.lower()}", look_for(set_name, "pair", [a, b], [b, a])),
+                       name, f"wears {b}, holds {a}") for (a, b), name in PAIR[set_name].items()]
+        sections.append(f'<h2>{set_name.capitalize()} pairs, the other way round</h2><p class="lede">Every pair '
+                        f'again with its order swapped, as when the second stat leads.</p>{_grid(tiles)}')
     extra = []
     for set_name, kind, stats, ranked, multi, why in (
             ("tinkerer", "pair", ["Systems", "Tools"], ["Systems", "Tools", "Art", "Lore"], ["Art", "Lore"],
              "Engineer / Toymaker"),
             ("builder", "pair", ["Logic", "Data"], ["Data", "Logic", "Tests", "Docs"], ["Tests", "Docs"],
              "Alchemist / Arbiter"),
-            ("builder", "specialist", ["Tools"], ["Tools", "Logic"], None, "Artificer holding Logic's staff"),
             ("tinkerer", None, [], [], None, "Unclassed")):
         look = look_for(set_name, kind, stats, ranked, multi)
-        extra.append(_tile(art.portrait(pack, look).svg(2, why, "px"), why,
-                           "multiclass cape" if multi else ""))
-    sections.append('<h2>Multiclass and more</h2><p class="lede">A multiclass adds a cape in its first stat\'s colors '
-                    f'with a hem in its second.</p><div class="grid">{"".join(extra)}</div>')
-    # A close call: the hero portrait changes costume every few seconds, or on hover.
-    a = look_for("builder", "pair", ["Logic", "Tools"], ["Logic", "Tools", "Data"])
-    b = look_for("builder", "pair", ["Logic", "Data"], ["Logic", "Tools", "Data"])
-    flip = (f'<article class="card tile"><div class="portrait flip">{art.portrait(pack, a).svg(2, "Engineer", "px main")}'
-            f'{art.portrait(pack, b).svg(2, "Alchemist", "px alt")}</div><div class="nm">Engineer, close to Alchemist'
-            f'</div><div class="why">flips between both costumes</div></article>')
-    sample = {"profile": {"set": "tinkerer"}, "chronicle": [
+        extra.append(_tile(figure(f"extra-{why.split()[0].lower()}", look), why, "multiclass cape" if multi else ""))
+    sections.append('<h2>Multiclass and unclassed</h2><p class="lede">A multiclass adds a cape in its first '
+                    f'stat\'s colors with a hem in its second.</p>{_grid(extra)}')
+
+    set_name, stat = SAMPLE
+    name = SPECIALIST[set_name][stat]
+    look = look_for(set_name, "specialist", [stat], [stat])
+    modes = [_tile(figure(f"presentation-{mode}", look, presentation=mode), mode.capitalize())
+             for mode in ("neutral", "man", "woman")]
+    sections.append(f'<h2>Presentation</h2><p class="lede">The {_e(name)} in each presentation. It is set under '
+                    f'[look] and never picked at random.</p>{_grid(modes)}')
+    faces = [_tile(figure(f"expression-{x}", look, expression=x), x.capitalize()) for x in keepsake.EXPRESSIONS]
+    hair = [_tile(figure(f"hair-{x.replace(' ', '-')}", look, presentation=mode, hair=x), x.capitalize(), mode)
+            for mode, cuts in keepsake.HAIRSTYLES.items() for x in cuts]
+    eyes = [_tile(figure(f"eyes-{x}", look, eyes=x), x.capitalize()) for x in keepsake.EYES]
+    skins = [_tile(figure(f"skin-{x}", look, skin=x), x.capitalize()) for x in keepsake.SKINS]
+    sections.append(f'<h2>Faces</h2><p class="lede">The {_e(name)} with each expression, hairstyle, eye color and '
+                    f'skin. Expression, hair and eyes left unset are picked from the card\'s name.</p>'
+                    f'<h3>Expressions</h3>{_grid(faces)}<h3>Hair</h3>{_grid(hair)}'
+                    f'<h3>Eyes</h3>{_grid(eyes)}<h3>Skin</h3>{_grid(skins)}')
+
+    rooms = []
+    for i, (set_name, kind, stats, ranked, multi, crew, seed, why) in enumerate(ROOMS):
+        look = look_for(set_name, kind, stats, [s for s, _ in ranked], multi)
+        layers = keepsake.banner_layers(pack, look, ranked, crew, seed)
+        worn = _worn(layers.figure, layers.foreground, layers.figure_box)
+        still = Canvas(252, 72)
+        still.paste(layers.background.still)
+        still.paste(worn[0])
+        pngs[f"room-{set_name}.png"] = still
+        rooms.append(f'<figure><div class="room-box">{_layer(layers.background.frames, why, "room")}'
+                     f'{_layer(worn, "", "wear")}</div><figcaption>{_e(why)}</figcaption></figure>')
+    sections.append('<h2>Rooms</h2><p class="lede">Each set\'s room idles on one clock. The name picks the view, '
+                    'the finish and the plant; the stats stock the shelves; the party stands in the case.</p>'
+                    f'<div class="rooms">{"".join(rooms)}</div>')
+
+    pins = []
+    for key, (title, rule) in list(RULES.items()) + [("milestone", ("Milestone", "Written by hand."))]:
+        pin = keepsake.pin(pack, key)
+        pngs[f"pin-{key}.png"] = pin
+        pins.append(_tile(_img(pin, 3), title, rule))
+    trinkets = []
+    for stat in sorted({s for stats in SETS.values() for s in stats}):
+        t = keepsake.trinket(pack, stat)
+        pngs[f"trinket-{stat.lower()}.png"] = t
+        trinkets.append(_tile(_img(t, 4), stat))
+    party = []
+    for h, (harness, instrument) in keepsake.MEMBERS.items():
+        pic = keepsake.instrument(h)
+        pngs[f"instrument-{h}.png"] = pic
+        party.append(_tile(_img(pic, 4), "Any other harness" if h == "default" else harness, instrument))
+    sections.append(f'<h2>Pins</h2>{_grid(pins, True)}'
+                    f'<h2>Trinkets</h2><p class="lede">One per stat, on the stat cards and the room\'s shelves.</p>'
+                    f'{_grid(trinkets, True)}'
+                    f'<h2>Party instruments</h2><p class="lede">One per harness, drawn from its name alone.</p>'
+                    f'{_grid(party, True)}')
+
+    camps = []
+    for set_name in SETS:
+        frames = keepsake.camp_frames(pack, set_name, "Rowan Quill")
+        pngs[f"camp-{set_name}.png"] = frames[0]
+        camps.append(_tile(_layer(frames, f"The {set_name} camp", "camp"), set_name.capitalize()))
+    sample = {"profile": {"set": "tinkerer", "name": "Rowan Quill"}, "chronicle": [
         {"label": "2025 Q1", "active_days": 31, "class": {"kind": "pair", "stats": ["Tools", "Art"], "name": "Toymaker"},
          "shares": {"Tools": 40, "Art": 30, "Systems": 20}},
         {"label": "2025 Q2", "active_days": 44, "class": {"kind": "pair", "stats": ["Systems", "Tools"], "name": "Engineer"},
          "close": "Clockmaker", "shares": {"Systems": 35, "Tools": 25, "Art": 25}},
         {"rest": True, "label": "2025 Q3", "label_to": "2025 Q4", "quarters": 2},
         {"label": "2026 Q1", "active_days": 12, "class": {"kind": "specialist", "stats": ["Lore"], "name": "Lorekeeper"},
-         "shares": {"Lore": 60, "Worlds": 25, "Art": 15}},
-        {"label": "2026 Q2", "active_days": 38, "class": {"kind": "generalist", "stats": [], "name": "Wanderer"},
-         "shares": {"Lore": 20, "Worlds": 20, "Art": 15, "Tools": 15, "Systems": 15, "Community": 15}}]}
-    sections.append(f'<h2>Sheet pieces</h2><p class="lede">A close call on the hero portrait, and a chronicle with a '
-                    f'quiet stretch. Invented data.</p><div class="grid">{flip}</div>'
+         "shares": {"Lore": 60, "Worlds": 25, "Art": 15}}]}
+    sections.append('<h2>Camp and chronicle</h2><p class="lede">Quiet quarters rest at camp. A chronicle with a quiet '
+                    f'stretch, for an invented person.</p>{_grid(camps)}'
                     + _chronicle(sample, pack).replace("<h2>Chronicle</h2>", ""))
-    fams = []
-    for h in ("claude", "codex", "agy", "other"):
-        f = art.familiar(pack, h)
-        pngs[f"familiar-{h}.png"] = f
-        fams.append(_tile(f.svg(3, "", "px"), HARNESS_NAMES.get(h, "Any other harness"),
-                          small=True))
-    sections.append(f'<h2>Familiars</h2><p class="lede">One companion per harness, mapped in the pack.</p>'
-                    f'<div class="grid">{"".join(fams)}</div>')
-    icons = []
-    for key, (title, rule) in list(RULES.items()) + [("milestone", ("Milestone", "Written by hand."))]:
-        ic = art.icon(pack, key)
-        pngs[f"icon-{key}.png"] = ic
-        icons.append(_tile(ic.svg(3, "", "px"), title, rule, small=True))
-    fire = art.campfire(pack)
-    icons.append(_tile(fire.svg(3, "", "px"), "Resting at camp", "a quiet chronicle chapter", small=True))
-    sections.append(f'<h2>Achievement icons</h2><div class="grid">{"".join(icons)}</div>')
-    trinkets = [_tile(art.trinket(pack, s).svg(4, "", "px"), s, small=True)
-                for s in sorted({stat for stats in SETS.values() for stat in stats})]
-    sections.append(f'<h2>Shelf trinkets</h2><p class="lede">One per stat. The workshop stocks the active trades, with '
-                    f'extra stock for the strongest.</p><div class="grid">{"".join(trinkets)}</div>')
-    banners = []
-    for i, (set_name, kind, stats, ranked, multi, harnesses, why) in enumerate(BANNERS):
-        look = look_for(set_name, kind, stats, [s for s, _ in ranked], multi)
-        b = art.banner(pack, look, ranked, harnesses, f"gallery|{i}")
-        pngs[f"banner-{i + 1}.png"] = b
-        banners.append(f'<figure>{b.svg(1, why, "px")}<figcaption>{_e(why)}</figcaption></figure>')
-    sections.append(f'<h2>Banners</h2><div class="banners">{"".join(banners)}</div>')
     page = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -192,7 +207,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
         folder = os.path.join(out, "png")
         os.makedirs(folder, exist_ok=True)
         for name, pic in sorted(pngs.items()):
-            scale = 4 if name.startswith("banner") else 8
+            scale = 4 if name.startswith("room") else 8
             p = os.path.join(folder, name)
             _write(p, pic.png(scale), share=True)
         paths.append(folder + os.sep)

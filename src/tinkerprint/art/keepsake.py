@@ -25,10 +25,11 @@ SKINS = {
     "deep": ("#b47f65", "#8b5c4c", "#654049", "#453143"),
 }
 EYES = tuple(EYE_RAMPS)
+MEMBERS = companions.MEMBERS  # harness key: (display name, instrument); "default" for any other
 
 __all__ = ["figure", "figure_frames", "plate", "plate_frames", "camp", "camp_frames",
            "banner_layers", "berths", "pin", "trinket", "instrument", "traits", "encode",
-           "SKINS", "EXPRESSIONS", "HAIRSTYLES", "EYES", "DELAYS_MS"]
+           "SKINS", "EXPRESSIONS", "HAIRSTYLES", "EYES", "DELAYS_MS", "MEMBERS"]
 
 
 def _skin(skin):

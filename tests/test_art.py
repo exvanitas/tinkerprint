@@ -338,7 +338,7 @@ class Packs(unittest.TestCase):
                 self.assertNotIn(marker, page)
                 self.assertIn("<h2>Presentation</h2>", page)
                 for caption in ("Neutral", "Man", "Woman"):
-                    self.assertEqual(page.count(f"<span>{caption}</span>"), 3)
+                    self.assertEqual(page.count(f'<div class="nm">{caption}</div>'), 1)
 
 
 class Chronicle(unittest.TestCase):
@@ -579,13 +579,13 @@ class Built(unittest.TestCase):
             self.assertGreaterEqual(ratio(_deep(art.stat_ramp(PACK, stat)), LIGHT_TRACK), 3, stat)
 
     def test_page_sizes_stay_small(self):
-        """Budgets: sheet.html under 104 KB, card.svg under 30 KB, the gallery under 240 KB."""
+        """Budgets: sheet.html under 104 KB, card.svg under 30 KB, the gallery under 360 KB."""
         for res in self.out.values():
             self.assertLess(os.path.getsize(res["paths"]["html"]), 104_000)
             self.assertLess(os.path.getsize(res["paths"]["card"]), 30_000)
         with tempfile.TemporaryDirectory() as tmp:
             path = write_gallery(tmp)[0]
-            self.assertLess(os.path.getsize(path), 240_000)
+            self.assertLess(os.path.getsize(path), 360_000)
 
 
 if __name__ == "__main__":
