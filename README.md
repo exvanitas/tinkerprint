@@ -162,7 +162,7 @@ The cache, history, last-build files, `profiles.json` and the sheet itself (`she
 
 `tinkerprint forget` deletes nothing. It shows the data folder and its size, and with `--profile` that profile's history folder, last-build file and sheets folder. To remove one profile's data, delete those yourself. The cache is shared by every profile.
 
-`tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt`, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them.
+`tinkerprint forget --all --yes` deletes the whole data folder. It does so only when the folder is not a link, holds `tinkerprint-data.txt`, and holds nothing at its top but the entries above. Otherwise it deletes nothing and names what is in the way. Without `--yes` it lists what it would delete. Deleting the cache loses the sessions kept from deleted logs. Your repos, agent logs, profiles and `--out` folders are outside the data folder, so it never touches them. See [Trust](#trust).
 
 ## What it will not do
 
@@ -171,9 +171,23 @@ The cache, history, last-build files, `profiles.json` and the sheet itself (`she
 - Keep prompt or message text.
 - Rank people, or say anything about skill, productivity or seniority. A sheet shows where your recorded time went, nothing more.
 
+## Trust
+
+What tinkerprint promises:
+
+- Nothing leaves your machine except the card files you choose to share (`card.png`, `card.svg`, `portrait.png`, `portrait.gif`). They are drawn only from the allowlisted card fields, and `audit` checks them byte for byte.
+- It never makes a network connection. A root you put on a network share is read where it is, as any program reads a folder there.
+- It never deletes outside its own data folder. Only `forget --all --yes` deletes, and only that folder.
+
+What it assumes:
+
+- Your user account and your own folders are yours. Someone who can already write to your data folder or your repos already acts as you, and tinkerprint does not defend against them.
+- On Windows, a new file takes the permissions of its folder. Keep `--out` and `--data-dir` in your own user folder, so the sheet and the cache stay private.
+- Git reads each repo's own config. A config include there can make git read another file the repo names. tinkerprint stops git from starting other programs or fetching, but it leaves that reading to git.
+
 ## Known limits
 
-- Two builds that write to the same output folder at the same time can leave a mix of their files. Run one build per folder at a time.
+- Two builds with different data folders that write to the same output folder at the same time can leave a mix of their files. Builds that share a data folder take turns.
 - `audit` without `--out` reads the folder of the profile's last build. If another profile built into that folder later, it shows that card. Pass `--out` to audit a folder directly. That works without a profile, but a `--profile` that cannot be read fails the audit.
 - Where a daylight-saving change crosses the rollover hour, as in `Pacific/Chatham`, the edge of a day can move during that hour. Work near the change may land on the next or previous day.
 - Two Codex records of one change that share no call id or item id count as two changes.
