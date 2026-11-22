@@ -55,5 +55,50 @@ class LegacyAdoption(Base):
         self.assertFalse(os.path.exists(home))
 
 
+class ForgetReport(Base):
+    def setUp(self):
+        super().setUp()
+        self.build(self.write(os.path.join(self.t, "a.toml")))
+
+    def test_a_lock_file_held_open_is_named(self):
+        import functools
+        real_unlink, real_left = os.unlink, fg._left
+
+        def held(path, *a, **k):
+            if os.path.basename(path) == LOCK:  # as on Windows, while another process has it open
+                raise PermissionError(13, "in use", path)
+            return real_unlink(path, *a, **k)
+        with mock.patch.object(os, "unlink", side_effect=held), \
+                mock.patch.object(fg, "_left", functools.partial(real_left, wait=0.1)):
+            lines = fg.forget_all(self.data, True)
+        self.assertNotIn(f"Deleted {self.data} (", lines[-1])
+        self.assertIn(f"Still there: {LOCK}", lines[-1])
+        self.assertEqual(os.listdir(self.data), [LOCK])
+
+    def test_a_file_that_cannot_be_removed_is_named(self):
+        real = os.unlink
+
+        def stuck(path, *a, **k):
+            if os.path.basename(path) == "profiles.json":
+                raise PermissionError(13, "in use", path)
+            return real(path, *a, **k)
+        with mock.patch.object(os, "unlink", side_effect=stuck):
+            lines = fg.forget_all(self.data, True)
+        self.assertIn("Still there: profiles.json", lines[-1])
+        self.assertNotIn(f"Deleted {self.data} (", lines[-1])
+
+    def test_a_second_forget_that_waited_says_so_and_leaves_nothing(self):
+        result = []
+        with data_lock(self.data):
+            th = threading.Thread(target=lambda: result.append(fg.forget_all(self.data, True)), daemon=True)
+            th.start()
+            th.join(0.3)
+            self.assertTrue(th.is_alive())
+            self.assertIn("Deleted", fg.forget_all(self.data, True)[-1])
+        th.join(10)
+        self.assertIn("another tinkerprint run deleted", result[0][-1])
+        self.assertFalse(os.path.exists(self.data))
+
+
 if __name__ == "__main__":
     unittest.main()

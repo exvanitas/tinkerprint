@@ -188,6 +188,7 @@ class _Lock:
     def __init__(self, fd: int | None):
         self.fd = fd  # None when the file system cannot lock
         self.drop = False  # remove the lock file on release: forget --all empties the folder
+        self.depth = 1  # holds of it in this thread, nested ones included
 
 
 class Gone(ValueError):
@@ -306,7 +307,12 @@ def data_lock(home: str, claimed: bool = False):
     key = os.path.normcase(path)
     with _mutex(key):
         if key in _held:  # only the thread inside the mutex can find its own lock here
-            yield _held[key]
+            lock = _held[key]
+            lock.depth += 1
+            try:
+                yield lock
+            finally:
+                lock.depth -= 1
             return
         fd = _acquire(home, path)
         lock = _held[key] = _Lock(fd)

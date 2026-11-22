@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 
 from .datadir import LOCK, MARKER, adopt_hint, data_lock, is_default_home, linked, marked, own_top
 from .profile import is_key
@@ -134,24 +135,63 @@ def forget_all(home: str, yes: bool) -> list:
                    "Run it again with --yes to delete it."])
     with data_lock(home) as lock:  # a build that is writing here finishes first
         why, names = _refusal(home)
-        if why:
+        if why and (linked(home) or marked(home) or set(_names(home)) - {LOCK}):
             return ["Nothing was deleted. " + why]
-        total = size(home)
-        for n in names:  # exactly what was checked
-            path = os.path.join(home, n)
-            if n == LOCK:
-                continue
-            if os.path.isdir(path) and not linked(path):
-                shutil.rmtree(path)
-            else:
-                os.unlink(path)
-        lock.drop = True
+        lock.drop = True  # the lock file goes as the lock is let go
+        if why:  # another forget --all emptied it while this one waited
+            names = None
+        else:
+            total = size(home)
+            for n in names:  # exactly what was checked
+                path = os.path.join(home, n)
+                if n == LOCK:
+                    continue
+                try:
+                    if os.path.isdir(path) and not linked(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.unlink(path)
+                except OSError:
+                    pass  # named below with whatever else is left
+        # Nested in a hold of the lock in this thread, which removes the lock file when it ends.
+        nested = lock.depth > 1
+    if names is None:
+        _left(home, 0)
+        return [f"Nothing to forget: another tinkerprint run deleted {home} while this one waited."]
+    left = [n for n in _names(home) if n != LOCK] if nested else _left(home)
+    if not left:
+        return [f"Deleted {home} ({human(total)})."]
+    return [f"Deleted part of what tinkerprint kept in {home}. Still there: {', '.join(left)}. Another program may "
+            "hold them open, or they appeared while forget ran. Close it, then delete them, or run forget again."]
+
+
+def _names(home: str) -> list:
     try:
-        os.rmdir(home)
+        return os.listdir(home)
     except OSError:
-        # A run that was waiting for the lock may hold a new lock file for a moment: it removes it.
-        left = sorted(n for n in os.listdir(home) if n != LOCK) if os.path.isdir(home) else []
-        if left:
-            return [f"Deleted what tinkerprint kept in {home} ({human(total)}). Left: {', '.join(left)}, which "
-                    "appeared while forget ran."]
-    return [f"Deleted {home} ({human(total)})."]
+        return []
+
+
+def _left(home: str, wait: float = 2.0) -> list:
+    """What is left in home once forget emptied it: [] when home is gone.
+
+    A run that waited for the lock may hold a new lock file for a moment, then removes it and the
+    folder, so a lock file alone gets a short while to go."""
+    end = time.monotonic() + wait
+    while True:
+        try:
+            os.rmdir(home)
+            return []
+        except FileNotFoundError:
+            return []
+        except OSError:
+            pass
+        try:
+            left = sorted(os.listdir(home))
+        except FileNotFoundError:
+            return []
+        except OSError:
+            left = []
+        if left not in ([], [LOCK]) or time.monotonic() >= end:
+            return left or ["the folder itself"]
+        time.sleep(0.05)

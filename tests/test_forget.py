@@ -207,7 +207,7 @@ class Refusals(Base):
             return out
         with mock.patch.object(fg, "_refusal", side_effect=late):
             lines = fg.forget_all(self.data, True)
-        self.assertIn("Left: late", lines[-1])
+        self.assertIn("Still there: late", lines[-1])
         self.assertEqual(os.listdir(self.data), ["late"])
 
 
