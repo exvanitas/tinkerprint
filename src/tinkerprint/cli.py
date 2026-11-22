@@ -17,19 +17,23 @@ from .datadir import data_home
 from .timeutil import parse_day
 
 STARTER = '''# tinkerprint profile. Everything here stays on this machine.
+# Keep this file outside your repos and never commit it: it lists your folders and emails.
 # One person can keep several profiles, for example a day job and personal projects.
 
-name = "Your Name"            # shown on the sheet and the card
+{name_line}# shown on the sheet and the card
 set = "builder"               # builder or tinkerer
-timezone = "{tz}"             # IANA name like "Europe/Berlin", or an offset like "+02:00"
-rollover_hour = 4             # a day runs from this hour to the next. 1am counts toward the day before.
+{tz_line}# IANA name like "Europe/Berlin", or an offset like "+02:00"
+{tz_note}rollover_hour = 4             # a day runs from this hour to the next. 1am counts toward the day before.
 work = false                  # a work profile never makes a card unless [card] allow = true
 # milestones = "milestones.txt"   # optional: one "YYYY-MM-DD what happened" per line
 
 [identity]
 # Commits match you by email or name. Globs work. Co-authored commits count.
-emails = ["you@example.test"]
-names = ["Your Name"]
+# Commits made on GitHub's website (merges, edits, suggestions) use your noreply address,
+# like 12345+you@users.noreply.github.com. Add it here if you work that way.
+# A build lists the authors it saw in a root where none of these matched.
+{ident_note}emails = [{emails}]
+names = [{names}]
 # bots = ["release-robot*"]   # extra bot authors to drop. [bot] authors always drop.
 
 [harnesses]
@@ -61,22 +65,66 @@ roots = ["~/code/my-project"]
 # stats = {{ Art = 1 }}
 '''
 
+PLACEHOLDER_NAME = "Your Name"
+PLACEHOLDER_EMAIL = "you@example.test"
+DEFAULT_PROFILE = "tinkerprint.toml"
 
-def _local_tz() -> str:
+
+def _setting(key: str, value: str) -> str:
+    """'key = value' padded so the comment after it lines up with the rest of the starter."""
+    line = f"{key} = {value}"
+    return line.ljust(30) if len(line) < 30 else line + " "
+
+
+def starter(name: str = "", email: str = "", tz: str = "UTC", tz_guessed: bool = False) -> str:
+    """The commented starter profile. name and email come from git config when set."""
+    from .profile import toml_string
+    filled = [w for w, v in (("name", name), ("email", email)) if v]
+    note = f"# {' and '.join(filled).capitalize()} filled in from your git config.\n" if filled else ""
+    tz_note = ("# This is your clock's current UTC offset, so it ignores daylight saving.\n"
+               "# Replace it with your IANA name, like \"Europe/Berlin\".\n") if tz_guessed else ""
+    return STARTER.format(
+        name_line=_setting("name", toml_string(name or PLACEHOLDER_NAME)),
+        tz_line=_setting("timezone", toml_string(tz)),
+        tz_note=tz_note,
+        ident_note=note,
+        emails=toml_string(email or PLACEHOLDER_EMAIL),
+        names=toml_string(name or PLACEHOLDER_NAME),
+    )
+
+
+def _profile_path(args, quiet: bool = False) -> str | None:
+    """--profile, else ./tinkerprint.toml when it exists, else None."""
+    if args.profile:
+        return args.profile
+    if os.path.isfile(DEFAULT_PROFILE):
+        if not quiet:
+            print(f"Profile: ./{DEFAULT_PROFILE}")
+        return DEFAULT_PROFILE
+    return None
+
+
+def _no_profile() -> ProfileError:
+    return ProfileError(f"no profile given and no {DEFAULT_PROFILE} in this folder. Pass --profile PATH, "
+                        f"or run 'tinkerprint init' to write {DEFAULT_PROFILE} here")
+
+
+def local_tz(etc: str = "/etc") -> tuple:
+    """(time zone for the starter, guessed). An IANA name from /etc when there is one."""
     try:
-        with open("/etc/timezone", encoding="utf-8") as f:
+        with open(os.path.join(etc, "timezone"), encoding="utf-8") as f:
             name = f.read().strip()
             if name:
-                return name
+                return name, False
     except OSError:
         pass
     try:
-        link = os.readlink("/etc/localtime")
+        link = os.readlink(os.path.join(etc, "localtime"))
         if "zoneinfo/" in link:
-            return link.split("zoneinfo/", 1)[1]
+            return link.split("zoneinfo/", 1)[1], False
     except OSError:
         pass
-    return "UTC"
+    return "UTC", False
 
 
 def _now() -> str:
@@ -84,7 +132,10 @@ def _now() -> str:
 
 
 def cmd_build(args) -> int:
-    profile = load_profile(args.profile)
+    path = _profile_path(args)
+    if path is None:
+        raise _no_profile()
+    profile = load_profile(path)
     season = parse_season(args.season)
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
@@ -131,14 +182,18 @@ def unassigned_lines(sheet: dict, local: dict, limit: int) -> list:
 
 
 def cmd_audit(args) -> int:
-    try:
-        profile = load_profile(args.profile)
-    except (ProfileError, OSError) as e:
-        if not args.out:
-            raise
-        # An explicit card folder can be audited without its profile.
-        print(f"Profile not readable ({e}). Auditing {args.out} alone.")
-        profile = None
+    path = _profile_path(args)
+    if path is None and not args.out:
+        raise _no_profile()
+    profile = None
+    if path is not None:
+        try:
+            profile = load_profile(path)
+        except (ProfileError, OSError) as e:
+            if not args.out:
+                raise
+            # An explicit card folder can be audited without its profile.
+            print(f"Profile not readable ({e}). Auditing {args.out} alone.")
     if args.out:
         out = args.out
     else:
@@ -149,13 +204,31 @@ def cmd_audit(args) -> int:
 
 
 def cmd_init(args) -> int:
+    from .datadir import inside_repo_or_root
+    from .readers.git import global_config
     path = args.out
     if os.path.exists(path):
         print(f"{path} already exists. Not overwriting it.", file=sys.stderr)
         return 1
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(STARTER.format(tz=_local_tz()))
-    print(f"Wrote {path}. Edit it, then run: tinkerprint build --profile {path}")
+    name, email = global_config("user.name"), global_config("user.email")
+    tz, guessed = local_tz()
+    text = starter(name, email, tz, guessed)
+    with open(path, "x", encoding="utf-8") as f:
+        f.write(text)
+    print(f"Wrote {path}.")
+    filled = [w for w, v in (("name", name), ("email", email)) if v]
+    if filled:
+        print(f"  {' and '.join(filled).capitalize()} came from your git config. Add any other emails you commit with.")
+    else:
+        print("  Put your name and the emails you commit with under [identity].")
+    print("  Set the [[project]] roots to your own folders.")
+    if guessed:
+        print(f"  The time zone is your clock's offset ({tz}). Replace it with an IANA name like \"Europe/Berlin\".")
+    if inside_repo_or_root(os.path.dirname(os.path.abspath(path))) == "it is inside a git repository":
+        print(f"  {path} is inside a git repository. Move it out so it is never committed: it lists your folders "
+              "and emails.")
+    same = os.path.abspath(path) == os.path.abspath(DEFAULT_PROFILE)
+    print("Then run: tinkerprint build" + ("" if same else f" --profile {path}"))
     return 0
 
 
@@ -193,7 +266,7 @@ def parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     b = sub.add_parser("build", help="build sheet.html, card.svg and sheet.json for a profile")
-    b.add_argument("--profile", required=True)
+    b.add_argument("--profile", help=f"the profile to build. Default: ./{DEFAULT_PROFILE} when it exists")
     b.add_argument("--season", help="FROM:TO dates, for example 2025-01-01:2025-06-30. Default: all history")
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
     b.add_argument("--out", help="output folder. Default: the data folder")
@@ -203,13 +276,13 @@ def parser() -> argparse.ArgumentParser:
     b.set_defaults(func=cmd_build)
 
     a = sub.add_parser("audit", help="print every text string in the built card.svg")
-    a.add_argument("--profile", required=True)
+    a.add_argument("--profile", help=f"Default: ./{DEFAULT_PROFILE} when it exists")
     a.add_argument("--out", help="the build folder to audit. Default: this profile's last build")
     a.add_argument("--data-dir")
     a.set_defaults(func=cmd_audit)
 
     i = sub.add_parser("init", help="write a commented starter profile")
-    i.add_argument("--out", default="tinkerprint.toml")
+    i.add_argument("--out", default=DEFAULT_PROFILE)
     i.set_defaults(func=cmd_init)
 
     d = sub.add_parser("demo", help="build sheets for two invented people")

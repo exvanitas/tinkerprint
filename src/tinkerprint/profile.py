@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import json
 import math
 import os
 import re
@@ -32,6 +33,12 @@ KEYS = {
 }
 _TABLE_LABEL = {"top": "the top level", "identity": "[identity]", "harnesses": "[harnesses]", "card": "[card]",
                 "project": "[[project]]", "part": "[[project.part]]", "override": "[[project.override]]"}
+
+
+def toml_string(s: str) -> str:
+    """s as a TOML basic string. JSON escapes are TOML escapes, apart from DEL, which TOML wants
+    escaped too. Backslashes in Windows paths come out doubled, so C:\\Users parses."""
+    return json.dumps(s, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def _suggest(key: str, allowed) -> str:

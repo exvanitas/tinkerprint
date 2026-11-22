@@ -56,6 +56,19 @@ def git_text(args, cwd) -> str | None:
     return _git(args, cwd)
 
 
+def global_config(key: str) -> str:
+    """One value from the user's global git config, read-only, through the same local-only call.
+    '' when it is unset, git is missing, or the value is not plain one-line text."""
+    home = os.path.expanduser("~")
+    out = _git(["config", "--global", "--get", key], home if os.path.isdir(home) else os.sep)
+    value = (out or "").strip()
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return ""
+    return "" if re.search(r"[\x00-\x1f\x7f]", value) else value
+
+
 def _match(patterns, value: str) -> bool:
     v = value.lower()
     return any(fnmatch.fnmatchcase(v, p.lower()) for p in patterns)
