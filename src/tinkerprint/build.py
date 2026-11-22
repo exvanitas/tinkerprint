@@ -15,6 +15,7 @@ from .readers import agy, claude, codex
 from .readers._common import HashingStream, new_health, version_text
 from .readers.git import Identity, read_git
 from .render_card import render_card
+from .render_card_png import render_card_png
 from .render_html import render_html
 from .history import History, scope_digests
 from .keys import adopt
@@ -445,15 +446,19 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     pack = pack or art.default_pack()
     _write(paths["html"], render_html(sheet, built_at, changes, pack), share=True)
     card_path = os.path.join(out_dir, "card.svg")
+    card_png = os.path.join(out_dir, "card.png")
     png_path = os.path.join(out_dir, "portrait.png")
     if sheet["card"].get("enabled"):
+        # Both card files draw visible()'s fields and nothing else.
         _write(card_path, render_card(sheet["card"], pack), share=True)
         paths["card"] = card_path
+        _write(card_png, render_card_png(sheet["card"], pack), share=True)
+        paths["card_png"] = card_png
         # The portrait as a PNG, from the card's allowlisted fields only.
         _write(png_path, art.portrait(pack, art.card_look(sheet["card"])).png(8), share=True)
         paths["portrait"] = png_path
     else:
-        for path in (card_path, png_path):
+        for path in (card_path, card_png, png_path):
             if os.path.exists(path):
                 os.remove(path)
     os.makedirs(os.path.dirname(pointer), exist_ok=True)

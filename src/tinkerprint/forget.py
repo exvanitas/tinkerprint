@@ -20,7 +20,7 @@ _SEASON = re.compile(r"^(start|\d{4}-\d{2}-\d{2})_(now|\d{4}-\d{2}-\d{2})$")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
 _KEY = re.compile(r"^[a-z0-9-]+-[0-9a-f]{8}$")  # a profile's storage key: see profile.profile_id
 _POINTER = re.compile(r"^[a-z0-9-]+-[0-9a-f]{8}\.json$")
-OUTPUTS = {"sheet.json", "changes.json", "sheet.html", "card.svg", "portrait.png"}
+OUTPUTS = {"sheet.json", "changes.json", "sheet.html", "card.svg", "card.png", "portrait.png"}
 
 
 def _names(path: str) -> list | None:
