@@ -105,6 +105,18 @@ class CardPng(unittest.TestCase):
         self.assertGreater(len(second), 0)
         self.assertNotEqual(one.px[PY + 55], canvas.px[PY + 55])
 
+    def test_three_party_members_fit_without_a_cut(self):
+        from tinkerprint.render_card import BOTTOM_Y, MUTED, RADAR_LEFT
+        pack = art.default_pack()
+        card = dict(tie_card(), party=["Claude Code", "Codex", "Antigravity"])
+        canvas = draw_card(card, pack)
+        ink = [x for y in range(BOTTOM_Y - 14, BOTTOM_Y + 4) for x, c in enumerate(canvas.px[y])
+               if c == MUTED and x > RADAR_LEFT]
+        self.assertLessEqual(max(ink), W - 64)
+        # No ellipsis: the members' line draws exactly the unclipped text's width.
+        start = min(ink)
+        self.assertEqual(max(ink) + 1 - start, pixelfont.width("Claude Code · Codex · Antigravity", 2))
+
     def test_portrait_room_fits_a_64_pixel_figure_at_3x(self):
         _, padding, frame = portrait_box({"canvas": [64, 64]})
         self.assertEqual(frame - 2 * padding, 192)

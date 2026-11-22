@@ -120,11 +120,12 @@ def draw_card(card: dict, pack: dict | None = None) -> Canvas:
     if v["party"]:
         x, room = fx + 6, W - 64 - fx - 6
         party = _squeeze(v["party"])
-        if pixelfont.width(party, 2, bold=True) > room:
-            # Too long for one line: the label goes above the members.
+        bold = pixelfont.width(party, 2, bold=True) <= room
+        if not bold:
+            # Too long for one line: the label goes above the members, like the achievements heading.
             label, _, party = party.partition(" ")
-            text(c, x, BOTTOM_Y - 20, label, MUTED, 2, bold=True)
-        text(c, x, BOTTOM_Y, pixelfont.clip(party, room, 2, bold=True), MUTED, 2, bold=True)
+            text(c, x, BOTTOM_Y - 20, label, MUTED, 2, track=2)
+        text(c, x, BOTTOM_Y, pixelfont.clip(party, room, 2, bold=bold), MUTED, 2, bold=bold)
     if v["projects"]:
         text(c, TX, BOTTOM_Y, pixelfont.clip(_squeeze(v["projects"]), RADAR_LEFT - 20 - TX, 2), MUTED, 2)
 
