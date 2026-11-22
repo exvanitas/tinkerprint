@@ -10,7 +10,7 @@ Pixel art, a card you can post anywhere, and an easier first run.
 
 - Pixel art made in code. Your character stands half length at the counter of their own workshop, in your top stat's coat and hat, holding your runner-up's tool, with a cape for a multiclass.
 - The sheet opens on that room, idling. The view, the light and the furnishings come from your name, the shelves hold trinkets for your strongest stats, and your party's instruments stand in the case. A nameplate with a level seal sits below. Viewers who ask for reduced motion see a still. On a phone the room crops to you and the case.
-- A `[look]` table in the profile sets the presentation (neutral, man or woman), skin, hair, eyes and expression. Hair, eyes and expression left unset are picked from the name the card shows. `build` prints the look and what it picked. See docs/ART.md.
+- A `[look]` table in the profile sets the presentation (neutral, man or woman), skin, hair, eyes and expression. Hair, eyes and expression left unset are picked from the name the card shows, exactly as it shows it, so characters clipped off a long name play no part. `build` prints the look and what it picked. See docs/ART.md.
 - On a close call the figure changes into the other costume, and a button under your class tries it. The two costumes never show at once.
 - A chronicle: a road of chapters, one per quarter, each with that quarter's class in your own look and room. Quiet quarters rest at camp. It opens on the latest chapter.
 - A new reading order: the scene, then the build (radar beside the stat cards, strongest first), party, achievements, chronicle, what changed, projects and method. A link under your name jumps to what changed. Stats with no points share one line.

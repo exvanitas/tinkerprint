@@ -15,7 +15,7 @@ from .achievements import evaluate
 from .chronicle import chronicle
 from .classes import card_pct, class_key, multiclass, pick_class, ranked
 from .classify import classify, is_code, is_skipped, language_of
-from .look import TOKENS as LOOK_TOKENS, resolve as resolve_look
+from .look import TOKENS as LOOK_TOKENS, public_name, resolve as resolve_look
 from .datadir import path_within
 from .party import HARNESS_NAMES, build_party
 from .projects import Resolver
@@ -428,7 +428,8 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
     season = sheet["season"]
     card = {
         "enabled": True,
-        "name": getattr(profile, "card_label", profile.name),
+        # The name as the card shows it, clipped: the portrait's seed, so nothing hidden seeds the art.
+        "name": public_name(getattr(profile, "card_label", profile.name)),
         "set": profile.set.capitalize(),
         "class": cls.get("display") or "Unclassed",
         "multiclass": multi.get("display") or "",
@@ -458,7 +459,7 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
 
 def portrait_look(profile) -> dict:
     """The look in use: the profile's [look] choices, and the rest picked from the card's name."""
-    seed = getattr(profile, "card_label", profile.name)
+    seed = public_name(getattr(profile, "card_label", profile.name))
     return dict(resolve_look(getattr(profile, "look", {}) or {}, seed), seed=seed)
 
 

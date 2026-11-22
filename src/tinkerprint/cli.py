@@ -215,7 +215,9 @@ def demo_look_line(sheet: dict) -> str:
     """The Look line for a demo person, who has no profile file: a handle shows as a card name unlike their own."""
     from .art import default_pack
     from .look import describe
-    handle = (sheet.get("card") or {}).get("name", sheet["profile"]["name"]) != sheet["profile"]["name"]
+    from .look import public_name
+    own = public_name(sheet["profile"]["name"])
+    handle = (sheet.get("card") or {}).get("name", own) != own
     return describe(sheet["look"], default_pack(), from_card_name=handle)
 
 

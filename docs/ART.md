@@ -10,7 +10,7 @@ Five things, and nothing else:
 - **Pair order.** A pair wears its top stat's outfit and holds its runner-up's tool, so the same two stats in the other order look different.
 - **Multiclass.** A cape in the first multiclass stat's colors, with a hem in the second.
 - **Set.** The builder and tinkerer sets differ in wall color and in their camp's landscape.
-- **The look and the seed.** The `[look]` tokens below, and the seed: the name the card shows (the `[card]` handle when set, else the profile name).
+- **The look and the seed.** The `[look]` tokens below, and the seed: the name the card shows (the `[card]` handle when set, else the profile name), exactly as it shows it. A name longer than 22 characters is clipped, and the characters cut off play no part in the art.
 
 Stat shares are rounded to 5% and ranked highest first, ties in the set's order. Level, points, dates and projects never reach a picture. The same inputs give the same bytes, GIFs included.
 

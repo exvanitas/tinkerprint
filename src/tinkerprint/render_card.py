@@ -43,7 +43,7 @@ def visible(card: dict) -> dict:
     days = card.get("days") if "level" in card else None
     v = {
         "set": f"{card['set']} set".upper(),
-        "name": _clip(card["name"], 22),
+        "name": look.public_name(card["name"]),
         "class": card["class"],
         "multiclass": card.get("multiclass") or "",
         "level": str(card["level"]) if "level" in card else "",

@@ -10,6 +10,15 @@ from .art import keepsake
 
 TRAITS = ("hair", "eyes", "expression")
 TOKENS = ("presentation", "skin") + TRAITS
+NAME_MAX = 22  # the longest name the card shows whole
+
+
+def public_name(name) -> str:
+    """The name exactly as the card shows it, clipped to NAME_MAX. It is the portrait's one seed:
+    the label, the picked traits and the room all come from it, so no character the card leaves
+    off changes the art."""
+    s = str(name)
+    return s if len(s) <= NAME_MAX else s[:NAME_MAX - 1].rstrip() + "\u2026"
 
 
 def resolve(chosen: dict, name: str) -> dict:

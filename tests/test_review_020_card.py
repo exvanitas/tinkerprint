@@ -9,8 +9,9 @@ import helpers  # noqa: F401
 from helpers import commit, profile, run
 from test_card_options import tie_card
 from tinkerprint.art import default_pack
+from tinkerprint.look import of_sheet
 from tinkerprint.audit import check_png, check_portrait_png, png_chunks
-from tinkerprint.render_card import portrait_png, render_card
+from tinkerprint.render_card import portrait_png, render_card, visible
 from tinkerprint.render_card_png import render_card_png
 
 PACK = default_pack()
@@ -81,6 +82,22 @@ class SeasonDates(unittest.TestCase):
 
     def test_days_when_dates_are_shown(self):
         self.assertEqual(self.card(card={"show": ["dates"]})["season"], "Feb 3, 2026 to Jul 12, 2026")
+
+
+class Seed(unittest.TestCase):
+    def test_hidden_characters_do_not_change_the_art(self):
+        evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py")]
+        long_a = "Ida Fenwick Quillworth-Abernathy"
+        long_b = "Ida Fenwick Quillworth-Zabriskie"
+        cards = [run(profile([("Kite", "/w/kite", None)], name=n), evs)[0] for n in (long_a, long_b)]
+        a, b = cards
+        self.assertEqual(visible(a["card"])["name"], visible(b["card"])["name"])
+        self.assertEqual(a["card"]["name"], visible(a["card"])["name"])
+        self.assertEqual(a["look"]["seed"], a["card"]["name"])
+        self.assertEqual(a["card"]["look"], b["card"]["look"])
+        self.assertEqual(portrait_png(a["card"], PACK), portrait_png(b["card"], PACK))
+        self.assertEqual(render_card_png(a["card"], PACK), render_card_png(b["card"], PACK))
+        self.assertEqual(of_sheet(a), of_sheet(b))
 
 
 if __name__ == "__main__":
