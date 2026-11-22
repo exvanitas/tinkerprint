@@ -97,7 +97,7 @@ The full rules are in [METHOD.md](METHOD.md). Every sheet prints the method vers
 
 One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it never makes a share card unless you allow it.
 
-Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The sheet shows what changed since then, with a link to it under your name. `sheet.json` never depends on that history: the same logs and profile give the same file.
+Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The sheet shows what changed since then, with a link to it under your name. When you changed the profile's projects, roots or identity in between, it says so, since the difference then includes history you added or removed. After an update that changes the method, it says the two sheets are not compared. `sheet.json` never depends on that history: the same logs and profile give the same file.
 
 ## What stays on disk
 
@@ -107,10 +107,11 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 - `history/`: each build's sheet, per profile and season, for "what changed".
 - `last-build/`: one small file per profile naming its last output folder, for `audit`.
 - `sheets/`: builds made without `--out`.
+- `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it.
 
-The cache, history and last-build files are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.
+The cache, history, last-build files and `profiles.json` are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.
 
-`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears all four folders above. It deletes only files tinkerprint wrote, names any folder it leaves alone, and never touches your repos, agent logs, profiles or `--out` folders.
+`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears everything above. It deletes only files tinkerprint wrote, names any folder it leaves alone, and never touches your repos, agent logs, profiles or `--out` folders.
 
 ## What it will not do
 

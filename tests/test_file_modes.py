@@ -59,6 +59,7 @@ class FileModes(unittest.TestCase):
         self.assertTrue(any(os.sep + "cache" + os.sep in p for p in private))
         self.assertTrue(any(os.sep + "history" + os.sep in p for p in private))
         self.assertTrue(any(os.sep + "last-build" + os.sep in p for p in private))
+        self.assertTrue(any(p.endswith(os.sep + "profiles.json") for p in private))
         for p in private:
             self.assertEqual(mode(p), 0o600, p)
 

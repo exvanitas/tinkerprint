@@ -340,14 +340,28 @@ def _class_why(cls: dict | None, shares: dict) -> str:
     return why
 
 
-def compare(sheet: dict, prev: dict | None, prev_as_of: str | None) -> dict:
+# What a saved sheet's scope digests cover, in the words "what changed" uses.
+SCOPE_PARTS = {"projects": "projects", "roots": "roots", "identity": "identity", "harnesses": "harnesses",
+               "days": "time zone or rollover"}
+
+
+def compare(sheet: dict, prev: dict | None, prev_as_of: str | None, scope: dict | None = None) -> dict:
     """What changed since an earlier sheet of the same profile and season. Never part of sheet.json.
 
     Points, level, party and achievements always compare. Class and share drift compare only
-    within one set. Unclassed to classed is a new class.
+    within one set. Unclassed to classed is a new class. A sheet made by another method version
+    is named but not compared. scope: this build's scope_digests. When the earlier saved sheet
+    holds different ones, scope_changed names what changed, since the differences then include
+    history newly added or removed and not only new activity.
     """
-    if not prev or prev.get("method") != sheet.get("method"):
+    if not prev:
         return {"against": None}
+    if prev.get("method") != sheet.get("method"):
+        return {"against": prev_as_of, "method_changed": True, "method_from": prev.get("method"),
+                "method_to": sheet.get("method")}
+    before = prev.get("_scope") if isinstance(prev.get("_scope"), dict) else None
+    scope_changed = ([SCOPE_PARTS[k] for k in SCOPE_PARTS if before.get(k) != scope.get(k)]
+                     if before and scope else [])
     set_changed = prev.get("profile", {}).get("set") != sheet["profile"]["set"]
     ph, h = prev.get("history", {}), sheet["history"]
     drift = []
@@ -365,6 +379,8 @@ def compare(sheet: dict, prev: dict | None, prev_as_of: str | None) -> dict:
     pc, cc = prev.get("class"), sheet.get("class")
     return {
         "against": prev_as_of,
+        "method_changed": False,
+        "scope_changed": scope_changed,
         "set_changed": set_changed,
         "set_from": prev.get("profile", {}).get("set"),
         "points_since": h["points"] - int(ph.get("points", 0)),

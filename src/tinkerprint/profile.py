@@ -131,6 +131,7 @@ class Profile:
     agy_db: str
     milestones: str | None
     base_dir: str
+    source: str = ""          # the profile file's real path, when it came from a file
 
     @property
     def tz(self):
@@ -311,12 +312,13 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     )
 
 
-def profile_id(path: str) -> str:
-    """The storage key of a profile file: its stem and a hash of its real path. Two profile files
-    never share history or output folders. The file need not exist."""
+def profile_id(path: str, salt: int = 0) -> str:
+    """A storage key for a profile file: its stem and a hash of its real path. This is the key a
+    profile file gets when it is first built. keys.py then keeps it with the file when the file
+    moves. salt picks another key when this one is taken. The file need not exist."""
     path = os.path.realpath(os.path.expanduser(path))
     stem = os.path.splitext(os.path.basename(path))[0]
-    tag = hashlib.sha256(path.encode("utf-8")).hexdigest()[:8]
+    tag = hashlib.sha256((path + (f"\0{salt}" if salt else "")).encode("utf-8")).hexdigest()[:8]
     return _slug(f"{stem}-{tag}")
 
 
@@ -348,7 +350,9 @@ def read_toml(path: str) -> dict:
 def load_profile(path: str) -> Profile:
     real = os.path.realpath(os.path.expanduser(path))
     data = read_toml(real)
-    return parse_profile(data, os.path.dirname(real), default_id=profile_id(real))
+    prof = parse_profile(data, os.path.dirname(real), default_id=profile_id(real))
+    prof.source = real
+    return prof
 
 
 def map_weights(weights: dict, set_name: str) -> dict:

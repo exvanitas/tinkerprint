@@ -162,6 +162,9 @@ Pictures follow class shape only: the class, its stats ranked by share rounded t
 - `portrait.png`: the card's portrait as a PNG, written only when the card is on, from the card's fields alone.
 - `audit`: prints every text string in the `card.svg` on disk, in document order. It reads nothing else.
 - **What changed**: each successful build saves its sheet to a history kept per profile file and season, named by its as-of date (the `--as-of` date, or the build day). A build compares against the newest saved sheet with an earlier as-of date and names that date. The comparison covers points since then, level-ups, a new class, share drift, party changes and new achievements. A build with an earlier as-of date never compares against a later sheet.
+  - The saved copy also keeps short digests of the profile's projects, roots, identity, harnesses, and time zone and rollover. When any differ from the earlier sheet's, "what changed" names them and says the differences include history newly added or removed, not only new activity. The digests stay in the saved copy, never in `sheet.json`.
+  - When the earlier sheet was made by another method version, "what changed" says so and compares nothing, since the rules changed between them.
+  - History belongs to the profile file, not its path. `profiles.json` in the data folder records each profile file's path. A file that moves keeps its history when its old path is gone and its name, set, work flag, identity and project names are unchanged. A copy, with both files present, starts its own history, so two profiles never share one. Data folders from tinkerprint 0.1 carry over as they are.
 
 ## Privacy
 

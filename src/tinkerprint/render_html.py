@@ -218,6 +218,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .chap.now .pic { border: 2px solid var(--lantern); box-shadow: 0 0 22px var(--lantern-wash); }
 .chap.now .q { color: var(--lantern-ink); font-weight: 700; }
 
+.changes p { margin: 0; }
 .changes ul { margin: 0; padding: 0; list-style: none; columns: 2 260px; column-gap: 28px; }
 .changes li { padding: 4px 0 4px 18px; position: relative; break-inside: avoid; }
 .changes li::before { content: ""; position: absolute; left: 2px; top: 12px; width: 6px; height: 6px; background: var(--lantern); transform: rotate(45deg); }
@@ -320,7 +321,16 @@ def _changes(ch: dict | None) -> str:
     """The what-changed panel, from changes.json. It names the sheet it compared against."""
     if not ch or not ch.get("against"):
         return ""
+    head = f'<h2 id="changed">What changed</h2><p class="lede">Since the sheet as of {day_label(ch["against"])}.</p>'
+    if ch.get("method_changed"):
+        return (head + f'<section class="card changes"><p>That sheet was made by method version '
+                f'{e(str(ch.get("method_from")))}, and this one by version {e(str(ch.get("method_to")))}. The rules '
+                'changed between them, so the two are not compared. The next build compares again.</p></section>')
     items = []
+    if ch.get("scope_changed"):
+        what = _and([e(x) for x in ch["scope_changed"]])
+        items.append(f"The profile's {what} changed since then, so these differences include history newly "
+                     "added or removed, not only new activity.")
     n = ch["points_since"]
     items.append(f"{n:+d} {'point' if abs(n) == 1 else 'points'}.")
     if ch.get("level_from") is not None and ch["level_to"] != ch["level_from"]:
@@ -342,8 +352,11 @@ def _changes(ch: dict | None) -> str:
     for t in ch.get("achievements_new", []):
         items.append(f"New achievement: {e(t)}.")
     lis = "".join(f"<li>{i}</li>" for i in items)
-    return (f'<h2 id="changed">What changed</h2><p class="lede">Since the sheet as of {day_label(ch["against"])}.</p>'
-            f'<section class="card changes"><ul>{lis}</ul></section>')
+    return head + f'<section class="card changes"><ul>{lis}</ul></section>'
+
+
+def _and(words: list) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
 
 
 def _hero_scene(sheet: dict, pack: dict, main, alt, name: str, ranked: list, harnesses: list) -> dict:

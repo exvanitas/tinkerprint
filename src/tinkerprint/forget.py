@@ -1,14 +1,18 @@
 """forget: delete what tinkerprint keeps in its data folder, for one profile or for all.
 
 It deletes only what it recognizes as its own: the harness cache, saved sheets, last-build
-pointers and, with --all, the default sheets folder. A folder holding anything else is left
+pointers, the profile list (profiles.json, or one profile's entry in it) and, with --all, the
+default sheets folder. A folder holding anything else is left
 alone and named. Repos, agent logs, profiles and --out folders are never touched.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+
+from .keys import REGISTRY, forget_key, read_registry
 
 _TMP = re.compile(r"^\..+\.tmp$")
 _CACHE = re.compile(r"^(claude|codex)\.json$")
@@ -43,12 +47,23 @@ def _profile_history(path: str) -> bool:
                                      and _files_like(os.path.join(path, n), _DAY.match) for n in names)
 
 
+def _registry_file(path: str) -> bool:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and isinstance(data.get("profiles"), dict) and set(data) <= {"v", "profiles"}
+
+
 def _ours(path: str, kind: str) -> bool:
     """Whether path holds only what tinkerprint writes there."""
     if os.path.islink(path):
         return kind == "pointer"
     if kind == "pointer":
         return os.path.isfile(path)
+    if kind == "registry":
+        return os.path.isfile(path) and _registry_file(path)
     if not _real_dir(path):
         return False
     if kind == "cache":
@@ -82,7 +97,8 @@ def plan(home: str, profile_key: str | None):
     if profile_key is None:
         items += [(os.path.join(home, "history"), "history", "saved sheets for every profile"),
                   (os.path.join(home, "last-build"), "pointers", "where each profile's last build went"),
-                  (os.path.join(home, "sheets"), "sheets", "sheets built without --out")]
+                  (os.path.join(home, "sheets"), "sheets", "sheets built without --out"),
+                  (os.path.join(home, REGISTRY), "registry", "which profile file each saved history belongs to")]
     else:
         items += [(os.path.join(home, "history", profile_key), "profile-history",
                    "this profile's saved sheets, for \"what changed\""),
@@ -93,12 +109,23 @@ def plan(home: str, profile_key: str | None):
         if not os.path.lexists(path):
             continue
         (delete if _ours(path, kind) else keep).append((path, what))
+    if profile_key is not None and profile_key in read_registry(home):
+        delete.append((os.path.join(home, REGISTRY) + "#" + profile_key, "this profile's entry in the profile list"))
     return delete, keep
+
+
+def _entry(path: str):
+    """(registry file, key) for an entry row, else None."""
+    head, sep, key = path.rpartition("#")
+    return (head, key) if sep and os.path.basename(head) == REGISTRY else None
 
 
 def remove(items) -> None:
     for path, _ in items:
-        if os.path.islink(path) or not os.path.isdir(path):
+        entry = _entry(path)
+        if entry:
+            forget_key(os.path.dirname(entry[0]), entry[1])
+        elif os.path.islink(path) or not os.path.isdir(path):
             os.unlink(path)
         else:
             shutil.rmtree(path)
@@ -113,6 +140,9 @@ def forget(home: str, profile_key: str | None, yes: bool) -> list:
         lines.append(f"{head}, in {home}:")
         rows = []
         for path, what in delete:
+            if _entry(path):
+                rows.append((REGISTRY, what))
+                continue
             n = _count(path)
             suffix = os.sep if os.path.isdir(path) and not os.path.islink(path) else ""
             rows.append((os.path.relpath(path, home) + suffix, f"{what} ({n} file{'s' if n != 1 else ''})"))

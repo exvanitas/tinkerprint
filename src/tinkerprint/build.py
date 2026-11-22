@@ -16,7 +16,8 @@ from .readers._common import HashingStream, new_health, version_text
 from .readers.git import Identity, read_git
 from .render_card import render_card
 from .render_html import render_html
-from .history import History
+from .history import History, scope_digests
+from .keys import adopt
 from .score import compare, score_core
 from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, path_within, pretty
 from .timeutil import parse_day, parse_ts
@@ -419,6 +420,8 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     Nothing reaches history unless every output was written.
     """
     home = data_home(home)
+    check_data_home(home, profile)
+    adopt(home, profile)
     hist = History(home, profile.id, season)
     pointer = os.path.join(home, "last-build", profile.id + ".json")
     # The guard checks the folders that actually receive writes, after symlinks.
@@ -427,7 +430,8 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     # A sheet saved without --as-of is dated so that it holds nothing after its date.
     stamp = as_of or max(today or date.today(), local.get("latest_day") or date.min)
     prev_day, prev = hist.previous(stamp)
-    changes = compare(sheet, prev, prev_day)
+    scope = scope_digests(profile)
+    changes = compare(sheet, prev, prev_day, scope)
     os.makedirs(out_dir, exist_ok=True)
     # Everything in the output folder is for opening or sharing, so it gets the umask's usual mode.
     # The pointer and history below stay private.
@@ -452,6 +456,7 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     os.makedirs(os.path.dirname(pointer), exist_ok=True)
     _write(pointer, pretty({"out": os.path.abspath(out_dir)}))
     # History is published last: a build that failed anywhere earlier never becomes a comparison.
-    hist.save(stamp, sheet)
+    # The saved copy also keeps the scope digests, so the next build can say when they changed.
+    hist.save(stamp, dict(sheet, _scope=scope))
     return {"sheet": sheet, "changes": changes, "local": local, "paths": paths,
             "warnings": local.get("warnings", [])}

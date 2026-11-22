@@ -6,14 +6,37 @@ than its own, so an earlier --as-of never compares against a later sheet.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from datetime import date
 
 from .datadir import _write, pretty, season_key
+from .projects import canonical
 
 _NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _h(x) -> str:
+    return hashlib.sha256(json.dumps(x, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def scope_digests(profile) -> dict:
+    """Short digests of what decides which history a profile reads and how it scores, apart from
+    the set (see score.SCOPE_PARTS). Kept only in the private saved copy of a sheet, never in
+    sheet.json, so "what changed" can say when they differ."""
+    projects = [[p.name, [[x.path, x.stats] for x in p.parts], p.stats, [[o.glob, o.stats] for o in p.overrides]]
+                for p in profile.projects]
+    return {
+        "projects": _h(projects),
+        "roots": _h(sorted([p.name, sorted(canonical(r) for r in p.roots)] for p in profile.projects)),
+        "identity": _h([sorted(profile.emails), sorted(profile.names), sorted(profile.bots)]),
+        "harnesses": _h([[profile.claude, profile.claude_dir if profile.claude else ""],
+                         [profile.codex, profile.codex_dir if profile.codex else ""],
+                         [profile.agy, profile.agy_db if profile.agy else ""]]),
+        "days": _h([profile.timezone, profile.rollover_hour]),
+    }
 
 
 class History:

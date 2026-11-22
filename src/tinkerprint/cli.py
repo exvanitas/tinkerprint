@@ -14,6 +14,7 @@ from .audit import audit_card
 from .build import build, check_dirs, default_out, last_out, parse_season
 from .profile import ProfileError, load_profile
 from .datadir import data_home
+from .keys import adopt
 from .timeutil import parse_day
 
 STARTER = '''# tinkerprint profile. Everything here stays on this machine.
@@ -147,6 +148,10 @@ def cmd_build(args) -> int:
     season = parse_season(args.season)
     as_of = parse_day(args.as_of) if args.as_of else None
     home = data_home(args.data_dir)
+    check_dirs(profile, [home])
+    moved = adopt(home, profile)
+    if moved:
+        print(f"This profile moved from {moved}. Its saved sheets came with it.")
     out = args.out or default_out(home, profile)
     if not args.out:
         check_dirs(profile, [out])
@@ -215,6 +220,7 @@ def cmd_audit(args) -> int:
         out = args.out
     else:
         home = data_home(args.data_dir)
+        adopt(home, profile, write=False)
         out = last_out(home, profile) or default_out(home, profile)
     print("\n".join(audit_card(out, profile)))
     return 0
@@ -266,16 +272,17 @@ def cmd_demo(args) -> int:
 
 def cmd_forget(args) -> int:
     from .forget import forget
-    from .profile import profile_id
+    from .keys import lookup
+    home = data_home(args.data_dir)
     if args.all:
         key = None
     else:
         path = _profile_path(args, quiet=True)
         if path is None:
             raise ProfileError(f"forget needs --profile PATH or --all, or a {DEFAULT_PROFILE} in this folder")
-        key = profile_id(path)
+        key = lookup(home, path)
         print(f"Profile: {path}")
-    for line in forget(data_home(args.data_dir), key, args.yes):
+    for line in forget(home, key, args.yes):
         print(line)
     return 0
 
