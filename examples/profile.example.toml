@@ -3,11 +3,11 @@
 #   tinkerprint build --profile my-profile.toml
 # Everything here stays on your machine. Roots never reach a sheet or a card.
 
-name = "Juno Brightwater"     # shown on the sheet and the card
+name = "Juno Brightwater"     # shown on the sheet, and on the card unless [card] name is set
 set = "tinkerer"              # builder (the default) or tinkerer
 timezone = "Europe/Dublin"    # IANA name, or an offset like "+01:00"
 rollover_hour = 4             # a day runs 04:00 to 04:00. Work at 1am counts toward the day before.
-work = false                  # true: no card unless [card] allow = true
+work = false                  # true: no card unless [card] enabled = true
 milestones = "milestones.txt" # optional. One "YYYY-MM-DD what happened" per line. Shown as written.
 
 [identity]
@@ -26,7 +26,9 @@ agy = false                   # experimental. Presence only.
 # agy_db = "~/.gemini/antigravity-cli/conversation_summaries.db"
 
 [card]
-# allow = true                # only matters when work = true
+# enabled = false             # on by default for this profile, off by default when work = true
+# name = "junob"              # a handle for the card. The sheet keeps name.
+# hide = ["party", "level", "achievements"]  # any of these stay off the card
 # show = ["dates", "projects"]  # exact dates and project names stay off the card unless listed here
 
 # A game. Code earns Systems and Interface from its files.

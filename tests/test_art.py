@@ -386,7 +386,8 @@ class Built(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_card_portrait_matches_the_sheet_and_reads_only_the_allowlist(self):
-        allowed = {"enabled", "name", "set", "class", "multiclass", "level", "stats", "achievements", "party", "chart"}
+        allowed = {"enabled", "name", "set", "class", "multiclass", "named", "level", "days", "stats", "achievements",
+                   "party", "chart", "method", "built", "season"}
         for slug, res in self.out.items():
             sheet = res["sheet"]
             card = sheet["card"]
@@ -438,10 +439,10 @@ class Built(unittest.TestCase):
     def test_long_names_stay_clear_of_the_radar(self):
         """The name's box ends at least 16 px before the radar's top-left label starts, at any length."""
         from tinkerprint import radar
-        from tinkerprint.render_card import text_em
+        from tinkerprint.render_card import RADAR_CX, RADAR_CY, RADAR_R, text_em
         base = self.out["wren"]["sheet"]["card"]
         n = len(base["stats"])
-        lx, _ = radar.point(850, 300, 190, n - 1, n, radar.LABEL_AT)
+        lx, _ = radar.point(RADAR_CX, RADAR_CY, RADAR_R, n - 1, n, radar.LABEL_AT)
         label_start = lx - 0.62 * 19 * max(len(s["stat"]) for s in base["stats"])
         for name in ("Wren Aldous", "Wilhelmina Montgomery-Wolfe", "W" * 28, "Mm" * 11):
             card = dict(base, name=name)
@@ -454,25 +455,25 @@ class Built(unittest.TestCase):
             self.assertLessEqual(end + 16, label_start, (name, size, end, label_start))
 
     def test_card_footer_keeps_party_and_projects_apart(self):
-        """Party and allowed project names share a baseline but never a column, even when both are long."""
+        """Allowed project names stay in the left column and the party in the radar's, even when both are long."""
         from html import unescape
-        from tinkerprint.render_card import W, text_em
+        from tinkerprint.render_card import BOTTOM_Y, RADAR_LEFT, TX, W, text_em
         base = copy.deepcopy(self.out["wren"]["sheet"]["card"])
         self.assertEqual(len(base["party"]), 3)
         for projects in (["WOODLAND WORKSHOP MAPS", "MOUNTAIN WORKSHOP MAPS", "RIVER WORKSHOP MAPS"],
                          ["Moth Lantern", "Palette Press"], ["W" * 70]):
             svg = render_card(dict(base, projects=projects))
             party = re.search(r'<text x="([\d.]+)" y="([\d.]+)" font-size="(\d+)"[^>]*>(PARTY[^<]*)</text>', svg)
-            proj = re.search(r'<text x="([\d.]+)" y="([\d.]+)" font-size="(\d+)"[^>]*text-anchor="end"[^>]*>'
+            proj = re.search(rf'<text x="([\d.]+)" y="{BOTTOM_Y:.1f}" font-size="(\d+)"[^>]*>'
                              r'([^<]*(?:WORKSHOP|Moth|WWW)[^<]*)</text>', svg)
             self.assertIsNotNone(party, projects)
             self.assertIsNotNone(proj, projects)
             px, psize, ptext = float(party.group(1)), int(party.group(3)), unescape(party.group(4))
-            party_end = px + psize * text_em(ptext) + len(ptext)
-            jx, jsize, jtext = float(proj.group(1)), int(proj.group(3)), unescape(proj.group(4))
-            self.assertEqual(jx, W - 64)
-            proj_start = jx - jsize * text_em(jtext)
-            self.assertLessEqual(party_end + 16, proj_start, (projects, party_end, proj_start))
+            self.assertGreater(px, RADAR_LEFT)
+            self.assertLessEqual(px + psize * text_em(ptext) + len(ptext), W - 64, projects)
+            jx, jsize, jtext = float(proj.group(1)), int(proj.group(2)), unescape(proj.group(3))
+            self.assertEqual(jx, TX)
+            self.assertLessEqual(jx + jsize * text_em(jtext) + 16, RADAR_LEFT, (projects, jsize))
 
     def test_portrait_png_is_written_and_valid(self):
         for res in self.out.values():

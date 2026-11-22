@@ -403,11 +403,15 @@ def compare(sheet: dict, prev: dict | None, prev_as_of: str | None, scope: dict 
 
 
 def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
-    """The share card's allowlist. Nothing else ever reaches card.svg or audit's card listing."""
+    """The share card's allowlist. Nothing else ever reaches card.svg, card.png or audit's listing.
+    Fields the profile hides under [card] hide are left out here, so no renderer can draw them."""
     if not profile.card_enabled:
-        return {"enabled": False, "reason": "Work profile. Set [card] allow = true to make a card."}
+        reason = ("Work profile. Set [card] enabled = true to make a card." if profile.work
+                  else "The profile sets [card] enabled = false.")
+        return {"enabled": False, "reason": reason}
     cls = sheet.get("class") or {}
     multi = sheet.get("multiclass") or {}
+    hide = set(getattr(profile, "card_hide", ()))
     stats = []
     for r in sheet["stats"]:
         full = shares.get(r["key"], r["share"]) if shares else r["share"]
@@ -417,22 +421,44 @@ def card_fields(sheet: dict, profile, shares: dict | None = None) -> dict:
     # The card's chart follows the rounded public shares, so it never reveals stats under 5%.
     public_chart = "radar" if sum(1 for x in stats if x["pct"] > 0) >= 3 else "bars"
     exact = "dates" in profile.card_show
+    season = sheet["season"]
     card = {
         "enabled": True,
-        "name": profile.name,
+        "name": getattr(profile, "card_label", profile.name),
         "set": profile.set.capitalize(),
         "class": cls.get("display") or "Unclassed",
         "multiclass": multi.get("display") or "",
-        "level": sheet["history"]["level"],
+        # The stats the class and multiclass are named for. A tie in rounded shares never hides them.
+        "named": list(cls.get("stats") or []) + list(multi.get("stats") or []),
         "stats": stats,
-        "achievements": [{"title": a["title"], "when": day_label(a["date"]) if exact else month_label(a["date"])}
-                         for a in sheet["achievements"]],
-        "party": [m["name"] for m in sheet["party"]],
         "chart": public_chart,
+        "method": sheet["method"],
+        "season": _card_season(season.get("from"), season.get("to")),
     }
+    if "level" not in hide:
+        # The level and the day counts give the same band away, so they hide together.
+        tot = sheet["season_totals"]
+        card["level"] = sheet["history"]["level"]
+        card["days"] = {"active": tot["active_days"], "classified": tot.get("classified_days", tot["active_days"])}
+    if "achievements" not in hide:
+        card["achievements"] = [{"title": a["title"], "when": day_label(a["date"]) if exact else month_label(a["date"])}
+                                for a in sheet["achievements"]]
+    if "party" not in hide:
+        card["party"] = [m["name"] for m in sheet["party"]]
     if "projects" in profile.card_show:
         card["projects"] = [p["name"] for p in sheet["projects"][:3]]
     return card
+
+
+def _card_season(frm: str | None, to: str | None) -> str:
+    """The season in a few words for the card, or "" for all history."""
+    if frm and to:
+        return f"{day_label(frm)} to {day_label(to)}"
+    if frm:
+        return f"from {day_label(frm)}"
+    if to:
+        return f"up to {day_label(to)}"
+    return ""
 
 
 def ranked_stats(sheet: dict, set_name: str) -> list:

@@ -1,4 +1,4 @@
-"""card.svg: the share card. It draws only the card's allowlisted fields."""
+"""card.svg: the share card. It draws only the card's allowlisted fields, through visible()."""
 from __future__ import annotations
 
 import re
@@ -25,46 +25,137 @@ def _clip(s: str, n: int) -> str:
 
 MAX_STATS = 4
 MAX_ACHIEVEMENTS = 4
+MAX_MEMBERS = 3
 
 
 def visible(card: dict) -> dict:
-    """Exactly what the card draws. render_card draws only this and audit lists only this."""
+    """Exactly what the card draws. render_card, render_card_png and audit use only this."""
     if not card.get("enabled"):
         return {}
-    ranked = sorted((s for s in card["stats"] if s["pct"] > 0), key=lambda s: -s["pct"])
+    named = card.get("named") or []
+    order = [s["stat"] for s in card["stats"]]
+    # Highest rounded share first. On a tie, the stats the class and multiclass are named for come
+    # first, so the bars never drop one of them; then the set's order.
+    ranked = sorted((s for s in card["stats"] if s["pct"] > 0),
+                    key=lambda s: (-s["pct"], s["stat"] not in named, order.index(s["stat"])))
+    members = list(card.get("party") or [])
+    days = card.get("days") if "level" in card else None
     v = {
         "set": f"{card['set']} set".upper(),
         "name": _clip(card["name"], 22),
         "class": card["class"],
-        "multiclass": f"/ {card['multiclass']}" if card.get("multiclass") else "",
-        "level": str(card["level"]),
+        "multiclass": card.get("multiclass") or "",
+        "level": str(card["level"]) if "level" in card else "",
         "stats": [(s["stat"], f"{s['pct']}%") for s in ranked[:MAX_STATS]],
         "achievements": [(_clip(a["title"], 24), a["when"]) for a in card.get("achievements", [])[-MAX_ACHIEVEMENTS:]],
-        "party": "PARTY  " + "  ·  ".join(card["party"]) if card.get("party") else "",
+        "party": "PARTY  " + "  ·  ".join(members) if members else "",
+        "members": members[:MAX_MEMBERS],
         "projects": _clip("  ·  ".join(card["projects"]), 60) if card.get("projects") else "",
         "chart": card.get("chart", "radar"),
+        "footer": _footer(card, days),
     }
     if v["chart"] == "radar":
         v["spokes"] = [(s["stat"], s["pct"]) for s in card["stats"]]
     else:
         v["bars"] = [(s["stat"], s["pct"]) for s in ranked]
+    v["alt"] = alt_text(v, card["set"])
     return v
 
 
-PX, PY, TX = 64, 204, 64  # portrait frame; the name runs from TX across the top
-NAME_Y, CLASS_Y = 128, 180  # baselines of the name and of the class line under it
-FOOT_Y = H - 50  # baseline of the party and project lines
+def _days(n: int) -> str:
+    return f"{n} active day" if n == 1 else f"{n} active days"
+
+
+def _footer(card: dict, days: dict | None) -> list:
+    """Two lines that say what the card is: the tool, method and month, then what the numbers mean."""
+    who = ["tinkerprint"]
+    if card.get("method") is not None:
+        who.append(f"method {card['method']}")
+    if card.get("built"):
+        who.append(str(card["built"]))
+    if card.get("season"):
+        who.append(f"season {card['season']}")
+    if days:
+        a, c = int(days.get("active", 0)), int(days.get("classified", 0))
+        on = f" on {c} of {_days(a)}" if c < a else f" on {_days(a)}"
+    else:
+        on = ""
+    meaning = f"Shares are of classified activity{on}."
+    if "level" in card:
+        meaning += " Level grows with active days."
+    return [" · ".join(who), meaning]
+
+
+def alt_text(v: dict, set_title: str) -> str:
+    """One line for people who cannot see the card, from the visible fields only."""
+    head = f"{v['class']}"
+    if v["multiclass"]:
+        head += f", multiclass {v['multiclass']}"
+    if v["level"]:
+        head += f", level {v['level']}"
+    text = f"tinkerprint card for {v['name']}, {set_title} set: {head}."
+    if v["stats"]:
+        text += " Top stats " + ", ".join(f"{s} {p}" for s, p in v["stats"]) + "."
+    if v["members"]:
+        names = v["members"]
+        text += " Party " + (names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]) + "."
+    return text
+
+
+def shows(card: dict) -> str:
+    """What the card shows, in one line for the terminal after a build."""
+    v = visible(card)
+    if not v:
+        return "nothing: the card is off"
+    out = [f'name "{v["name"]}"', "set", "class"]
+    if v["multiclass"]:
+        out.append("multiclass")
+    if v["level"]:
+        out.append("level and active days")
+    out.append(f"{len(v['stats'])} top stat{'s' if len(v['stats']) != 1 else ''}")
+    out.append("radar of rounded shares" if v["chart"] == "radar" else "bars of rounded shares")
+    if v["achievements"]:
+        exact = any(re.search(r"\d, \d{4}$", w) for _, w in v["achievements"])
+        n = len(v["achievements"])
+        out.append(f"{n} achievement{'s' if n != 1 else ''} with {'dates' if exact else 'months'}")
+    if v["members"]:
+        out.append("party (" + ", ".join(v["members"]) + ")")
+    if v["projects"]:
+        out.append("projects (" + v["projects"] + ")")
+    out += ["portrait", "footer"]
+    return ", ".join(out)
+
+
+TX = 64  # the left column's edge
+SET_Y, NAME_Y, CLASS_Y = 58, 114, 162  # baselines of the set, the name and the class under it
+PX, PY = 64, 184  # portrait frame
+ACH_Y = 418  # the achievements heading; rows follow every ACH_STEP px
+ACH_STEP = 23
+BOTTOM_Y = 540  # baseline of the party (radar column) and the projects (left column)
+RULE_Y = 558  # the line above the footer
+FOOT_Y = (582, 604)  # baselines of the two footer lines
 RADAR_LEFT = 640  # the radar's column starts here
+RADAR_CX, RADAR_CY, RADAR_R = 850, 288, 178
+RADAR_CLIP = 150  # the widest a spoke label may draw in card.png, so the longest stat names stay on the card
+PORTRAIT_PX = 176  # the portrait's target size: an integer scale of the pack's canvas near this
 SERIF = "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', P052, Georgia, serif"
 # Lantern palette, shared with the sheet's dark theme.
 BG, BG2, LINE, INK, INK2, MUTED, LANTERN, LANTERN2 = ("#121117", "#1d1b23", "#3a3542", "#f3eadb", "#c9bda8",
                                                        "#918774", "#eba84f", "#f2bb6c")
 
 
-def _familiars(party: list, pack: dict) -> list:
-    """The party's familiars, from the allowlisted party names. Unknown names get the pack’s fallback."""
+def portrait_box(pack: dict) -> tuple:
+    """(scale, padding, frame) of the card's portrait: an integer scale, so pixels stay crisp."""
+    resolution = pack["canvas"][0]
+    scale = max(1, round(PORTRAIT_PX / resolution))
+    padding = 4 if resolution == 48 else 8
+    return scale, padding, resolution * scale + 2 * padding
+
+
+def familiars(members: list, pack: dict) -> list:
+    """The party's familiars, from the visible party names. Unknown names get the pack's fallback."""
     by_name = {v: k for k, v in HARNESS_NAMES.items()}
-    return [art.familiar(pack, by_name.get(name, "")) for name in party[:3]]
+    return [art.familiar(pack, by_name.get(name, "")) for name in members[:MAX_MEMBERS]]
 
 
 _PATH = re.compile(r'<path fill="(#[0-9a-fA-F]{6})" d="([^"]*)"/>')
@@ -87,7 +178,8 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     v = visible(card)
     pack = pack or art.default_pack()
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
-           f'font-family="{FONT}" role="img" aria-label="{escape(v["name"])} stat card">']
+           f'font-family="{FONT}" role="img" aria-label="{escape(v["alt"])}">',
+           f'<title>{escape(v["alt"])}</title>']
     out.append('<defs><radialGradient id="glow" cx="0.3" cy="0" r="0.9"><stop offset="0" stop-color="#3a2a1c"/>'
                f'<stop offset="1" stop-color="{BG}"/></radialGradient>'
                '<radialGradient id="seal" cx="0.38" cy="0.3" r="0.75"><stop offset="0" stop-color="#fbe2a4"/>'
@@ -97,39 +189,39 @@ def render_card(card: dict, pack: dict | None = None) -> str:
     out.append(f'<rect x="{W // 2 - 60}" y="14" width="120" height="3" fill="{LANTERN}"/>')
 
     # Who: set, then the name across the top of the left column.
-    out.append(_t(TX, 70, v["set"], 16, 700, LANTERN, spacing="3"))
+    out.append(_t(TX, SET_Y, v["set"], 16, 700, LANTERN, spacing="3"))
     out.append(_t(TX, NAME_Y, v["name"], name_size(v["name"]), 700, INK, family=SERIF))
     # The class gets its own line, large enough to read on a thumbnail. Never cut: it shrinks to fit.
     out.append(_t(TX, CLASS_Y, v["class"], class_size(v["class"]), 600, LANTERN2, family=SERIF))
 
     # Portrait: pixel art from the allowlisted set, class, multiclass and rounded shares only.
-    resolution = pack["canvas"][0]
-    scale = max(1, round(176 / resolution))
-    padding = 4 if resolution == 48 else 8
-    frame = resolution * scale + 2 * padding
+    scale, padding, frame = portrait_box(pack)
     out.append(f'<rect x="{PX - 3}" y="{PY - 3}" width="{frame + 6}" height="{frame + 6}" rx="16" fill="#0b0a0e" '
                f'stroke="{LANTERN}" stroke-opacity="0.55" stroke-width="2"/>')
     sprites = art.card_portrait_paths(card, PX + padding, PY + padding, scale, pack)
-    # The party's familiars stand at the foot of the left column.
-    fx = 64
-    for f in _familiars(card["party"], pack) if v["party"] else []:
-        sprites += f.svg_paths(2, fx, H - 42 - f.h * 2)
+    # The party's familiars stand at the foot of the radar's column, before the party line.
+    fx = RADAR_LEFT
+    for f in familiars(v["members"], pack):
+        sprites += f.svg_paths(2, fx, BOTTOM_Y + 4 - f.h * 2)
         fx += f.w * 2 + 6
     out.append(f'<g shape-rendering="crispEdges">{"".join(_merge(sprites))}</g>')
-    # Level: a lantern seal on the portrait's corner.
-    sx, sy = PX + frame + 14, PY + frame - 14
-    out.append(f'<circle cx="{sx}" cy="{sy}" r="44" fill="{BG}"/>')
-    out.append(f'<circle cx="{sx}" cy="{sy}" r="39" fill="url(#seal)" stroke="#6e4214" stroke-width="3"/>')
-    out.append(_t(sx, sy + 9, v["level"], 34 if len(v["level"]) < 3 else 26, 700, "#2b1606", anchor="middle", family=SERIF))
-    out.append(_t(sx, sy + 25, "LEVEL", 10, 700, "#2b1606", anchor="middle", spacing="2"))
+    if v["level"]:
+        # Level: a lantern seal on the portrait's corner.
+        sx, sy = PX + frame + 14, PY + frame - 14
+        out.append(f'<circle cx="{sx}" cy="{sy}" r="44" fill="{BG}"/>')
+        out.append(f'<circle cx="{sx}" cy="{sy}" r="39" fill="url(#seal)" stroke="#6e4214" stroke-width="3"/>')
+        out.append(_t(sx, sy + 9, v["level"], 34 if len(v["level"]) < 3 else 26, 700, "#2b1606", anchor="middle",
+                      family=SERIF))
+        out.append(_t(sx, sy + 25, "LEVEL", 10, 700, "#2b1606", anchor="middle", spacing="2"))
 
-    # Beside the portrait: the multiclass, then the top shares, each with a bar in its stat's colors.
+    # Beside the portrait: the multiclass under its label, then the top shares, each with a bar.
     cx0 = PX + frame + 58
     room = COL_RIGHT - cx0
     y = PY + 30
     if v["multiclass"]:
-        out.append(_t(cx0, y, v["multiclass"], _fit(v["multiclass"], 24, room), 500, INK2, family=SERIF))
-        y += 46
+        out.append(_t(cx0, PY + 18, "MULTICLASS", 12, 700, MUTED, spacing="2"))
+        out.append(_t(cx0, PY + 46, v["multiclass"], _fit(v["multiclass"], 24, room), 500, INK2, family=SERIF))
+        y = PY + 82
     for stat, pct in v["stats"]:
         hue = art.stat_ramp(pack, stat)
         out.append(_t(cx0, y, stat, 18, 600, INK))
@@ -140,30 +232,34 @@ def render_card(card: dict, pack: dict | None = None) -> str:
         y += 31
 
     if v["achievements"]:
-        out.append(_t(64, 436, "ACHIEVEMENTS", 13, 700, MUTED, spacing="3"))
-        y = 462
+        out.append(_t(TX, ACH_Y, "ACHIEVEMENTS", 13, 700, MUTED, spacing="3"))
+        y = ACH_Y + 24
         for title, when in v["achievements"]:
             out.append(f'<rect x="64" y="{y - 11}" width="7" height="7" fill="{LANTERN}" transform="rotate(45 67.5 {y - 7.5})"/>')
             out.append(_t(84, y, title, 19, 600, INK))
             out.append(_t(COL_RIGHT, y, when, 16, 400, MUTED, anchor="end"))
-            y += 25
-    # Party on the left, projects in the radar's column: each sized to stay on its own side.
+            y += ACH_STEP
+    # Party in the radar's column after its familiars, projects in the left column.
     if v["party"]:
-        out.append(_t(fx + 6, FOOT_Y, v["party"], party_size(v["party"], fx + 6), 700, MUTED, spacing="1"))
+        out.append(_t(fx + 6, BOTTOM_Y, v["party"], party_size(v["party"], fx + 6), 700, MUTED, spacing="1"))
     if v["projects"]:
-        out.append(_t(W - 64, FOOT_Y, v["projects"], projects_size(v["projects"]), 400, MUTED, anchor="end"))
+        out.append(_t(TX, BOTTOM_Y, v["projects"], projects_size(v["projects"]), 400, MUTED))
 
     if v["chart"] == "radar":
         out += _radar(v["spokes"], pack)
     else:
         out += _bars(v["bars"], pack)
+    # The footer: what made the card, and what its numbers mean.
+    out.append(f'<rect x="{TX}" y="{RULE_Y}" width="{W - 2 * TX}" height="1" fill="{LINE}"/>')
+    out.append(_t(TX, FOOT_Y[0], v["footer"][0], footer_size(v["footer"][0]), 600, INK2))
+    out.append(_t(TX, FOOT_Y[1], v["footer"][1], footer_size(v["footer"][1]), 400, MUTED))
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
 
 def _radar(spokes: list, pack: dict) -> list:
     """Rounded shares on the common square-root scale, eight spokes in the set's order."""
-    cx, cy, r = 850, 300, 190
+    cx, cy, r = RADAR_CX, RADAR_CY, RADAR_R
     n = len(spokes)
     out = []
     for ring in radar.RINGS:
@@ -189,7 +285,7 @@ def _radar(spokes: list, pack: dict) -> list:
 def _bars(bars: list, pack: dict) -> list:
     """Ranked bars when fewer than three stats have points, as on the sheet."""
     out = []
-    x0, x1, y = 640, 1100, 200
+    x0, x1, y = RADAR_LEFT, 1100, 160
     for stat, p in bars:
         out.append(_t(x0, y, stat, 22, 600, INK))
         out.append(_t(x1, y, f"{p}%", 22, 600, INK2, anchor="end"))
@@ -240,13 +336,18 @@ def class_size(text: str) -> int:
 
 
 def party_size(text: str, x: float) -> int:
-    """The party line ends 20 px before the radar's column. Letter spacing adds 1 px a glyph."""
-    return max(7, min(15, int((RADAR_LEFT - 20 - x - len(text)) / max(1.0, text_em(text)))))
+    """The party line ends at the right margin. Letter spacing adds 1 px a glyph."""
+    return max(7, min(15, int((W - 64 - x - len(text)) / max(1.0, text_em(text)))))
 
 
 def projects_size(text: str) -> int:
-    """The projects line stays inside the radar's column, right-aligned to the margin."""
-    return max(7, min(16, int((W - 64 - RADAR_LEFT) / max(1.0, text_em(text)))))
+    """The projects line stays in the left column, 20 px before the radar's column."""
+    return max(7, min(16, int((RADAR_LEFT - 20 - TX) / max(1.0, text_em(text)))))
+
+
+def footer_size(text: str) -> int:
+    """A footer line: up to 15 px, smaller when it would run past the right margin."""
+    return max(8, min(15, int((W - 2 * TX) / max(1.0, text_em(text)))))
 
 
 def _fit(text: str, size: int, width: int = LEFT_WIDTH) -> int:
@@ -262,7 +363,8 @@ def card_strings(card: dict) -> list:
     out = [("set", v["set"]), ("name", v["name"]), ("class", v["class"])]
     if v["multiclass"]:
         out.append(("multiclass", v["multiclass"]))
-    out.append(("level", v["level"]))
+    if v["level"]:
+        out.append(("level", v["level"]))
     out += [("stat", f"{s} {p}") for s, p in v["stats"]]
     out += [("spoke", s) for s, _ in v.get("spokes", [])]
     out += [("bar", f"{s} {p}%") for s, p in v.get("bars", [])]
@@ -271,4 +373,6 @@ def card_strings(card: dict) -> list:
         out.append(("party", v["party"]))
     if v["projects"]:
         out.append(("projects", v["projects"]))
+    out += [("footer", line) for line in v["footer"]]
+    out.append(("alt", v["alt"]))
     return out

@@ -15,6 +15,7 @@ from .sets import BUILDER_STATS, SETS, TINKERER_FROM_BUILDER
 from .timeutil import load_tz
 
 CARD_EXTRAS = ("dates", "projects")
+CARD_HIDE = ("party", "level", "achievements")
 
 
 class ProfileError(ValueError):
@@ -27,7 +28,7 @@ KEYS = {
             "project"),
     "identity": ("emails", "names", "bots"),
     "harnesses": ("claude", "codex", "agy", "claude_dir", "codex_dir", "agy_db"),
-    "card": ("allow", "show"),
+    "card": ("enabled", "allow", "name", "show", "hide"),
     "project": ("name", "root", "roots", "stats", "part", "override"),
     "part": ("path", "stats"),
     "override": ("glob", "stats"),
@@ -117,7 +118,7 @@ class Profile:
     timezone: str
     rollover_hour: int
     work: bool
-    card_allow: bool
+    card_allow: bool          # the card is on: [card] enabled, else allow, else on unless work = true
     card_show: tuple
     emails: tuple
     names: tuple
@@ -132,6 +133,13 @@ class Profile:
     milestones: str | None
     base_dir: str
     source: str = ""          # the profile file's real path, when it came from a file
+    card_name: str = ""       # a handle the card shows instead of the profile name
+    card_hide: tuple = ()     # fields left off the card: any of CARD_HIDE
+
+    @property
+    def card_label(self) -> str:
+        """The name the card and its alt text use. The sheet keeps the profile name."""
+        return self.card_name or self.name
 
     @property
     def tz(self):
@@ -139,7 +147,7 @@ class Profile:
 
     @property
     def card_enabled(self) -> bool:
-        return self.card_allow if self.work else True
+        return self.card_allow
 
 
 def _slug(s: str) -> str:
@@ -199,6 +207,15 @@ def _strs(raw, where: str) -> tuple:
     return tuple(raw)
 
 
+def _choices(raw, allowed, where: str) -> tuple:
+    """A list of words from a fixed set. An unknown word names the closest one."""
+    out = _strs(raw, where)
+    for s in out:
+        if s not in allowed:
+            raise ProfileError(f"{where}: {s!r} is not supported.{_suggest(s, allowed)} Use any of {', '.join(allowed)}")
+    return out
+
+
 def _str(raw, default: str, where: str) -> str:
     if raw is None:
         return default
@@ -243,10 +260,18 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
 
     harn = _table(data.get("harnesses"), "harnesses", "harnesses")
     card = _table(data.get("card"), "card", "card")
-    show = _strs(card.get("show"), "card.show")
-    for s in show:
-        if s not in CARD_EXTRAS:
-            raise ProfileError(f"card.show: {s!r} is not supported. Use {', '.join(CARD_EXTRAS)}")
+    show = _choices(card.get("show"), CARD_EXTRAS, "card.show")
+    hide = _choices(card.get("hide"), CARD_HIDE, "card.hide")
+    # enabled works on every profile. allow is its older name, kept for work profiles.
+    enabled = _bool(card.get("enabled"), None, "card.enabled")
+    allow = _bool(card.get("allow"), None, "card.allow")
+    if enabled is not None and allow is not None and enabled != allow:
+        raise ProfileError("card.enabled and card.allow disagree. Keep enabled and remove allow")
+    work = _bool(data.get("work"), False, "work")
+    card_on = enabled if enabled is not None else allow if allow is not None else not work
+    card_name = _str(card.get("name"), "", "card.name").strip()
+    if "name" in card and (not card_name or re.search(r"[\x00-\x1f\x7f]", card_name)):
+        raise ProfileError("card.name must be a handle in quotes, not empty and without control characters")
 
     projects = []
     for i, rp in enumerate(_tables(data.get("project"), "project", "project")):
@@ -294,9 +319,11 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
         set=set_name,
         timezone=tz,
         rollover_hour=rollover,
-        work=_bool(data.get("work"), False, "work"),
-        card_allow=_bool(card.get("allow"), False, "card.allow"),
+        work=work,
+        card_allow=card_on,
         card_show=tuple(sorted(set(show))),
+        card_name=card_name,
+        card_hide=tuple(sorted(set(hide))),
         emails=emails,
         names=names,
         bots=bots,

@@ -21,11 +21,11 @@ STARTER = '''# tinkerprint profile. Everything here stays on this machine.
 # Keep this file outside your repos and never commit it: it lists your folders and emails.
 # One person can keep several profiles, for example a day job and personal projects.
 
-{name_line}# shown on the sheet and the card
+{name_line}# shown on the sheet, and on the card unless [card] name is set
 set = "builder"               # builder or tinkerer
 {tz_line}# IANA name like "Europe/Berlin", or an offset like "+02:00"
 {tz_note}rollover_hour = 4             # a day runs from this hour to the next. 1am counts toward the day before.
-work = false                  # a work profile never makes a card unless [card] allow = true
+work = false                  # a work profile makes no card unless [card] enabled = true
 # milestones = "milestones.txt"   # optional: one "YYYY-MM-DD what happened" per line
 
 [identity]
@@ -43,7 +43,9 @@ codex = true                  # ~/.codex/sessions
 agy = false                   # experimental, presence only
 
 [card]
-# allow = true                # needed only when work = true
+# enabled = false             # on by default, off by default when work = true
+# name = "your-handle"        # the card shows this instead of name. The sheet keeps name.
+# hide = ["party", "level", "achievements"]  # any of these stay off the card
 # show = ["dates", "projects"]  # exact dates and project names stay off the card unless listed
 
 # One [[project]] per project. A path belongs to the longest matching root.
@@ -161,11 +163,8 @@ def cmd_build(args) -> int:
     cls = (s.get("class") or {}).get("name", "Unclassed")
     print(f"{profile.name}: level {s['history']['level']}, {cls}, {s['season_totals']['active_days']} active days "
           f"in {s['season']['label'].lower()}.")
-    for k in ("html", "card", "portrait", "json"):
-        if k in res["paths"]:
-            print(f"  {k:<5} {res['paths'][k]}")
-    if not s["card"].get("enabled"):
-        print("  card  off: " + s["card"].get("reason", ""))
+    for line in output_lines(res):
+        print(line)
     for line in unassigned_lines(res["sheet"], res["local"], args.list_unassigned):
         print(line)
     health = res["local"].get("health") or []
@@ -176,6 +175,23 @@ def cmd_build(args) -> int:
     for w in res.get("warnings", []):
         print("Warning: " + w)
     return 0
+
+
+# What build prints for each output, in this order.
+OUTPUTS = (("html", "sheet", ""), ("card", "card", ""), ("portrait", "portrait", ""), ("json", "json", ""))
+
+
+def output_lines(res: dict) -> list:
+    """The written files, then what the card shows and its alt text, or why there is no card."""
+    from .render_card import shows, visible
+    paths, card = res["paths"], res["sheet"]["card"]
+    out = [f"  {label:<8} {paths[k]}{note}" for k, label, note in OUTPUTS if k in paths]
+    if not card.get("enabled"):
+        out.append("  card     off: " + card.get("reason", ""))
+        return out
+    out.append("  shows    " + shows(card))
+    out.append("  alt      " + visible(card)["alt"])
+    return out
 
 
 def _n(n: int, word: str) -> str:
@@ -264,9 +280,8 @@ def cmd_demo(args) -> int:
         cls = (s.get("class") or {}).get("name", "Unclassed")
         lit = sum(1 for r in s["stats"] if r["points"] > 0)
         print(f"{name}: level {s['history']['level']}, {cls}, {lit} stats with points.")
-        for k in ("html", "card", "json"):
-            if k in res["paths"]:
-                print(f"  {k:<5} {res['paths'][k]}")
+        for line in output_lines(res):
+            print(line)
     return 0
 
 

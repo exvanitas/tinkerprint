@@ -20,7 +20,7 @@ from .history import History, scope_digests
 from .keys import adopt
 from .score import compare, score_core
 from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, path_within, pretty
-from .timeutil import parse_day, parse_ts
+from .timeutil import month_label, parse_day, parse_ts
 
 # A version change re-reads every log that is still there, and keeps what earlier builds read
 # from logs that are gone, since those can never be read again.
@@ -429,6 +429,9 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     sheet, local = compute(profile, season, as_of, home, inputs)
     # A sheet saved without --as-of is dated so that it holds nothing after its date.
     stamp = as_of or max(today or date.today(), local.get("latest_day") or date.min)
+    if sheet["card"].get("enabled"):
+        # The card says the month it was built: the as-of month, else today's. Nothing finer.
+        sheet["card"]["built"] = month_label(stamp.isoformat())
     prev_day, prev = hist.previous(stamp)
     scope = scope_digests(profile)
     changes = compare(sheet, prev, prev_day, scope)

@@ -74,7 +74,7 @@ class Built(unittest.TestCase):
         for slug, res in self.out.items():
             with open(res["paths"]["card"], encoding="utf-8") as f:
                 svg = f.read()
-            allowed = {"SET", "LEVEL", "ACHIEVEMENTS", "PARTY"}
+            allowed = {"SET", "LEVEL", "ACHIEVEMENTS", "PARTY", "MULTICLASS"}
             for _, v in card_strings(res["sheet"]["card"]):
                 allowed |= {w for w in split.split(v) if w} | {w.upper() for w in split.split(v) if w}
             for t in re.findall(r">([^<>]+)</text>", svg):
