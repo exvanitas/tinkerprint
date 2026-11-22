@@ -12,9 +12,9 @@ A private sheet, one HTML file per profile. Here are the demo's two invented peo
 
 ![Sheet for Wren Aldous, an invented tinkerer, in the dark theme](docs/wren.png)
 
-And a share card that carries only what you allow:
+And a share card, `card.png`, that carries only what you allow:
 
-![Share card for Tobi Marsh: pixel portrait with level seal, class, rounded shares, achievements, party familiars and a radar](docs/card.png)
+![Share card for Tobi Marsh, an invented developer: Alchemist with Duelist as multiclass, level 15, a pixel portrait, top stats Logic 35%, Data 20%, Interface 15% and Tests 10%, four achievements by month, a radar, Claude Code and Codex in the party, and a footer naming tinkerprint](docs/card.png)
 
 ## Install
 
@@ -55,15 +55,46 @@ For your own sheet:
 ```
 tinkerprint init      # writes tinkerprint.toml, with your name and email from git config
                       # then edit it: your other emails, and one [[project]] per project
-tinkerprint build     # sheet.html, card.svg, sheet.json
-tinkerprint audit     # every text string in the built card.svg
+tinkerprint build     # sheet.html, card.png, card.svg, sheet.json
+tinkerprint audit     # every text string in the built card, before you share it
 ```
 
 `build` and `audit` use `./tinkerprint.toml` when `--profile` is left out. Keep the profile outside your repos: it lists your folders and emails. A misspelled key, like `[[projects]]`, stops the build and names the right one.
 
 `tinkerprint gallery --out art` writes one page with every class portrait of both sets, every familiar, icon and a few banners. The art is pixel art made in code from a pack of parts, and `--art-pack` swaps the pack. See [docs/ART.md](docs/ART.md).
 
-`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json`, `sheet.html` and `card.svg`, plus `portrait.png` when the card is on. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
+`build` takes `--season FROM:TO` to set the season and `--as-of DATE` to ignore anything later. Without `--out`, sheets go to a folder under `~/.local/share/tinkerprint/sheets/` named for the profile file. Each build writes `sheet.json`, `changes.json` and `sheet.html`, plus `card.png`, `card.svg` and `portrait.png` when the card is on. `python -m tinkerprint` works too. See `examples/profile.example.toml` for every profile option.
+
+## Sharing
+
+Post `card.png`. Discord and most social sites show it as a preview, and they do not preview SVG. `card.svg` draws the same thing. `portrait.png` is the portrait alone, for an avatar.
+
+After each build, `shows` lists exactly what the card holds, and `alt` is a line of alt text to paste with it. Run `tinkerprint audit` before you share: it prints every string in `card.svg`, and checks that `card.png` holds image data only and draws the same fields.
+
+What a card reveals:
+
+- **Your name**, or a handle you choose.
+- **Your class and multiclass**, from the season's shares rounded to 5%.
+- **Your level**, a band of active days over all history: level 15 means 225 to 255 days. The footer gives the exact count of active days in the season.
+- **Achievement months.** The earliest ones show roughly when you started.
+- **Your party**: which coding agents you used, never how much.
+- **The season** of a season build, the month it was built, and the method version.
+
+Nothing else: no project names, exact dates, hours, repos, paths or emails, unless `show` adds dates or project names.
+
+The `[card]` table in the profile:
+
+```
+[card]
+enabled = true                # on by default, off by default when work = true
+name = "quillwork"            # a handle for the card. The sheet keeps your name.
+hide = ["party", "level", "achievements"]  # any of these stay off the card
+show = ["dates", "projects"]  # exact dates and up to three project names go on the card
+```
+
+Hiding the level also hides the day counts, since they give the same band away. `allow = true` still turns the card on for a work profile.
+
+People often screenshot the sheet instead. The sheet's **Share view** button hides everything the card would not show and leaves the workshop banner, the card's name, class, level and top stats. It works without script, with the keyboard and by touch.
 
 ## If your sheet is empty
 
@@ -95,9 +126,9 @@ The full rules are in [METHOD.md](METHOD.md). Every sheet prints the method vers
 
 ## Profiles
 
-One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it never makes a share card unless you allow it.
+One person can keep several sheets. A profile says which folders and identities belong to it, and what names the sheet shows. A day-job profile next to a personal one makes a good comparison. Mark it `work = true` and it makes no share card unless you turn one on.
 
-Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The sheet shows what changed since then, with a link to it under your name. When you changed the profile's projects, roots or identity in between, it says so, since the difference then includes history you added or removed. After an update that changes the method, it says the two sheets are not compared. `sheet.json` never depends on that history: the same logs, the same kept sessions from deleted logs and the same profile give the same file.
+Each build saves its sheet outside every repo, under `~/.local/share/tinkerprint/`. The next build compares with the newest saved sheet from an earlier date and writes `changes.json`. The sheet shows what changed since then, with a link to it under your name. When you changed the profile's projects, roots or identity in between, it says so, since the difference then includes history you added or removed. After an update that changes the method, it says the two sheets are not compared. `sheet.json` never depends on that history: the same logs, the same kept sessions from deleted logs and the same profile give the same file, apart from the month the card says it was built.
 
 ## What stays on disk
 
