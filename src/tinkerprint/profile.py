@@ -378,6 +378,17 @@ def parse_profile(data: dict, base_dir: str, default_id: str = "profile") -> Pro
     )
 
 
+# A storage key, as profile_id makes it: the file's stem as a slug, then "-" and eight hex digits.
+# A stem with no Latin letters or digits leaves the hex digits alone. Every key that names a path in
+# the data folder, from a profile file or from profiles.json, is checked with is_key.
+_KEY = re.compile(r"^(?:[a-z0-9]+(?:-[a-z0-9]+)*-)?[0-9a-f]{8}$")
+
+
+def is_key(s) -> bool:
+    """Whether s is a storage key profile_id could have made."""
+    return isinstance(s, str) and bool(_KEY.match(s))
+
+
 def profile_id(path: str, salt: int = 0) -> str:
     """A storage key for a profile file: its stem and a hash of its real path. This is the key a
     profile file gets when it is first built. keys.py then keeps it with the file when the file
@@ -385,7 +396,10 @@ def profile_id(path: str, salt: int = 0) -> str:
     path = os.path.realpath(os.path.expanduser(path))
     stem = os.path.splitext(os.path.basename(path))[0]
     tag = hashlib.sha256((path + (f"\0{salt}" if salt else "")).encode("utf-8")).hexdigest()[:8]
-    return _slug(f"{stem}-{tag}")
+    key = _slug(f"{stem}-{tag}")
+    if not is_key(key):
+        raise ValueError(f"not a storage key: {key!r}")
+    return key
 
 
 def read_toml(path: str) -> dict:

@@ -13,7 +13,7 @@ import json
 import os
 
 from .datadir import _write, pretty
-from .profile import Profile, profile_id
+from .profile import Profile, is_key, profile_id
 
 REGISTRY = "profiles.json"
 
@@ -32,7 +32,8 @@ def _path(home: str) -> str:
 
 
 def read_registry(home: str) -> dict:
-    """{key: {"path": real path, "sig": signature}}. A missing or unreadable file is empty."""
+    """{key: {"path": real path, "sig": signature}}. A missing or unreadable file is empty. A row
+    whose key is not one profile_id makes is dropped, so no key from this file reaches a path."""
     try:
         with open(_path(home), encoding="utf-8") as f:
             data = json.load(f)
@@ -41,8 +42,7 @@ def read_registry(home: str) -> dict:
         return {}
     if not isinstance(rows, dict):
         return {}
-    return {k: v for k, v in rows.items()
-            if isinstance(k, str) and isinstance(v, dict) and isinstance(v.get("path"), str)}
+    return {k: v for k, v in rows.items() if is_key(k) and isinstance(v, dict) and isinstance(v.get("path"), str)}
 
 
 def write_registry(home: str, rows: dict) -> None:

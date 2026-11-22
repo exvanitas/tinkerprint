@@ -110,7 +110,7 @@ class Forget(unittest.TestCase):
         for d in ("cache", "history", "sheets", "last-build"):
             os.makedirs(os.path.join(home, d, "stuff"))
         text = self.cli("forget", "--all", "--data-dir", home, "--yes")
-        self.assertIn("Nothing to forget", text)
+        self.assertIn("is not a data folder tinkerprint made", text)
         for d in ("cache", "history", "sheets", "last-build"):
             self.assertTrue(os.path.isdir(os.path.join(home, d, "stuff")))
 

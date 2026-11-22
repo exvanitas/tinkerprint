@@ -153,12 +153,13 @@ Everything tinkerprint keeps goes in its data folder: `~/.local/share/tinkerprin
 - `cache/`: what the readers kept from each agent log (times, folders, file paths, models), so the next build skips logs that have not changed. Shared by all profiles. When a log is deleted, as Claude Code does with transcripts after about a month, its entry stays here, marked gone, so its days still count. This is the only copy of those sessions.
 - `history/`: each build's sheet, per profile and season, for "what changed".
 - `last-build/`: one small file per profile naming its last output folder, for `audit`.
-- `sheets/`: builds made without `--out`.
+- `sheets/`: builds made without `--out`. Each such folder holds a small `.tinkerprint-sheets` file, so `forget --all` can tell it from an `--out` folder you put there.
 - `profiles.json`: which profile file each saved history belongs to, so history follows a profile file you move. Move it, then build before you edit it.
+- `tinkerprint-data.txt`: says this is tinkerprint's data folder. Every build writes it.
 
 The cache, history, last-build files and `profiles.json` are private to you (mode 0600). The outputs, wherever they go, are readable under your umask (0644 on most systems), so a web server or a copy can serve them.
 
-`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears everything above. It deletes only files tinkerprint wrote, names any folder it leaves alone, and never touches your repos, agent logs, profiles or `--out` folders.
+`tinkerprint forget` lists the shared cache and a profile's history and last-build file, and `--yes` deletes them. Deleting the cache loses the sessions kept from deleted logs. `forget --all` clears everything above. It works only in a folder with `tinkerprint-data.txt`, or in the default data folder. It deletes only files tinkerprint wrote, one by one, never through a symlink or junction, and names any folder it leaves alone. It never touches your repos, agent logs, profiles or `--out` folders, even one inside `sheets/`.
 
 ## What it will not do
 

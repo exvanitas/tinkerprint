@@ -65,6 +65,39 @@ def inside_repo_or_root(path: str, roots=()) -> str | None:
         probe = parent
 
 
+# Every build writes this file into its data folder. forget deletes only in a folder that has it,
+# or in the default data folder.
+MARKER = "tinkerprint-data.txt"
+MARKER_HEAD = "tinkerprint data folder"
+MARKER_TEXT = (MARKER_HEAD + "\n\nThis folder holds what tinkerprint keeps: its cache, saved sheets and profile "
+               "list.\n'tinkerprint forget' lists and deletes them.\n")
+# Every build without --out writes this file into its sheets folder. forget --all deletes only
+# sheets folders that have it, so an --out folder is never touched, even one inside sheets/.
+SHEETS_MARK = ".tinkerprint-sheets"
+SHEETS_TEXT = "Built by tinkerprint without --out.\n"
+
+
+def _mark(path: str, text: str) -> None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == text:
+                return
+    except (OSError, ValueError):
+        pass
+    _write(path, text)
+
+
+def mark_home(home: str) -> None:
+    """Say that tinkerprint keeps its data in home."""
+    os.makedirs(home, exist_ok=True)
+    _mark(os.path.join(home, MARKER), MARKER_TEXT)
+
+
+def mark_sheets(folder: str) -> None:
+    """Say that folder is a sheets folder built without --out."""
+    _mark(os.path.join(folder, SHEETS_MARK), SHEETS_TEXT)
+
+
 def _umask() -> int:
     mask = os.umask(0o077)
     os.umask(mask)

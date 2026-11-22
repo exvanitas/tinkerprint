@@ -20,7 +20,8 @@ from .render_html import render_html
 from .history import History, scope_digests
 from .keys import adopt
 from .score import compare, score_core
-from .datadir import _is_git_dir, _write, data_home, inside_repo_or_root, path_within, pretty
+from .datadir import (_is_git_dir, _write, data_home, inside_repo_or_root, mark_home, mark_sheets, path_within,
+                      pretty)
 from .timeutil import month_label, parse_day, parse_ts
 
 # A version change re-reads every log that is still there, and keeps what earlier builds read
@@ -403,6 +404,7 @@ def compute(profile: Profile, season=(None, None), as_of: date | None = None, ho
     Returns (sheet, local)."""
     home = data_home(home)
     check_data_home(home, profile)
+    mark_home(home)
     inputs = inputs if inputs is not None else gather(profile, home)
     warnings = list(inputs.warnings)
     priors = scan_priors(profile.projects, cutoff(profile, as_of), warnings)
@@ -422,6 +424,7 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     """
     home = data_home(home)
     check_data_home(home, profile)
+    mark_home(home)
     adopt(home, profile)
     hist = History(home, profile.id, season)
     pointer = os.path.join(home, "last-build", profile.id + ".json")
@@ -437,6 +440,8 @@ def build(profile: Profile, out_dir: str, season=(None, None), as_of: date | Non
     scope = scope_digests(profile)
     changes = compare(sheet, prev, prev_day, scope)
     os.makedirs(out_dir, exist_ok=True)
+    if os.path.abspath(out_dir) == os.path.abspath(default_out(home, profile)):
+        mark_sheets(out_dir)  # so forget --all can tell this folder from an --out folder
     # Everything in the output folder is for opening or sharing, so it gets the umask's usual mode.
     # The pointer and history below stay private.
     paths = {"json": os.path.join(out_dir, "sheet.json"), "changes": os.path.join(out_dir, "changes.json"),
