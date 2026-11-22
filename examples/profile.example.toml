@@ -31,6 +31,14 @@ agy = false                   # experimental. Presence only.
 # hide = ["party", "level", "achievements"]  # any of these stay off the card
 # show = ["dates", "projects"]  # exact dates and project names stay off the card unless listed here
 
+[look]
+# The portrait. Hair, eyes and expression left unset are picked from the name the card shows.
+presentation = "woman"        # neutral (the default), man or woman
+skin = "deep"                 # light, medium or deep. Unset is the art pack's own.
+hair = "braid"                # neutral: bob, curtains, shag. man: crop, curls, side part. woman: braid, waves, chignon
+# eyes = "honey"              # honey, moss, slate, chestnut, plum or lagoon
+# expression = "smile"        # smile, grin, calm, determined, joy or curious
+
 # A game. Code earns Systems and Interface from its files.
 # Art, Worlds, Lore and Community come only from hand tags like these.
 [[project]]

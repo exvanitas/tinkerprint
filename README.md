@@ -23,12 +23,12 @@ And a share card, `card.png`, that carries only what you allow:
 Python 3.11 or newer. It needs no other packages, apart from `tzdata` on Windows.
 
 ```
-git clone https://github.com/exvanitas/tinkerprint
+git clone --branch v0.2.0 https://github.com/exvanitas/tinkerprint
 cd tinkerprint
 pipx install .
 ```
 
-`uv tool install .` works the same way. Or use a virtual environment:
+`uv tool install .` works the same way. `pipx install git+https://github.com/exvanitas/tinkerprint@v0.2.0` installs without keeping a clone. Or use a virtual environment:
 
 ```
 python3 -m venv .venv
@@ -38,7 +38,7 @@ pip install .
 
 A bare `pip install .` outside a virtual environment is refused on current Debian, Ubuntu and Homebrew Python ("externally managed environment"). Use pipx, uv or a venv.
 
-**Update:** `git pull` in the clone, then `pipx install --force .`, `uv tool install --reinstall .`, or `pip install .` in the venv.
+**Update:** in the clone, `git fetch --tags` and `git checkout` the newest tag, then `pipx install --force .`, `uv tool install --reinstall .`, or `pip install .` in the venv. Read [CHANGELOG.md](CHANGELOG.md) for changes that need attention.
 
 **Uninstall:** run `tinkerprint forget --all --yes` first if you want the data folder gone (see [What stays on disk](#what-stays-on-disk)). Then `pipx uninstall tinkerprint`, `uv tool uninstall tinkerprint`, or delete the venv.
 
@@ -57,11 +57,24 @@ For your own sheet:
 ```
 tinkerprint init      # writes tinkerprint.toml, with your name and email from git config
                       # then edit it: your other emails, and one [[project]] per project
-tinkerprint build     # sheet.html, card.png, card.svg, sheet.json
-tinkerprint audit     # every text string in the built card, before you share it
+tinkerprint build     # sheet.html and sheet.json, plus the card files
+tinkerprint audit     # what the built card holds, before you share it
 ```
 
 `build` and `audit` use `./tinkerprint.toml` when `--profile` is left out. Keep the profile outside your repos: it lists your folders and emails. A misspelled key, like `[[projects]]`, stops the build and names the right one.
+
+The portrait is yours to set. Under `[look]` in the profile:
+
+```
+[look]
+presentation = "neutral"   # neutral, man or woman
+skin = "medium"            # light, medium or deep. Unset is the art pack's own.
+hair = "bob"               # neutral: bob, curtains, shag. man: crop, curls, side part. woman: braid, waves, chignon
+eyes = "honey"             # honey, moss, slate, chestnut, plum or lagoon
+expression = "smile"       # smile, grin, calm, determined, joy or curious
+```
+
+Presentation is neutral unless you set it. Hair, eyes and expression left out are picked from the name the card shows, and `build` prints what it picked so you can keep it. Your coat, hat and tool come from your class.
 
 `tinkerprint gallery --out art` writes one page with every class of both sets, the faces, a room for each set, and every pin, trinket and party instrument. The art is pixel art made in code. An art pack recolors it, and `--art-pack` swaps the pack. See [docs/ART.md](docs/ART.md).
 
@@ -80,6 +93,7 @@ What a card reveals:
 - **Your level**, a band of active days over all history: level 15 means 225 to 255 days. The footer gives the exact count of active days in the season.
 - **Achievement months.** The earliest ones show roughly when you started.
 - **Your party**: which coding agents you used, never how much.
+- **Your portrait**: drawn from your class, multiclass and top stats, the name on the card and your `[look]`. It holds no text.
 - **The season** of a season build, the month it was built, and the method version.
 
 Nothing else: no project names, exact dates, hours, repos, paths or emails, unless `show` adds dates or project names.
@@ -94,7 +108,7 @@ hide = ["party", "level", "achievements"]  # any of these stay off the card
 show = ["dates", "projects"]  # exact dates and up to three project names go on the card
 ```
 
-Hiding the level also hides the day counts, since they give the same band away. `allow = true` still turns the card on for a work profile.
+Hiding the level also hides the day counts, since they give the same band away. `allow` is the older name for `enabled` and works the same way on every profile.
 
 People often screenshot the sheet instead. The sheet's **Share view** button hides everything the card would not show and leaves the room, with only the party the card shows, the card's name, class, level and top stats. It works without script, with the keyboard and by touch.
 
@@ -165,6 +179,8 @@ The cache, history, last-build files and `profiles.json` are private to you (mod
 ```
 python -m unittest discover -s tests
 ```
+
+[tools/README.md](tools/README.md) says how to regenerate the README images.
 
 ## License
 

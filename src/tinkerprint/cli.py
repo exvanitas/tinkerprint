@@ -349,7 +349,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"tinkerprint {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    b = sub.add_parser("build", help="build sheet.html, card.png, card.svg and sheet.json for a profile")
+    b = sub.add_parser("build", help="build sheet.html, sheet.json and the card files for a profile")
     b.add_argument("--profile", help=f"the profile to build. Default: ./{DEFAULT_PROFILE} when it exists")
     b.add_argument("--season", help="FROM:TO dates, for example 2025-01-01:2025-06-30. Default: all history")
     b.add_argument("--as-of", help="ignore everything after this date (YYYY-MM-DD)")
