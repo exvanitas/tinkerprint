@@ -1,4 +1,4 @@
-"""Command line: build, audit, init, demo."""
+"""Command line: build, audit, init, forget, demo, gallery."""
 from __future__ import annotations
 
 import argparse
@@ -251,6 +251,22 @@ def cmd_demo(args) -> int:
     return 0
 
 
+def cmd_forget(args) -> int:
+    from .forget import forget
+    from .profile import profile_id
+    if args.all:
+        key = None
+    else:
+        path = _profile_path(args, quiet=True)
+        if path is None:
+            raise ProfileError(f"forget needs --profile PATH or --all, or a {DEFAULT_PROFILE} in this folder")
+        key = profile_id(path)
+        print(f"Profile: {path}")
+    for line in forget(data_home(args.data_dir), key, args.yes):
+        print(line)
+    return 0
+
+
 def cmd_gallery(args) -> int:
     from .gallery import write_gallery
     if args.export_pack:
@@ -285,6 +301,15 @@ def parser() -> argparse.ArgumentParser:
     a.add_argument("--out", help="the build folder to audit. Default: this profile's last build")
     a.add_argument("--data-dir")
     a.set_defaults(func=cmd_audit)
+
+    f = sub.add_parser("forget", help="delete the cache and saved sheets for a profile, or everything")
+    which = f.add_mutually_exclusive_group()
+    which.add_argument("--profile", help=f"the profile to forget. Default: ./{DEFAULT_PROFILE} when it exists. "
+                                          "It need not exist any more")
+    which.add_argument("--all", action="store_true", help="everything tinkerprint keeps in the data folder")
+    f.add_argument("--data-dir")
+    f.add_argument("--yes", action="store_true", help="delete. Without it, forget only lists what it would delete")
+    f.set_defaults(func=cmd_forget)
 
     i = sub.add_parser("init", help="write a commented starter profile")
     i.add_argument("--out", default=DEFAULT_PROFILE)
