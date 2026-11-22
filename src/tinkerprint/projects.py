@@ -146,7 +146,8 @@ class WorkTree:
 
 
 class GitTree:
-    """Manifests read from one commit's tree with `git show`, whatever is checked out."""
+    """Manifests read from one commit's tree, whatever is checked out. Only a blob is read: a
+    gitlink or a tree at a manifest's name is no manifest."""
 
     def __init__(self, top: str, rev: str, prefix: str):
         self.top, self.rev, self.prefix = top, rev, prefix
@@ -155,8 +156,8 @@ class GitTree:
         return "/".join(x for x in (self.prefix, rel) if x and x != ".")
 
     def read(self, rel: str):
-        from .readers.git import NO_PROGRAMS, git_bytes
-        return git_bytes(["show", *NO_PROGRAMS, f"{self.rev}:{self._path(rel)}"], self.top)
+        from .readers.git import git_bytes
+        return git_bytes(["cat-file", "blob", f"{self.rev}:{self._path(rel)}"], self.top)
 
     def names(self, rel: str) -> list:
         from .readers.git import git_bytes

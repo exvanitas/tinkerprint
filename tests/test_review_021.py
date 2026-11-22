@@ -197,5 +197,63 @@ class WindowsLogPaths(unittest.TestCase):
                          sorted([local + r"\f0.py", local + r"\f1.py", "f2.py", "f3.py"]))
 
 
+class Git(unittest.TestCase):
+    ME = ("Ida Fenwick", "ida@fenwick.example.test")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.t = os.path.realpath(self.tmp.name)
+
+    def git(self, cwd, *args):
+        import subprocess
+        from tinkerprint.demo import git_env
+        when = "2026-03-05T10:00:00+00:00"
+        env = dict(git_env(), GIT_AUTHOR_NAME=self.ME[0], GIT_AUTHOR_EMAIL=self.ME[1], GIT_COMMITTER_NAME=self.ME[0],
+                   GIT_COMMITTER_EMAIL=self.ME[1], GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when,
+                   GIT_ALLOW_PROTOCOL="file")
+        return subprocess.run(["git", "-C", cwd, *args], check=True, capture_output=True, env=env).stdout
+
+    def test_a_manifest_that_is_a_gitlink_is_not_read(self):
+        from tinkerprint.projects import GitTree
+        repo = os.path.join(self.t, "repo")
+        os.makedirs(repo)
+        self.git(repo, "init", "-q")
+        with open(os.path.join(repo, "package.json"), "w") as f:
+            f.write('{"dependencies": {}}\n')
+        self.git(repo, "add", "package.json")
+        self.git(repo, "commit", "-q", "-m", "one")
+        head = self.git(repo, "rev-parse", "HEAD").decode().strip()
+        self.git(repo, "update-index", "--add", "--cacheinfo", f"160000,{head},pyproject.toml")
+        self.git(repo, "commit", "-q", "-m", "two")
+        tree = GitTree(repo, "HEAD", "")
+        self.assertEqual(tree.read("package.json"), b'{"dependencies": {}}\n')
+        self.assertIsNone(tree.read("pyproject.toml"))
+        self.assertIsNone(tree.read(""))  # the tree itself
+
+    def test_a_boundary_only_commit_adds_no_lines(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from tinkerprint.demo import RepoWriter
+        from tinkerprint.readers.git import Identity, read_git
+        full = os.path.join(self.t, "full")
+        r = RepoWriter(full)
+        utc = ZoneInfo("UTC")
+        files = {f"src/m.{ext}": 1200 for ext in ("py", "ts", "go", "rs", "rb")}
+        r.touch(datetime(2026, 3, 1, 10, tzinfo=utc), self.ME, files)
+        r.touch(datetime(2026, 3, 2, 10, tzinfo=utc), self.ME, {"src/m.py": 3})
+        r.write()
+        shallow = os.path.join(self.t, "shallow")
+        self.git(self.t, "clone", "-q", "--depth", "1", "file://" + full, shallow)
+        ident = Identity([self.ME[1]], [], [])
+        alone = read_git([shallow], ident, in_roots=lambda p: True)
+        self.assertTrue(alone.events)
+        self.assertEqual({e.added for e in alone.events}, {0})
+        both = read_git([shallow, full], ident, in_roots=lambda p: True)
+        last = [e for e in both.events if e.ts.startswith("2026-03-02")]
+        self.assertTrue(last)
+        self.assertTrue(all(e.added > 0 for e in last))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -355,8 +355,9 @@ def read_git(roots, ident: Identity, in_roots=None) -> Inputs:
             continue
         for path, st, add in c["files"]:
             where = next((t for t, _ in copies if in_roots(os.path.join(t, path))), top)
+            # A boundary-only copy counts its whole tree as added: its line counts are unknown.
             res.events.append(Event(ts=ts, source="git", kind="commit", path=os.path.join(where, path),
-                                    actor="human", commit=h, status=st, added=add, op=h))
+                                    actor="human", commit=h, status=st, added=add if complete else 0, op=h))
     tags = {}
     for top in tops:
         for t in read_tags(top, ident):
