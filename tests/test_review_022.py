@@ -144,6 +144,37 @@ class BuildAndForget(Base):
             self.assertEqual(main(["audit", "--profile", a, "--data-dir", self.data]), 0)
 
 
+class AuditTypes(unittest.TestCase):
+    def test_a_field_of_the_wrong_type_fails_in_plain_words(self):
+        import tempfile
+        from helpers import commit, profile, run
+        from test_review_021 import write_card
+        from tinkerprint.audit import audit, schema_problems
+        evs = [commit("2026-03-02T10:00:00+00:00", "/w/kite/app.py"),
+               commit("2026-03-03T10:00:00+00:00", "/w/kite/app.py", h="c2")]
+        prof = profile([("Kite", "/w/kite", None)], name="Ida Fenwick", card={"show": ["projects"]})
+        base = run(prof, evs)[0]
+        edits = {"stats": lambda c: c["stats"].__setitem__(0, dict(c["stats"][0], stat=["Logic"])),
+                 "projects": lambda c: c.__setitem__("projects", [["Kite"]]),
+                 "party": lambda c: c.__setitem__("party", [{"x": 1}]),
+                 "look": lambda c: c.__setitem__("look", ["x"]),
+                 "level": lambda c: c.__setitem__("level", "9"),
+                 "achievements": lambda c: c.__setitem__("achievements", [["x"]]),
+                 "class": lambda c: c.__setitem__("class", ["x"])}
+        for field, edit in edits.items():
+            with tempfile.TemporaryDirectory() as t:
+                write_card(t, json.loads(json.dumps(base)))
+                sheet = json.loads(json.dumps(base))
+                edit(sheet["card"])
+                with open(os.path.join(t, "sheet.json"), "w", encoding="utf-8") as f:
+                    json.dump(sheet, f)
+                self.assertIn(field, schema_problems(sheet["card"]))
+                for p in (None, prof):
+                    lines, clean = audit(t, p)
+                    self.assertFalse(clean, field)
+                    self.assertIn(f"may not show ({field}", lines[-1])
+
+
 class ForgetReport(Base):
     def setUp(self):
         super().setUp()

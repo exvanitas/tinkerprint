@@ -280,32 +280,55 @@ _NOT_SETTINGS = {"stats", "chart", "built"}
 _MONTH = re.compile(r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4}")
 
 
+def _int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _strs(v) -> bool:
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+# The type each saved card field must have, when it is there. A field of another type, such as a
+# list for a name, fails the audit in plain words before anything reads it.
+_TYPES = {
+    "enabled": lambda v: isinstance(v, bool), "name": lambda v: isinstance(v, str), "set": lambda v: isinstance(v, str),
+    "class": lambda v: isinstance(v, str), "multiclass": lambda v: isinstance(v, str),
+    "season": lambda v: isinstance(v, str), "chart": lambda v: isinstance(v, str),
+    "method": lambda v: _int(v) or isinstance(v, str), "level": _int,
+    "named": _strs, "party": _strs, "projects": _strs,
+    "look": lambda v: isinstance(v, dict) and all(isinstance(x, str) or x is None for x in v.values()),
+    "days": lambda v: isinstance(v, dict) and all(_int(x) for x in v.values()),
+    "achievements": lambda v: isinstance(v, list) and all(
+        isinstance(a, dict) and isinstance(a.get("title"), str) and isinstance(a.get("when"), str) for a in v),
+}
+
+
 def schema_problems(card) -> list:
     """What in the saved card fields lies outside what a card may show: [] when nothing does.
-    These fields come from the shares and the build date, not from a setting, so no profile
-    check covers them."""
+    Every field must have its type. The stats, the chart and the build month come from the shares
+    and the build date, not from a setting, so no profile check covers them: their values are
+    checked here too."""
     from .sets import SETS
-    out = []
-    if not isinstance(card.get("name"), str):
+    out = [k for k, ok in _TYPES.items() if k in card and not ok(card[k])]
+    if "name" not in card and "name" not in out:
         out.append("name")
-    stats_of = SETS.get(str(card.get("set", "")).lower())
-    if stats_of is None:
+    stats_of = SETS.get(card["set"].lower()) if isinstance(card.get("set"), str) else None
+    if stats_of is None and "set" not in out:
         out.append("set")
     built = card.get("built")
     if built is not None and not (isinstance(built, str) and _MONTH.fullmatch(built)):
         out.append("built")
     stats = card.get("stats")
-    good = isinstance(stats, list) and len({s.get("stat") for s in stats if isinstance(s, dict)}) == len(stats)
-    for st in stats if good else ():
-        pct = st.get("pct")
-        if (not isinstance(st, dict) or set(st) != {"stat", "pct"} or st["stat"] not in (stats_of or ())
-                or not isinstance(pct, int) or isinstance(pct, bool) or not 0 <= pct <= 100 or pct % 5):
-            good = False
+    good = isinstance(stats, list) and all(
+        isinstance(st, dict) and set(st) == {"stat", "pct"} and isinstance(st["stat"], str)
+        and st["stat"] in (stats_of or ()) and _int(st["pct"]) and 0 <= st["pct"] <= 100 and not st["pct"] % 5
+        for st in stats) and len({st["stat"] for st in stats}) == len(stats)
     if not good:
         out.append("stats")
     lit = sum(1 for st in stats if st["pct"] > 0) if good else None
     if card.get("chart") not in ("radar", "bars") or (lit is not None and (card["chart"] == "radar") != (lit >= 3)):
-        out.append("chart")
+        if "chart" not in out:
+            out.append("chart")
     return out
 
 
@@ -326,7 +349,7 @@ def stale_fields(sheet: dict | None, profile) -> list | None:
     # what the card drew, not what the profile allows now.
     allowed = {p.name for p in profile.projects}
     shown = card.get("projects")
-    if shown is not None and (not isinstance(shown, list) or any(n not in allowed for n in shown)):
+    if shown is not None and (not isinstance(shown, list) or any(not isinstance(n, str) or n not in allowed for n in shown)):
         stale.add("projects")
     return sorted(stale)
 
