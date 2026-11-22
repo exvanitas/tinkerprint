@@ -1,9 +1,11 @@
 """sheet.html: the private sheet. One file, no network, a content policy that blocks every request."""
 from __future__ import annotations
 
+import base64
 from html import escape
 
-from . import art, radar
+from . import art, look as looks, radar
+from .art import keepsake
 from .art.pixels import mix
 from .render_card import visible as card_visible
 from .timeutil import day_label
@@ -207,7 +209,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .chron { list-style: none; margin: 0; display: flex; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
 .chap { flex: 1 0 140px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; text-align: center;
   position: relative; padding: 0 6px; }
-.chap::before { content: ""; position: absolute; left: 0; right: 0; top: 74px; height: 4px; background: repeating-linear-gradient(90deg, var(--axis) 0 10px, transparent 10px 16px); }
+.chap::before { content: ""; position: absolute; left: 0; right: 0; top: 90px; height: 4px; background: repeating-linear-gradient(90deg, var(--axis) 0 10px, transparent 10px 16px); }
 .chap:first-child::before { left: 50%; }
 .chap:last-child::before { right: 50%; }
 .chap .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-variant-numeric: tabular-nums; height: 18px; }
@@ -429,12 +431,13 @@ def _art(sheet: dict, pack: dict) -> dict:
     shown = [m["harness"] for m in sheet["party"] if card and m["name"] in card["members"]]
     a["share_scene"] = (_hero_scene(sheet, pack, main, alt, name, ranked, shown)
                         if card and shown != harnesses else None)
-    a["familiar"] = {m["harness"]: art.familiar(pack, m["harness"]).svg(3, f"{m['name']} familiar", "px")
+    # Party members are presence only: each instrument depends on the harness name alone.
+    a["familiar"] = {m["harness"]: keepsake.instrument(m["harness"]).svg(4, f"{m['name']}'s instrument", "px")
                      for m in sheet["party"]}
-    a["icon"] = {x["id"]: art.icon(pack, x["id"]).svg(3, "", "px") for x in sheet["achievements"]}
-    a["milestone"] = art.icon(pack, "milestone").svg(2, "", "px")
-    a["trinket"] = {r["key"]: art.trinket(pack, r["key"]).svg(4, "", "px") for r in sheet["stats"]}
-    a["small_trinket"] = {r["key"]: art.trinket(pack, r["key"]).svg(2, "", "px") for r in sheet["stats"]}
+    a["icon"] = {x["id"]: keepsake.pin(pack, x["id"]).svg(4, "", "px") for x in sheet["achievements"]}
+    a["milestone"] = keepsake.pin(pack, "milestone").svg(2, "", "px")
+    a["trinket"] = {r["key"]: keepsake.trinket(pack, r["key"]).svg(5, "", "px") for r in sheet["stats"]}
+    a["small_trinket"] = {r["key"]: keepsake.trinket(pack, r["key"]).svg(3, "", "px") for r in sheet["stats"]}
     a["hue"] = {r["key"]: art.stat_ramp(pack, r["key"]) for r in sheet["stats"]}
     a["chronicle"] = _chronicle(sheet, pack)
     return a
@@ -445,30 +448,33 @@ def _chronicle(sheet: dict, pack: dict) -> str:
     if not chapters:
         return ""
     set_name = sheet["profile"]["set"]
+    # Every chapter is the person in their own look and room, dressed for that quarter's class.
+    seed, tokens = looks.of_sheet(sheet)
     cards = []
     cache: dict = {}
     defs: list = []
-    side = pack["canvas"][0]
-    scale = 2 if side <= 48 else 1
+    camp = None
     for i, ch in enumerate(chapters):
         now = " now" if i == len(chapters) - 1 else ""
         if ch.get("rest"):
-            fire = art.plate(pack, set_name)
-            flame = art.campfire(pack)
-            fire.paste(flame, (fire.w - flame.w) // 2, fire.h - flame.h - 3)
+            if camp is None:
+                camp = keepsake.camp(pack, set_name, seed).svg(2, "A camp under the night sky", "px")
             span = ch["label"] if ch["quarters"] == 1 else f'{ch["label"]} to {ch["label_to"]}'
             latest = ' · <span class="tag">Latest</span>' if now else ""
             cards.append(f'<li class="chap rest{now}"><div class="q">{e(span)}{latest}</div>'
-                         f'<div class="pic">{fire.svg(scale, "A campfire", "px")}</div><div class="c">Resting at camp</div>'
+                         f'<div class="pic">{camp}</div><div class="c">Resting at camp</div>'
                          f'<div class="n">{plural(ch["quarters"], "quiet quarter")}</div></li>')
             continue
         look = art.chapter_look(ch, set_name)
         if look not in cache:
             # Each look is drawn once in <defs>. Chapters that share it reuse it.
             ref = f"look-{len(cache)}"
-            defs.append(f'<g id="{ref}">' + "".join(art.portrait(pack, look).svg_paths()) + "</g>")
-            cache[look] = (f'<svg class="px" viewBox="0 0 {side} {side}" width="{side * scale}" height="{side * scale}" shape-rendering="crispEdges" '
-                           f'aria-hidden="true"><use href="#{ref}"/></svg>')
+            tile = keepsake.plate(pack, look, seed, **looks.options(tokens))
+            data = base64.b64encode(tile.png(2, indexed=True)).decode("ascii")
+            defs.append(f'<g id="{ref}"><image width="{tile.w}" height="{tile.h}" style="image-rendering:pixelated" '
+                        f'href="data:image/png;base64,{data}"/></g>')
+            cache[look] = (f'<svg class="px" viewBox="0 0 {tile.w} {tile.h}" width="{tile.w * 2}" height="{tile.h * 2}" '
+                           f'shape-rendering="crispEdges" aria-hidden="true"><use href="#{ref}"/></svg>')
         c = ch.get("class")
         name = c["name"] if c else "Unclassed"
         close = f'<div class="n">close to {e(ch["close"])}</div>' if ch.get("close") else ""

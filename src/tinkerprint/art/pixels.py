@@ -132,7 +132,7 @@ class Canvas:
     def svg(self, scale: int = 1, label: str = "", cls: str = "px") -> str:
         """A self-contained SVG for the HTML page, with native pixels and nearest-neighbor scaling."""
         aria = f' role="img" aria-label="{_attr(label)}"' if label else ' aria-hidden="true"'
-        if scale in (1, 2, 3, 4):
+        if scale in (1, 2, 3, 4, 5, 6):
             # Match the requested display resolution even in viewers that ignore image-rendering.
             image = base64.b64encode(self.png(int(scale), indexed=True)).decode("ascii")
             content = (f'<image width="{self.w}" height="{self.h}" style="image-rendering:pixelated" '
