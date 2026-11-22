@@ -353,6 +353,45 @@ SCOPE_PARTS = {"projects": "projects", "roots": "roots", "identity": "identity",
                "days": "time zone or rollover"}
 
 
+def _whole(v, default=None):
+    """An integer, never a bool, else default."""
+    return v if isinstance(v, int) and not isinstance(v, bool) else default
+
+
+def _share(v) -> float:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else 0.0
+
+
+def _rows(v, *keys) -> list:
+    """The dicts of a list that hold each key as a string."""
+    return [r for r in v if isinstance(r, dict) and all(isinstance(r.get(k), str) for k in keys)] \
+        if isinstance(v, list) else []
+
+
+def _class_of(c):
+    ok = (isinstance(c, dict) and isinstance(c.get("kind"), str) and isinstance(c.get("name"), str)
+          and isinstance(c.get("stats"), list) and all(isinstance(x, str) for x in c["stats"]))
+    return c if ok else None
+
+
+def saved_view(prev: dict) -> dict:
+    """What compare reads from a saved sheet, each value checked for its type. A damaged or
+    edited saved sheet never stops a build and never puts its text where a number goes."""
+    ph = prev.get("history") if isinstance(prev.get("history"), dict) else {}
+    pr = prev.get("profile") if isinstance(prev.get("profile"), dict) else {}
+    return {
+        "method": prev.get("method"),
+        "scope": prev.get("_scope") if isinstance(prev.get("_scope"), dict) else None,
+        "set": pr.get("set") if isinstance(pr.get("set"), str) else None,
+        "points": _whole(ph.get("points"), 0),
+        "level": _whole(ph.get("level")),
+        "shares": {r["key"]: _share(r.get("share")) for r in _rows(prev.get("stats"), "key")},
+        "party": {m["harness"]: _whole(m.get("sessions"), 0) for m in _rows(prev.get("party"), "harness")},
+        "achievements": {a["id"] for a in _rows(prev.get("achievements"), "id")},
+        "class": _class_of(prev.get("class")),
+    }
+
+
 def compare(sheet: dict, prev: dict | None, prev_as_of: str | None, scope: dict | None = None) -> dict:
     """What changed since an earlier sheet of the same profile and season. Never part of sheet.json.
 
@@ -364,35 +403,37 @@ def compare(sheet: dict, prev: dict | None, prev_as_of: str | None, scope: dict 
     """
     if not prev:
         return {"against": None}
-    if prev.get("method") != sheet.get("method"):
-        return {"against": prev_as_of, "method_changed": True, "method_from": prev.get("method"),
+    v = saved_view(prev)
+    if v["method"] != sheet.get("method"):
+        method_from = v["method"] if isinstance(v["method"], (int, str)) and not isinstance(v["method"], bool) else None
+        return {"against": prev_as_of, "method_changed": True, "method_from": method_from,
                 "method_to": sheet.get("method")}
-    before = prev.get("_scope") if isinstance(prev.get("_scope"), dict) else None
+    before = v["scope"]
     scope_changed = ([SCOPE_PARTS[k] for k in SCOPE_PARTS if before.get(k) != scope.get(k)]
                      if before and scope else [])
-    set_changed = prev.get("profile", {}).get("set") != sheet["profile"]["set"]
-    ph, h = prev.get("history", {}), sheet["history"]
+    set_changed = v["set"] != sheet["profile"]["set"]
+    h = sheet["history"]
     drift = []
     if not set_changed:
-        pshares = {r["key"]: r.get("share", 0.0) for r in prev.get("stats", [])}
+        pshares = v["shares"]
         for r in sheet["stats"]:
             delta = _r(r["share"] - pshares.get(r["key"], 0.0))
             if abs(delta) >= 0.01:
                 drift.append({"stat": r["key"], "from": _r(pshares.get(r["key"], 0.0)), "to": r["share"],
                               "delta": delta})
         drift.sort(key=lambda x: -abs(x["delta"]))
-    pp = {m["harness"]: m for m in prev.get("party", [])}
+    pp = v["party"]
     cp = {m["harness"]: m for m in sheet["party"]}
-    pa = {a["id"] for a in prev.get("achievements", [])}
-    pc, cc = prev.get("class"), sheet.get("class")
+    pa = v["achievements"]
+    pc, cc = v["class"], sheet.get("class")
     return {
         "against": prev_as_of,
         "method_changed": False,
         "scope_changed": scope_changed,
         "set_changed": set_changed,
-        "set_from": prev.get("profile", {}).get("set"),
-        "points_since": h["points"] - int(ph.get("points", 0)),
-        "level_from": ph.get("level"),
+        "set_from": v["set"],
+        "points_since": h["points"] - v["points"],
+        "level_from": v["level"],
         "level_to": h["level"],
         "class_from": (pc or {}).get("name") or "Unclassed",
         "class_to": (cc or {}).get("name") or "Unclassed",
@@ -400,8 +441,8 @@ def compare(sheet: dict, prev: dict | None, prev_as_of: str | None, scope: dict 
         "drift": drift,
         "party_joined": [HARNESS_NAMES[k] for k in sorted(set(cp) - set(pp))],
         "party_left": [HARNESS_NAMES[k] for k in sorted(set(pp) - set(cp)) if k in HARNESS_NAMES],
-        "party_sessions": [{"name": cp[k]["name"], "sessions_since": cp[k]["sessions"] - pp[k]["sessions"]}
-                           for k in sorted(set(cp) & set(pp)) if cp[k]["sessions"] != pp[k]["sessions"]],
+        "party_sessions": [{"name": cp[k]["name"], "sessions_since": cp[k]["sessions"] - pp[k]}
+                           for k in sorted(set(cp) & set(pp)) if cp[k]["sessions"] != pp[k]],
         "achievements_new": [a["title"] for a in sheet["achievements"] if a["id"] not in pa],
     }
 

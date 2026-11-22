@@ -1,5 +1,7 @@
 """End to end: privacy of the card and audit, determinism, the no-network rule and the demo."""
 import ast
+import base64
+import hashlib
 import io
 import os
 import re
@@ -135,7 +137,15 @@ class Built(unittest.TestCase):
     def test_html_page_contract(self):
         with open(self.out["wren"]["paths"]["html"], encoding="utf-8") as f:
             page = f.read()
-        self.assertIn("default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:", page)
+        # The one inline script runs by its hash. No other script may.
+        m = re.search(r"script-src 'sha256-([A-Za-z0-9+/=]+)'", page)
+        self.assertIsNotNone(m)
+        self.assertIn("default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-", page)
+        self.assertNotIn("script-src 'unsafe-inline'", page)
+        scripts = re.findall(r"<script>(.*?)</script>", page, re.S)
+        self.assertEqual(len(scripts), 1)
+        digest = base64.b64encode(hashlib.sha256(scripts[0].encode("utf-8")).digest()).decode("ascii")
+        self.assertEqual(m.group(1), digest)
         self.assertNotRegex(page, r"(?i)(src|href)=\"https?:")
         self.assertIn("Method version 3", page)
         self.assertIn("What changed", page)

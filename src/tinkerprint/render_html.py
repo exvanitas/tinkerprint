@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import math
 from html import escape
 
 from . import art, look as looks, radar
@@ -12,7 +14,11 @@ from .party import HARNESS_NAMES
 from .render_card import visible as card_visible
 from .timeutil import day_label
 
-CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
+def csp(script: str) -> str:
+    """The sheet's Content-Security-Policy. The one inline script runs only when its bytes hash to
+    the sha256 named here, so no other script on the page can run."""
+    digest = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode("ascii")
+    return f"default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-{digest}'; img-src data:"
 
 CSS = """
 :root {
@@ -290,10 +296,21 @@ JS = """
   if (chron) chron.scrollLeft = chron.scrollWidth;
 })();
 """
+# The policy for a page that carries JS, as the gallery does too.
+CSP = csp(JS)
 
 
 def e(x) -> str:
     return escape(str(x), quote=True)
+
+
+def _whole(v, default=None):
+    """An integer, never a bool, else default. Numbers from saved history are checked again here."""
+    return v if isinstance(v, int) and not isinstance(v, bool) else default
+
+
+def _share(v) -> float:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else 0.0
 
 
 def pct(x: float) -> str:
@@ -369,10 +386,11 @@ def _changes(ch: dict | None) -> str:
         what = _and([e(x) for x in ch["scope_changed"]])
         items.append(f"The profile's {what} changed since then, so these differences include history newly "
                      "added or removed, not only new activity.")
-    n = ch["points_since"]
+    n = _whole(ch.get("points_since"), 0)
     items.append(f"{n:+d} {'point' if abs(n) == 1 else 'points'}.")
-    if ch.get("level_from") is not None and ch["level_to"] != ch["level_from"]:
-        items.append(f"Level {ch['level_from']} to level {ch['level_to']}.")
+    lv_from, lv_to = _whole(ch.get("level_from")), _whole(ch.get("level_to"))
+    if lv_from is not None and lv_to is not None and lv_to != lv_from:
+        items.append(f"Level {e(lv_from)} to level {e(lv_to)}.")
     if ch.get("set_changed"):
         items.append(f"Set changed from {e(ch.get('set_from') or 'another set')}. Class and shares are not compared.")
     elif ch.get("new_class"):
@@ -380,13 +398,13 @@ def _changes(ch: dict | None) -> str:
     else:
         items.append(f"Same class: {e(ch['class_to'])}.")
     for d in ch.get("drift", [])[:4]:
-        items.append(f"{e(d['stat'])} {pct(d['from'])} to {pct(d['to'])}.")
+        items.append(f"{e(d['stat'])} {e(pct(_share(d['from'])))} to {e(pct(_share(d['to'])))}.")
     for name in ch.get("party_joined", []):
         items.append(f"{e(name)} joined the party.")
     for name in ch.get("party_left", []):
         items.append(f"{e(name)} left the party.")
     for p in ch.get("party_sessions", []):
-        items.append(f"{e(p['name'])}: {p['sessions_since']:+d} sessions.")
+        items.append(f"{e(p['name'])}: {_whole(p['sessions_since'], 0):+d} sessions.")
     for t in ch.get("achievements_new", []):
         items.append(f"New achievement: {e(t)}.")
     lis = "".join(f"<li>{i}</li>" for i in items)
@@ -728,7 +746,7 @@ def render_html(sheet: dict, built_at: str = "", changes: dict | None = None, pa
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="{CSP}">
+<meta http-equiv="Content-Security-Policy" content="{csp(JS)}">
 <title>{title}</title>
 <style>{CSS}</style>
 </head>

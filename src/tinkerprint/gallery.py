@@ -16,7 +16,7 @@ from .art import keepsake
 from .art.compose import look_for
 from .art.pixels import Canvas
 from .datadir import _write
-from .render_html import CSP, CSS, JS, _chronicle, _layer, _worn
+from .render_html import CSS, JS, _chronicle, _layer, _worn, csp
 from .sets import GENERALIST, PAIR, SETS, SPECIALIST
 
 GALLERY_CSS = """
@@ -183,7 +183,7 @@ def write_gallery(out: str, pack: dict | None = None, png: bool = False) -> list
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="{CSP}">
+<meta http-equiv="Content-Security-Policy" content="{csp(JS)}">
 <title>tinkerprint gallery</title>
 <style>{CSS}{GALLERY_CSS}</style>
 </head>

@@ -48,6 +48,8 @@ Pixel art, a card you can post anywhere, and an easier first run.
 - "What changed" says when the profile's projects, roots, identity, harnesses or day settings changed in between, and says when an update changed the method instead of comparing.
 - A build reads your repos without starting any program their git config names, such as a signature checker or a diff filter, and without fetching, whatever the repo or your `GIT_` variables say.
 - `demo` writes its repos only inside its own temporary folder, even when `GIT_DIR` or `GIT_WORK_TREE` is set.
+- The sheet runs only its own small script, for the theme, the costume button and the chronicle. A browser refuses any other script on the page.
+- A saved sheet that was damaged or edited by hand no longer stops a build. "What changed" shows only the numbers and names it can trust.
 - The card files (`card.svg`, `card.png`, `portrait.png`, `portrait.gif`) are readable by others, so a web server or a copy can serve them, and only you can change them. The sheet (`sheet.html`, `sheet.json`, `changes.json`), the cache and history stay private to you.
 
 ### Accuracy and achievements
