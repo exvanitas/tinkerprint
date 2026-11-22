@@ -15,6 +15,7 @@ from datetime import date
 import helpers
 from helpers import commit, profile, run
 from tinkerprint import art
+from tinkerprint.art import keepsake
 from tinkerprint.art.compose import Look, look_for
 from tinkerprint.art.pack import PackError, check_pack, load_pack
 from tinkerprint.art.pixels import Canvas, read_png_size
@@ -44,120 +45,19 @@ def png_pixels(data: bytes) -> tuple:
     return w, h, zlib.decompress(idat)
 
 
-class EveryClass(unittest.TestCase):
-    def test_all_presentations_at_native_size(self):
-        for set_name in SETS:
-            cases = class_looks(set_name) + [("Unclassed", look_for(set_name, None, [], []), "")]
-            for name, look, _ in cases:
-                renders = []
-                for mode in ("neutral", "man", "woman"):
-                    with self.subTest(set=set_name, name=name, mode=mode):
-                        fig = art.figure(PACK, look, presentation=mode)
-                        self.assertEqual((fig.w, fig.h), (48, 48))
-                        paint = {(x, y) for y, row in enumerate(fig.px) for x, ink in enumerate(row) if ink}
-                        self.assertTrue(all(0 < x < 47 and 0 < y < 47 for x, y in paint))
-                        # Follow the contour too: an isolated fleck inside the frame is a stray.
-                        todo = [paint.pop()]
-                        while todo:
-                            x, y = todo.pop()
-                            for pt in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                                if pt in paint:
-                                    paint.remove(pt)
-                                    todo.append(pt)
-                        self.assertFalse(paint)
-                        plated = art.plate(PACK, set_name)
-                        plated.paste(fig, 0, 0)
-                        pic = art.portrait(PACK, look, presentation=mode)
-                        self.assertEqual(pic.px, plated.px)
-                        renders.append(pic.png())
-                        if mode == "neutral":
-                            self.assertEqual(art.figure(PACK, look).px, fig.px)
-                            self.assertEqual(art.portrait(PACK, look).px, pic.px)
-                self.assertEqual(len(set(renders)), 3, (set_name, name))
-
-    def test_facial_hair_follows_presentation_for_every_class(self):
-        pack = copy.deepcopy(PACK)
-        marker = "#01fa03"
-        for part in pack["parts"].values():
-            for key in set(part.get("palette", {})) & set("&$^"):
-                part["palette"][key] = marker
-        for set_name in SETS:
-            cases = class_looks(set_name) + [("Unclassed", look_for(set_name, None, [], []), "")]
-            for name, look, _ in cases:
-                for mode in ("neutral", "man", "woman"):
-                    fig = art.figure(pack, look, presentation=mode)
-                    self.assertEqual(marker in fig.colors(), mode == "man", (name, mode))
-
-    def test_unknown_presentation_is_refused(self):
-        look = look_for("builder", None, [], [])
-        for draw in (art.figure, art.portrait):
-            for unknown in ("automatic", "", None, []):
-                with self.assertRaisesRegex(PackError, "unknown presentation"):
-                    draw(PACK, look, presentation=unknown)
-
-    def test_every_class_of_both_sets_draws_a_distinct_portrait(self):
-        for set_name in SETS:
-            looks = class_looks(set_name)
-            self.assertEqual(len(looks), 37)
-            seen = {}
-            for name, look, _ in looks:
-                c = art.portrait(PACK, look)
-                fig = art.compose.figure(PACK, look)
-                drawn = sum(1 for row in fig.px for p in row if p)
-                self.assertGreater(drawn, 250, name)
-                self.assertGreaterEqual(len(fig.colors()), 7, name)
-                self.assertLessEqual(set(c.colors()), set(PACK["ink"].values()), name)
-                svg = c.svg(3)
-                self.assertNotIn(svg, seen, (set_name, name, seen.get(svg)))
-                seen[svg] = name
-
-    def test_both_orders_of_every_pair_and_every_runner_up_draw(self):
-        for set_name, stats in SETS.items():
-            for a, b in PAIR[set_name]:
-                for top, item in ((a, b), (b, a)):
-                    look = look_for(set_name, "pair", [a, b], [top, item])
-                    self.assertEqual((look.top, look.item), (top, item))
-                    art.portrait(PACK, look)
-            for s in SPECIALIST[set_name]:
-                for other in stats:
-                    look = look_for(set_name, "specialist", [s], [s, other] if other != s else [s])
-                    self.assertEqual(look.item, other)
-                    art.portrait(PACK, look)
-
-    def test_figures_stay_inside_the_canvas(self):
-        """All the paint, including the selective outline, fits inside the border."""
-        ok = {None}
-        for set_name in SETS:
-            cases = [(name, look) for name, look, _ in class_looks(set_name)]
-            cases += [(f"{a} holding {b}", Look(set_name, "pair", a, b))
-                      for a in SETS[set_name] for b in SETS[set_name] if a != b]
-            for name, look in cases:
-                for multi in ((), tuple(SETS[set_name][:2])):
-                    fig = art.compose.figure(PACK, Look(look.set_name, look.kind, look.top, look.item, multi))
-                    edge = [fig.px[y][0] for y in range(fig.h)] + [fig.px[y][fig.w - 1] for y in range(fig.h)]
-                    edge += fig.px[0] + fig.px[fig.h - 1]
-                    self.assertLessEqual(set(edge), ok, name)
-
-    def test_familiars_icons_and_trinkets_exist_for_every_key(self):
-        from tinkerprint.achievements import RULES
-        for h in ("claude", "codex", "agy", "something-new"):
-            self.assertGreater(len(art.familiar(PACK, h).colors()), 3)
-        svgs = {art.icon(PACK, k).svg() for k in list(RULES) + ["milestone"]}
-        self.assertEqual(len(svgs), len(RULES) + 1)
-        for stat in {s for v in SETS.values() for s in v}:
-            self.assertGreater(len(art.trinket(PACK, stat).colors()), 2)
-
-
 class Deterministic(unittest.TestCase):
     def test_same_input_same_bytes(self):
         look = look_for("tinkerer", "pair", ["Art", "Worlds"], ["Art", "Worlds", "Lore", "Community"],
                         ["Lore", "Community"])
         ranked = [("Art", 30), ("Worlds", 25), ("Lore", 15), ("Community", 10)]
-        a = art.banner(PACK, look, ranked, ["claude", "codex"], "seed")
-        b = art.banner(art.default_pack(), look, ranked, ["claude", "codex"], "seed")
-        self.assertEqual(a.svg(), b.svg())
-        self.assertEqual(a.png(4), b.png(4))
-        self.assertNotEqual(a.svg(), art.banner(PACK, look, ranked, ["claude", "codex"], "other").svg())
+
+        def room(pack, seed):
+            layers = keepsake.banner_layers(pack, look, ranked, ["claude", "codex"], seed)
+            return b"".join(keepsake.encode(layer.frames, keepsake.DELAYS_MS)
+                            for layer in (layers.background, layers.figure, layers.foreground))
+
+        self.assertEqual(room(PACK, "Rae Quill"), room(art.default_pack(), "Rae Quill"))
+        self.assertNotEqual(room(PACK, "Rae Quill"), room(PACK, "Ash Vale"))
 
     def test_gallery_is_byte_identical_across_processes_and_hash_seeds(self):
         code = ("import hashlib, os, sys\n"
@@ -205,8 +105,7 @@ class Deterministic(unittest.TestCase):
 
     def test_svg_paths_cover_exactly_the_drawn_pixels(self):
         look = look_for("builder", "pair", ["Logic", "Tests"], ["Logic", "Tests"])
-        for scene in (True, False):
-            c = art.portrait(PACK, look, scene=scene)
+        for c in (keepsake.plate(PACK, look, "Rae Quill"), keepsake.figure(PACK, look)):
             cover = {}
             for path in c.svg_paths():
                 match = re.fullmatch(r'<path fill="(#[0-9a-f]{6})" d="([^"]+)"/>', path)
@@ -240,26 +139,21 @@ class Deterministic(unittest.TestCase):
 
 
 class Packs(unittest.TestCase):
-    def test_pack_controls_heads_and_skin_independently(self):
+    def test_pack_skin_is_the_default_and_a_look_skin_overrides_it(self):
         pack = copy.deepcopy(PACK)
-        look = look_for("tinkerer", "specialist", ["Lore"], ["Lore"])
-        custom = ("#d7a471", "#a76a48", "#714a40", "#49323a")
-        for mode in ("neutral", "man", "woman"):
-            fig = art.figure(pack, look, skin=custom, presentation=mode)
-            self.assertTrue(set(custom) <= set(fig.colors()))
-            self.assertEqual(fig.px, art.portrait(pack, look, False, skin=custom, presentation=mode).px)
-        for invalid in ([], ["red"] * 4):
+        custom = ["#ebbc8a", "#ae7555", "#78514d", "#473747"]
+        pack["skin_colors"] = custom
+        check_pack(pack)
+        for set_name in SETS:
+            looks = [look for _, look, _ in class_looks(set_name)] + [look_for(set_name, None, [], [])]
+            for look in looks:
+                self.assertIn(custom[0], keepsake.figure(pack, look).colors(), look)
+                deep = keepsake.figure(pack, look, skin="deep")
+                self.assertNotIn(custom[0], deep.colors(), look)
+                self.assertEqual(deep.px, keepsake.figure(PACK, look, skin="deep").px)
+        for invalid in ([], ["red"] * 4, "olive"):
             with self.assertRaises(PackError):
-                art.figure(pack, look, skin=invalid)
-        pack["presentations"]["cropped"] = dict(pack["presentations"]["man"])
-        check_pack(pack)
-        self.assertEqual(art.figure(pack, look, presentation="cropped").px,
-                         art.figure(PACK, look, presentation="man").px)
-        del pack["presentations"]
-        check_pack(pack)
-        self.assertEqual(art.figure(pack, look).px, art.figure(PACK, look).px)
-        with self.assertRaisesRegex(PackError, "unknown presentation"):
-            art.figure(pack, look, presentation="man")
+                keepsake.figure(pack, look, skin=invalid)
 
     def test_export_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -267,19 +161,15 @@ class Packs(unittest.TestCase):
             art.export_pack(path)
             self.assertEqual(load_pack(path), art.default_pack())
 
-    def test_one_replaceable_face_ramp_reaches_every_costume(self):
-        from tinkerprint.art._colors import SKIN_KEYS
-        pack = copy.deepcopy(PACK)
-        custom = ["#ebbc8a", "#ae7555", "#78514d", "#473747"]
-        pack["skin_colors"] = custom
-        check_pack(pack)
-        for set_name in SETS:
-            looks = [look for _, look, _ in class_looks(set_name)]
-            looks.append(look_for(set_name, None, [], []))
-            for look in looks:
-                ink = art.compose.palette(pack, look)
-                self.assertEqual([ink[k] for k in SKIN_KEYS], custom)
-                self.assertIn(custom[0], art.portrait(pack, look).colors(), look)
+    def test_a_version_2_pack_still_loads_and_its_sprite_parts_are_ignored(self):
+        old = copy.deepcopy(PACK)
+        old["version"] = 2
+        old.update(canvas=[48, 48], parts={"base": {"at": [0, 0], "rows": ["."]}}, familiars={"claude": "base"},
+                   presentations={}, ink={"k": "#000000"}, edges={})
+        old["sets"]["builder"].update(studio="blue-studio", wall="#000000")
+        check_pack(old)
+        look = look_for("builder", "specialist", ["Logic"], ["Logic"])
+        self.assertEqual(keepsake.plate(old, look, "Rae Quill").px, keepsake.plate(PACK, look, "Rae Quill").px)
 
     def test_bad_packs_are_refused(self):
         def broken(fn):
@@ -287,49 +177,51 @@ class Packs(unittest.TestCase):
             fn(p)
             return p
         cases = [
-            lambda p: p["ink"].__setitem__("k", '"/><text>hi</text>'),
+            lambda p: p.update(version=1),
+            lambda p: p.update(version="3"),
+            lambda p: p.pop("skin_colors"),
             lambda p: p["stat_colors"].__setitem__("Logic", ["#000000"]),
-            lambda p: p["parts"]["base"]["rows"].__setitem__(0, "?" * 14),
-            lambda p: p["parts"]["base"]["rows"].__setitem__(0, "..."),
-            lambda p: p["looks"]["Tools"].__setitem__("item", "missing"),
-            lambda p: p["icons"].pop("founder"),
-            lambda p: p["parts"].__setitem__("Bad Name", {"at": [0, 0], "rows": ["."]}),
-            lambda p: p["ink"].__setitem__("A", "#000000"),
-            lambda p: p.update(mixed_gear_only="true"),
-            lambda p: p.update(presentations=[]),
-            lambda p: p["presentations"].update(neutral={}),
-            lambda p: p["presentations"]["man"].pop("base"),
-            lambda p: p["presentations"]["woman"].update(base="missing-head"),
-            lambda p: p["parts"]["base"].update(seam=1),
+            lambda p: p["stat_colors"].__setitem__("Logic", ['"/><text>hi</text>', "#000000", "#000000", "#000000"]),
+            lambda p: p["stat_colors"].pop("Lore"),
+            lambda p: p.update(wanderer_colors=["#ffffff", "#cccccc", "#999999"]),
             lambda p: p.update(skin_colors=["#cccccc"]),
             lambda p: p.update(skin_colors=["#ffffff", "blue", "#888888", "#555555"]),
-            lambda p: p["parts"]["base"].update(palette={"@": "#000000"}),
+            lambda p: p["sets"]["builder"].__setitem__("wall2", "red"),
+            lambda p: p["sets"]["builder"].__setitem__("scene", "moon"),
+            lambda p: p["sets"].pop("tinkerer"),
+            lambda p: p["looks"]["Tools"].__setitem__("item", "missing"),
+            lambda p: p["looks"]["Tools"].__setitem__("hat", "<script>"),
             lambda p: p["looks"]["Lore"].__setitem__("gear", "missing"),
-            lambda p: p["edges"].__setitem__("#112233", ["red", "#ffffff"]),
-            lambda p: p["parts"]["scope"].__setitem__("offset", "left"),
-            lambda p: p["parts"]["crook"].__setitem__("sleeve", "missing"),
-            lambda p: p["sets"]["builder"].__setitem__("studio", "missing"),
+            lambda p: p["looks"].pop("Art"),
+            lambda p: p["generalist"].__setitem__("body", "missing"),
+            lambda p: p["icons"].pop("founder"),
+            lambda p: p["icons"].__setitem__("founder", "missing"),
+            lambda p: p.update(looks=[]),
         ]
-        for fn in cases:
-            with self.assertRaises(PackError):
+        for i, fn in enumerate(cases):
+            with self.assertRaises(PackError, msg=i):
                 check_pack(broken(fn))
 
-    def test_a_pack_changes_pixels_only(self):
-        p = copy.deepcopy(PACK)
-        p["stat_colors"]["Logic"] = ["#ffffff", "#cccccc", "#999999"]
-        check_pack(p)
+    def test_a_pack_recolors_and_reassigns_pieces(self):
         look = look_for("builder", "specialist", ["Logic"], ["Logic"])
-        self.assertNotEqual(art.portrait(p, look).svg(), art.portrait(PACK, look).svg())
-
-
-    def test_custom_part_names_and_pack_metadata_stay_out_of_the_gallery(self):
         p = copy.deepcopy(PACK)
-        marker = "private-part-label"
+        p["stat_colors"]["Logic"] = ["#ffffff", "#cccccc", "#999999", "#666666"]
+        check_pack(p)
+        self.assertNotEqual(keepsake.figure(p, look).px, keepsake.figure(PACK, look).px)
+        self.assertIn("#cccccc", keepsake.figure(p, look).colors())
+        p = copy.deepcopy(PACK)
+        p["looks"]["Logic"]["item"] = PACK["looks"]["Tools"]["item"]
+        check_pack(p)
+        self.assertNotEqual(keepsake.figure(p, look).px, keepsake.figure(PACK, look).px)
+        p = copy.deepcopy(PACK)
+        p["icons"]["founder"] = "star"
+        check_pack(p)
+        self.assertEqual(keepsake.pin(p, "founder").px, keepsake.pin(PACK, "milestone").px)
+
+    def test_pack_names_stay_out_of_the_gallery(self):
+        p = copy.deepcopy(PACK)
+        marker = "private-pack-label"
         p["name"] = marker
-        p["parts"][marker] = p["parts"].pop(p["familiars"]["claude"])
-        p["familiars"]["claude"] = marker
-        p["looks"][marker] = p["looks"]["Tools"]
-        p["presentations"][marker] = p["presentations"]["woman"]
         check_pack(p)
         with tempfile.TemporaryDirectory() as folder:
             path = write_gallery(folder, p)[0]
@@ -416,26 +308,28 @@ class Built(unittest.TestCase):
         self.assertNotEqual(render_card(card), before)
 
     def test_level_seal_clears_the_figure_in_both_orders_of_every_pair(self):
-        from tinkerprint.render_card import PX, PY
+        from tinkerprint.render_card import PX, PY, portrait_box
 
         card = render_card(self.out["wren"]["sheet"]["card"])
         seal = re.search(r'<circle cx="(\d+)" cy="(\d+)" r="(\d+)"[^>]+/>\s*'
                          r'<circle[^>]+fill="url\(#seal\)"', card)
         self.assertIsNotNone(seal)
         cx, cy, radius = map(int, seal.groups())
+        scale, pad, _ = portrait_box()
         covered = []
-        # Each 4 px square begins inside the portrait frame's 4 px padding.
-        for y in range(48):
-            for x in range(48):
-                left, top = PX + 4 + 4 * x, PY + 4 + 4 * y
-                dx = max(left - cx, cx - left - 4, 0)
-                dy = max(top - cy, cy - top - 4, 0)
+        # Each pixel of the 64-pixel plate is a scale-sized square inside the frame's padding.
+        for y in range(64):
+            for x in range(64):
+                left, top = PX + pad + scale * x, PY + pad + scale * y
+                dx = max(left - cx, cx - left - scale, 0)
+                dy = max(top - cy, cy - top - scale, 0)
                 if dx * dx + dy * dy < radius * radius:
                     covered.append((x, y))
+        self.assertTrue(covered)
         for set_name, stats in SETS.items():
             for top in stats:
                 for item in stats:
-                    fig = art.figure(PACK, Look(set_name, "pair", top, item))
+                    fig = keepsake.figure(PACK, Look(set_name, "pair", top, item))
                     self.assertFalse(any(fig.get(x, y) for x, y in covered), (top, item))
 
     def test_long_names_stay_clear_of_the_radar(self):

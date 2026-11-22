@@ -101,6 +101,23 @@ class AuditExit(unittest.TestCase):
         self.assertFalse(clean)
         self.assertIn("no longer allows a card", lines[-1])
 
+    def test_a_card_built_with_a_pack_is_certified_with_that_pack(self):
+        import json
+        from tinkerprint.art import default_pack
+        pack = default_pack()
+        pack["stat_colors"]["Systems"] = ["#f4f0e8", "#c8b8d0", "#8a7090", "#4a3858"]
+        pack_path = os.path.join(self.t.name, "pack.json")
+        with open(pack_path, "w") as f:
+            json.dump(pack, f)
+        out = os.path.join(self.t.name, "packed")
+        build(self.prof, out, home=os.path.join(self.t.name, "data3"), today=date(2026, 11, 1), pack=pack)
+        self.out = out
+        code, text = self.cli()
+        self.assertEqual(code, 1)
+        self.assertIn("--art-pack", text)
+        code, text = self.cli("--art-pack", pack_path)
+        self.assertEqual(code, 0, text)
+
 
 if __name__ == "__main__":
     unittest.main()

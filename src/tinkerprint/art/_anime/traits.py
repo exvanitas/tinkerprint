@@ -41,7 +41,7 @@ def keepsake_traits(seed: str, look=None, presentation="neutral") -> dict:
     their face, cut and eyes when their class changes."""
     if not isinstance(seed, str):
         raise TypeError("seed must be a string")
-    if presentation not in HAIRSTYLES:
+    if not isinstance(presentation, str) or presentation not in HAIRSTYLES:
         raise PackError(f"unknown presentation {presentation!r}")
     return {"expression": _pick(seed, "expression", EXPRESSIONS),
             "hair": _pick(seed, "hair", HAIRSTYLES[presentation]),

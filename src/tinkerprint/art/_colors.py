@@ -32,18 +32,8 @@ STAT_KEYS = {
     'Lore': '8qp9', 'Community': 'eygG',
 }
 WANDERER = 'eaol'
-SKIN_KEYS = '@+:~'
 
 
 def ramp(keys):
     return [INK[k] for k in keys]
 
-
-# Nearest cool edge on a lit side, and the edge in shadow. Each color is in the master table.
-EDGE_GROUPS = (
-    ('PLOloaewcSGgyhirR0x<>', 'O', 'P'),
-    ('fnNMsmIEDK=', 'n', 'f'),
-    ('Jjtvubz', 'j', 'J'), ('1234', '2', '1'), ('5678()', '6', '5'),
-    ('9pqQ', 'p', '9'), ('kd', 'P', 'k'),
-)
-EDGES = {INK[k]: [INK[light], INK[dark]] for keys, light, dark in EDGE_GROUPS for k in keys}

@@ -1,17 +1,12 @@
-"""Compose pictures from a pack: portraits, familiars, icons, shelf trinkets and the banner scene.
+"""What a picture shows: the look a class gives, the stat ranking the art uses, and the pack's colors.
 
-Everything here is a pure function of its arguments. The only variation is a counter-mode
-SHA-256 stream seeded from sheet fields, so the same sheet always gives the same pixels.
+Everything here is a pure function of its arguments. The drawings themselves are in keepsake.
 """
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 
 from ..sets import GENERALIST, PAIR, SPECIALIST, stats_of
-from .pixels import Canvas, mix
-from ._colors import SKIN_KEYS
-from .pack import PackError, check_skin
 
 
 @dataclass(frozen=True)
@@ -22,11 +17,6 @@ class Look:
     top: str | None           # outfit
     item: str | None          # held item
     trim: tuple = ()          # multiclass stats, cape then hem
-
-
-def pct5(share: float) -> int:
-    """The card's rounding: under 5% is 0, the rest round to the nearest 5%."""
-    return 0 if share < 0.05 else int(round(share * 20)) * 5
 
 
 def art_rank(pcts: dict, set_name: str) -> list:
@@ -71,26 +61,20 @@ def class_by_name(set_name: str, name: str):
     return _BY_NAME.get(set_name, {}).get(name)
 
 
-# ------------------------------------------------------------------ palettes
-
 def _ramp(pack, stat):
     return pack["stat_colors"].get(stat) or pack["wanderer_colors"]
 
 
 def palette(pack: dict, look: Look | None = None) -> dict:
-    pal = dict(pack["ink"])
-    if pack.get("version") == 2 and "skin_colors" in pack:
-        pal.update(zip(SKIN_KEYS, pack["skin_colors"]))
+    """The figure's dyes: A B C F the outfit, X Y Z H the equipment, T U the cape, V W its hem."""
     if look and look.kind in ("specialist", "pair"):
         a = _ramp(pack, look.top)
         x = _ramp(pack, look.item)
     else:
         a = pack["wanderer_colors"]
         x = _ramp(pack, look.top) if look and look.top else a
-    pal.update(zip("ABC", a))
-    pal.update(zip("XYZ", x))
-    if pack.get("version") == 2:
-        pal.update(F=a[-1], H=x[-1])
+    pal = dict(zip("ABCF", a))
+    pal.update(zip("XYZH", x))
     trim = look.trim if look else ()
     t = _ramp(pack, trim[0]) if trim else a
     v = _ramp(pack, trim[1]) if len(trim) > 1 else t
@@ -98,184 +82,8 @@ def palette(pack: dict, look: Look | None = None) -> dict:
     return pal
 
 
-def _stamp(c: Canvas, pack: dict, name: str, pal: dict, dx: int = 0, dy: int = 0) -> None:
-    part = pack["parts"][name]
-    p = dict(pal, **part.get("palette", {}))
-    x0, y0 = part["at"][0] + dx, part["at"][1] + dy
-    rows = part["rows"]
-    if part.get("seam"):
-        # Ink the contact edge only where the new layer crosses existing paint.
-        # Outside the figure, the final material contour supplies its own light.
-        for y, row in enumerate(rows):
-            for x, key in enumerate(row):
-                if key in ". ":
-                    continue
-                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if 0 <= ny < len(rows) and 0 <= nx < len(row) and rows[ny][nx] not in ". ":
-                        continue
-                    if c.get(x0 + nx, y0 + ny) is not None:
-                        c.set(x0 + nx, y0 + ny, pack["outline"])
-    c.stamp(rows, p, x0, y0)
-
-
-# ------------------------------------------------------------------ portrait
-
-def figure(pack: dict, look: Look, *, skin=None, presentation: str = "neutral") -> Canvas:
-    """The dressed figure on a clear canvas, with the tools registered to its pose."""
-    w, h = pack["canvas"]
-    c = Canvas(w, h)
-    pal = palette(pack, look)
-    heads = {}
-    if presentation != "neutral":
-        choices = pack.get("presentations", {})
-        if not isinstance(presentation, str) or presentation not in choices:
-            raise PackError(f"unknown presentation {presentation!r}")
-        heads = choices[presentation]
-    if skin is not None:
-        if "skin_colors" not in pack or pack.get("version") != 2:
-            raise PackError("a skin override needs a pack with skin_colors")
-        check_skin(skin)
-        pal.update(zip(SKIN_KEYS, skin))
-    if pack.get("version") == 2:
-        costume = pack["looks"][look.top] if look.kind in ("specialist", "pair") else pack["generalist"]
-        if look.trim:
-            _stamp(c, pack, "cape", pal)
-        if look.kind == "generalist":
-            _stamp(c, pack, costume["back"], pal)
-        _stamp(c, pack, costume["body"], pal)
-        if look.item and (look.item != look.top or not pack.get("mixed_gear_only")):
-            _stamp(c, pack, pack["looks"][look.item]["gear"], pal, *costume["shoulder"])
-        dx, dy = (a - b for a, b in zip(costume["grip"], pack["hand"]))
-        if look.kind:
-            item = pack["looks"][look.item]["item"] if look.item else costume["item"]
-            equipment = pack["parts"][item]
-            _stamp(c, pack, equipment["sleeve"], pal, dx, dy)
-        else:
-            _stamp(c, pack, "idle", pal, dx, dy)
-        head = costume["hat"] if look.kind else "base"
-        _stamp(c, pack, heads.get(head, head), pal)
-        if look.kind:
-            dx += equipment["offset"][0]
-            dy += equipment["offset"][1]
-            _stamp(c, pack, item, pal, dx, dy)
-            if not pack["parts"][item].get("cover"):
-                _stamp(c, pack, "hand", pal, dx, dy)
-        return c.material_edges(pack["edges"], pack["outline"])
-    if look.kind in ("specialist", "pair"):
-        parts = pack["looks"]
-        hat, body = parts[look.top]["hat"], parts[look.top]["body"]
-        item = parts[look.item]["item"]
-        back = None
-    else:
-        g = pack["generalist"]
-        hat, body, item = g["hat"], g["body"], (g["item"] if look.kind else None)
-        back = g["back"] if look.kind else None
-    if look.trim:
-        _stamp(c, pack, "cape", pal)
-    if back:
-        _stamp(c, pack, back, pal)
-    _stamp(c, pack, "base", pal)
-    _stamp(c, pack, body, pal)
-    _stamp(c, pack, hat, pal)
-    if item:
-        _stamp(c, pack, item, pal)
-        if not pack["parts"][item].get("cover"):
-            _stamp(c, pack, "hand", pal)
-    return c.outline(pack["outline"])
-
-
-def plate(pack: dict, set_name: str, w: int | None = None, h: int | None = None) -> Canvas:
-    sp = pack["sets"][set_name]
-    w, h = w or pack["canvas"][0], h or pack["canvas"][1]
-    c = Canvas(w, h, sp["plate"])
-    if pack.get("version") == 2:
-        _stamp(c, pack, sp["scene"], palette(pack))
-        return c
-    c.rect(0, h - 5, w, 5, sp["floor"])
-    shade = mix(sp["floor"], "#000000", 0.35)
-    c.rect(10, h - 4, 12, 1, shade)
-    c.rect(8, h - 3, 16, 1, shade)
-    return c
-
-
-def portrait(pack: dict, look: Look, scene: bool = True, *, skin=None, presentation: str = "neutral") -> Canvas:
-    fig = figure(pack, look, skin=skin, presentation=presentation)
-    if not scene:
-        return fig
-    c = plate(pack, look.set_name)
-    c.paste(fig, 0, 0 if pack.get("version") == 2 else 1)
-    return c
-
-
-# ------------------------------------------------------------------ small sprites
-
-def sprite(pack: dict, name: str, pal: dict | None = None) -> Canvas:
-    """A part on its own canvas with a one-pixel margin, outlined."""
-    part = pack["parts"][name]
-    rows = part["rows"]
-    c = Canvas(len(rows[0]) + 2, len(rows) + 2)
-    p = palette(pack)
-    p.update(pal or {})
-    p.update(part.get("palette", {}))
-    c.stamp(rows, p, 1, 1)
-    if pack.get("version") == 2:
-        return c.material_edges(pack["edges"], pack["outline"])
-    return c.outline(pack["outline"])
-
-
-def familiar(pack: dict, harness: str) -> Canvas:
-    fam = pack["familiars"]
-    return sprite(pack, fam.get(harness) or fam["default"])
-
-
-def icon(pack: dict, achievement: str) -> Canvas:
-    ic = pack["icons"]
-    return sprite(pack, ic.get(achievement) or ic["milestone"])
-
-
-def trinket(pack: dict, stat: str) -> Canvas:
-    x = _ramp(pack, stat)
-    pal = dict(zip("XYZ", x))
-    if pack.get("version") == 2:
-        pal["H"] = x[-1]
-    return sprite(pack, pack["looks"][stat]["trinket"], pal)
-
-
-def campfire(pack: dict) -> Canvas:
-    return sprite(pack, "campfire")
-
-
-# ------------------------------------------------------------------ banner
-
-class Stream:
-    """Deterministic choices from a seed string: SHA-256 in counter mode."""
-
-    def __init__(self, seed: str):
-        self.seed = seed.encode("utf-8")
-        self.n = 0
-        self.buf = b""
-
-    def byte(self) -> int:
-        if not self.buf:
-            self.buf = hashlib.sha256(self.seed + self.n.to_bytes(8, "big")).digest()
-            self.n += 1
-        b, self.buf = self.buf[0], self.buf[1:]
-        return b
-
-    def below(self, n: int) -> int:
-        return (self.byte() * 256 + self.byte()) % n
-
-    def shuffle(self, xs: list) -> list:
-        xs = list(xs)
-        for i in range(len(xs) - 1, 0, -1):
-            j = self.below(i + 1)
-            xs[i], xs[j] = xs[j], xs[i]
-        return xs
-
-
-BANNER_W, BANNER_H = 224, 48
-SHELF_SLOTS = [(44 + 9 * i, 17) for i in range(4)] + [(158 + 9 * i, 11) for i in range(7)] + \
-              [(158 + 9 * i, 25) for i in range(7)]
+# The room's case has 18 cubbies.
+CUBBIES = 18
 
 
 def shelf_counts(ranked_pcts: list, slots: int = 16) -> list:
@@ -288,7 +96,7 @@ def shelf_counts(ranked_pcts: list, slots: int = 16) -> list:
     total = 0
     trimmed = []
     for stat, n in out:
-        n = min(n, len(SHELF_SLOTS) - total)
+        n = min(n, CUBBIES - total)
         if n <= 0:
             break
         trimmed.append((stat, n))
@@ -296,162 +104,11 @@ def shelf_counts(ranked_pcts: list, slots: int = 16) -> list:
     return trimmed
 
 
-def banner_figure_box(pack: dict, fig: Canvas) -> tuple:
-    """Where banner() pastes the figure: (x, y) on the banner canvas."""
-    if pack.get("version") == 2:
-        return 116 - fig.w // 2, 65 - fig.h + fig.h // 10
-    return 88, 13
+def banner_figure_box(pack: dict, fig) -> tuple:
+    """Where the room places the figure: (x, y) on the 252 x 72 banner."""
+    return 116 - fig.w // 2, 65 - fig.h + fig.h // 10
 
 
 def stat_ramp(pack: dict, stat: str) -> list:
     """A stat's four colors, highlight to deep shadow. The sheet and card tint each stat with them."""
     return list(_ramp(pack, stat))
-
-
-def banner(pack: dict, look: Look, ranked_pcts: list, harnesses: list, seed: str,
-           with_figure: bool = True) -> Canvas:
-    """A workshop: shelves hold trinkets for the strongest stats, the figure stands on a rug in its
-    top stat's colors, and each party harness sends its familiar. With with_figure=False a version 2
-    pack leaves the rug empty, so a page can layer the figure (and a close-call costume) on top."""
-    sp = pack["sets"][look.set_name]
-    rng = Stream("banner|" + seed)
-    if pack.get("version") == 2:
-        pal = palette(pack, look)
-        c = Canvas(252, 72, sp["wall"])
-        _stamp(c, pack, sp["studio"], pal)
-        _stamp(c, pack, "standard", pal)
-        _stamp(c, pack, "runner", pal)
-        # Give each trade a space before using spare cubbies for stock.
-        positions = [(x, y) for y in (19, 34) for x in (200, 211, 222, 233)]
-        stock = [stat for stat, pct in ranked_pcts if pct > 0][:len(positions)]
-        multiple = [stat for stat, pct in ranked_pcts if pct >= 25]
-        stock += multiple[:len(positions) - len(stock)]
-        for stat, (x, y) in zip(stock, rng.shuffle(positions)):
-            token = trinket(pack, stat)
-            c.paste(token, x, y - token.h)
-        if with_figure:
-            fig = figure(pack, look)
-            c.paste(fig, *banner_figure_box(pack, fig))
-        x = 143
-        for harness in harnesses[:3]:
-            f = familiar(pack, harness)
-            ground = 67 + rng.below(2)
-            c.rect(x + 3, ground, max(2, f.w - 5), 1, sp["board2"])
-            c.paste(f, x, ground - f.h + 1)
-            x += f.w + 3
-        return c
-    W, H = BANNER_W, BANNER_H
-    c = Canvas(W, H, sp["wall"])
-    # Wall: stone courses for the builder set, planks for the tinkerer set.
-    if look.set_name == "builder":
-        for y in range(3, 40, 6):
-            c.rect(0, y, W, 1, sp["mortar"])
-            off = 0 if (y // 6) % 2 else 8
-            for x in range(off, W, 16):
-                c.rect(x, y + 1, 1, 5, sp["mortar"])
-            for x in range(off + 3, W, 16):
-                if rng.below(5) == 0:
-                    c.rect(x, y + 2, 6, 3, sp["wall2"])
-    else:
-        for x in range(0, W, 9):
-            c.rect(x, 0, 1, 40, sp["mortar"])
-            for y in (6, 30):
-                c.set(x + 2, y + rng.below(3), sp["wall2"])
-            if rng.below(3) == 0:
-                c.rect(x + 3, 8 + rng.below(20), 3, 1, sp["wall2"])
-    c.rect(0, 0, W, 3, sp["board2"])
-    c.rect(0, 2, W, 1, mix(sp["board2"], "#000000", 0.3))
-    # Floor.
-    c.rect(0, 40, W, 8, sp["board"])
-    c.rect(0, 40, W, 1, mix(sp["board"], "#ffffff", 0.15))
-    for y in (43, 46):
-        c.rect(0, y, W, 1, sp["board2"])
-    for x in range(5, W, 23):
-        c.rect(x + rng.below(6), 41 + 3 * rng.below(2), 1, 2, sp["board2"])
-    # Window with a night sky.
-    _window(c, pack, rng, 8, 7)
-    # Shelves and trinkets.
-    _shelf(c, pack, 42, 18, 38, sp)
-    _shelf(c, pack, 156, 12, 65, sp)
-    _shelf(c, pack, 156, 26, 65, sp)
-    stock = []
-    for stat, n in shelf_counts(ranked_pcts):
-        stock += [stat] * n
-    slots = rng.shuffle(range(len(SHELF_SLOTS)))[:len(stock)]
-    for stat, slot in zip(stock, sorted(slots)):
-        x, y = SHELF_SLOTS[slot]
-        t = trinket(pack, stat)
-        c.paste(t, x - 1, y - 9)
-    # Workbench with the top stat's trinket.
-    _bench(c, pack, 44, 32, sp)
-    if ranked_pcts:
-        c.paste(trinket(pack, ranked_pcts[0][0]), 52, 23)
-    if len(ranked_pcts) > 1:
-        c.paste(trinket(pack, ranked_pcts[1][0]), 62, 23)
-    # Rug in the top stat's colors, then the figure.
-    rug = _ramp(pack, look.top) if look.top else pack["wanderer_colors"]
-    c.rect(88, 41, 32, 3, rug[1])
-    c.rect(86, 42, 36, 1, rug[1])
-    c.rect(90, 42, 28, 1, rug[0])
-    for x in range(88, 120, 3):
-        c.set(x, 41, rug[2])
-        c.set(x + 1, 43, rug[2])
-    if with_figure:
-        fig = figure(pack, look)
-        c.paste(fig, *banner_figure_box(pack, fig))
-    _pennant(c, pack, 134, 5, rug, _ramp(pack, look.item) if look.item else rug)
-    # Familiars on the floor in front, right of the figure.
-    x = 124
-    for h in harnesses[:3]:
-        f = familiar(pack, h)
-        c.paste(f, x, 46 - f.h + 1)
-        x += f.w + 1
-    return c
-
-
-def _window(c, pack, rng, x0, y0):
-    w, h = 24, 22
-    frame, dark = "#7d5432", "#5a3a22"
-    c.rect(x0 - 2, y0 - 2, w + 4, h + 4, dark)
-    c.rect(x0 - 1, y0 - 1, w + 2, h + 2, frame)
-    for j in range(h):
-        c.rect(x0, y0 + j, w, 1, mix("#16213d", "#3a4f80", j / h))
-    for _ in range(9):
-        c.set(x0 + rng.below(w), y0 + rng.below(h - 4), "#fff3c2")
-    c.rect(x0 + 15, y0 + 3, 4, 4, "#f4ecc8")
-    c.rect(x0 + 14, y0 + 4, 1, 2, "#f4ecc8")
-    c.rect(x0 + 16, y0 + 3, 2, 1, "#ffffff")
-    c.rect(x0 + 17, y0 + 4, 2, 2, mix("#f4ecc8", "#3a4f80", 0.5))
-    c.rect(x0 + w // 2, y0, 1, h, frame)
-    c.rect(x0, y0 + h // 2, w, 1, frame)
-    c.rect(x0 - 3, y0 + h + 1, w + 6, 2, "#9a6a42")
-
-
-def _pennant(c, pack, x, y, ramp, accent):
-    """A wall hanging in the top stat's colors with the runner-up's diamond."""
-    c.rect(x - 1, y, 14, 1, "#7d5432")
-    c.set(x + 6, y - 1, "#7d5432")
-    for j in range(14):
-        inset = max(0, j - 9)
-        c.rect(x + inset, y + 1 + j, 12 - 2 * inset, 1, ramp[1])
-        c.set(x + inset, y + 1 + j, ramp[0])
-        c.set(x + 11 - inset, y + 1 + j, ramp[2])
-    for j, w in enumerate((2, 4, 6, 4, 2)):
-        c.rect(x + 6 - w // 2, y + 4 + j, w, 1, accent[0] if j < 2 else accent[1])
-    c.rect(x, y + 1, 12, 1, "#f7cf5a")
-
-
-def _shelf(c, pack, x, y, w, sp):
-    c.rect(x, y, w, 2, "#a8744a")
-    c.rect(x, y + 1, w, 1, "#6e472c")
-    for bx in (x + 3, x + w - 5):
-        c.rect(bx, y + 2, 2, 1, "#6e472c")
-        c.set(bx + 1, y + 3, "#6e472c")
-
-
-def _bench(c, pack, x, y, sp):
-    c.rect(x, y, 32, 2, "#c08a55")
-    c.rect(x, y + 2, 32, 1, "#7d5432")
-    for lx in (x + 2, x + 27):
-        c.rect(lx, y + 3, 3, 6, "#7d5432")
-    c.rect(x + 2, y + 6, 28, 1, "#7d5432")

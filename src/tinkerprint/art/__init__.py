@@ -1,19 +1,18 @@
-"""Generated pixel art: portraits, party instruments, achievement pins, a banner and the chronicle strip.
+"""Generated pixel art, drawn by keepsake: the room, portraits, party instruments, pins, trinkets and camps.
 
-Parts are data (see default_pack.py and docs/ART.md). The sheet's art reads sheet.json. The card's
-art reads only the card's allowlisted fields: name, set, class, multiclass, rounded shares and the
-look tokens. keepsake is the half-body edition: plates, camps, pins, trinkets and instruments.
+A pack (see default_pack.py and docs/ART.md) holds the colors and which named piece each trade wears.
+The sheet's art reads sheet.json. The card's art reads only the card's allowlisted fields: name, set,
+class, multiclass, rounded shares and the look tokens.
 """
 from __future__ import annotations
 
 from ..classes import card_pct
-from .compose import (Look, art_rank, banner, banner_figure_box, campfire, class_by_name, familiar, figure, icon, look_for, plate,
-                      portrait, shelf_counts, stat_ramp, trinket)
+from .compose import Look, art_rank, banner_figure_box, class_by_name, look_for, shelf_counts, stat_ramp
 from .pack import PackError, default_pack, export_pack, load_pack
 from . import keepsake
 
 __all__ = ["keepsake", "Look", "PackError", "default_pack", "export_pack", "load_pack", "sheet_looks", "card_look",
-           "art_rank", "banner", "banner_figure_box", "figure", "campfire", "familiar", "icon", "plate", "portrait", "shelf_counts", "stat_ramp", "trinket", "chapter_look", "sheet_pcts"]
+           "art_rank", "banner_figure_box", "look_for", "shelf_counts", "stat_ramp", "chapter_look", "sheet_pcts"]
 
 
 def sheet_pcts(sheet: dict) -> dict:

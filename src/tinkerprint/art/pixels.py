@@ -53,20 +53,6 @@ class Canvas:
                 if c is not None:
                     self.set(x + i, y + j, c)
 
-    def outline(self, color: str, corners: bool = False) -> "Canvas":
-        """Every clear pixel next to a drawn one takes the outline color."""
-        steps = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-        if corners:
-            steps += [(1, 1), (1, -1), (-1, 1), (-1, -1)]
-        marks = []
-        for y in range(self.h):
-            for x in range(self.w):
-                if self.px[y][x] is None and any(self.get(x + dx, y + dy) is not None for dx, dy in steps):
-                    marks.append((x, y))
-        for x, y in marks:
-            self.px[y][x] = color
-        return self
-
     def material_edges(self, edges: dict, fallback: str) -> "Canvas":
         """A one-pixel contour. Top and left edges borrow the lit material's line color."""
         marks = []
