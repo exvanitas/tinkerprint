@@ -4,17 +4,19 @@ Turn your git history and your coding-agent logs into an RPG stat sheet.
 
 Stats on a radar, a class from your two strongest stats with a pixel portrait to match, a level, a few dated achievements, a chronicle of your classes by quarter, and a party: the agents that worked beside you. It runs on your machine and reads only what is already there. Nothing is uploaded.
 
+![An invented tinkerer's workshop, idling: an engineer in goggles holds a spanner at the counter, a windmill stands beyond the window, and a lantern, a typewriter and an orrery stand in the case](docs/idle.gif)
+
 ## What it makes
 
 A private sheet, one HTML file per profile. Here are the demo's two invented people, a developer on the builder set and a tinkerer on the tinkerer set:
 
-![Sheet for Tobi Marsh, an invented developer: an alchemist in a lantern-lit workshop with a storm lantern and a typewriter as familiars, a nameplate with level seal, then the radar and stat cards](docs/tobi.png)
+![Sheet for Tobi Marsh, an invented developer: an alchemist in a blue hood at the counter of a workshop, with a telescope on the bench, a viaduct through the window, and a wick lantern and a typewriter, the party's instruments, in the case; below, a nameplate with level seal, then the build](docs/tobi.png)
 
-![Sheet for Wren Aldous, an invented tinkerer, in the dark theme](docs/wren.png)
+![Sheet for Wren Aldous, an invented tinkerer, in the dark theme: an engineer in goggles holding a spanner, a windmill through the window, and three party instruments in the case](docs/wren.png)
 
 And a share card, `card.png`, that carries only what you allow:
 
-![Share card for Tobi Marsh, an invented developer: Alchemist with Duelist as multiclass, level 15, a pixel portrait, top stats Logic 35%, Data 20%, Interface 15% and Tests 10%, four achievements by month, a radar, Claude Code and Codex in the party, and a footer naming tinkerprint](docs/card.png)
+![Share card for Tobi Marsh, an invented developer: Alchemist with Duelist as multiclass, level 15, a pixel portrait at a workshop window, top stats Logic 35%, Data 20%, Interface 15% and Tests 10%, four achievements by month, a radar, Claude Code and Codex in the party, and a footer naming tinkerprint](docs/card.png)
 
 ## Install
 
